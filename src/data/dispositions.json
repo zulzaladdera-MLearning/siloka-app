@@ -1,0 +1,27 @@
+[
+  {
+    "id": "DSP-001",
+    "letterId": "SRT-2026-001",
+    "nomorAgenda": "AGD-2026/09/0142",
+    "pemberiDisposisi": "Dr. Nana Sujana, Drs., M.Si. (Kepala Biro BUK)",
+    "penerimaDisposisi": "Sub Bagian Perencanaan Anggaran",
+    "sifatInstruksi": "Segera Ditindaklanjuti",
+    "instruksi": "Integrasikan ke dalam matriks DIPA UNSIL TA 2027 dan koordinasikan dengan WR II.",
+    "catatan": "Perhatikan prioritas IKU 1 s.d. 8 Kemendikbudristek.",
+    "status": "Dalam Proses",
+    "tanggalDisposisi": "06 Sep 2026, 17:00 WIB"
+  },
+  {
+    "id": "DSP-002",
+    "letterId": "SRT-2026-002",
+    "nomorAgenda": "AGD-2026/09/0148",
+    "pemberiDisposisi": "Dr. Nana Sujana, Drs., M.Si. (Kepala Biro BUK)",
+    "penerimaDisposisi": "Pejabat Pembuat Komitmen (PPK) Sarpras",
+    "sifatInstruksi": "Penting & Segera",
+    "instruksi": "Cek ketersediaan pagu pemeliharaan TIK dan segera koordinasi e-Purchasing.",
+    "catatan": "Kebutuhan server vital untuk akreditasi kampus Mugarsari.",
+    "status": "Menunggu Telaah",
+    "tanggalDisposisi": "07 Sep 2026, 09:30 WIB"
+  }
+]
+

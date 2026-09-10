@@ -1,0 +1,191 @@
+[
+  {
+    "id": 1,
+    "kode_unit": "UN58",
+    "nama_unit": "Universitas Siliwangi (Rektorat)",
+    "singkatan": "UNSIL",
+    "tipe_unit": "UNIVERSITAS",
+    "parent_kode": null,
+    "is_active": true
+  },
+  {
+    "id": 2,
+    "kode_unit": "UN58.SENAT",
+    "nama_unit": "Senat Universitas Siliwangi",
+    "singkatan": "SENAT",
+    "tipe_unit": "ORGAN",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 3,
+    "kode_unit": "UN58.SPI",
+    "nama_unit": "Satuan Pengawas Internal",
+    "singkatan": "SPI",
+    "tipe_unit": "ORGAN",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 4,
+    "kode_unit": "UN58.DP",
+    "nama_unit": "Dewan Penyantun",
+    "singkatan": "DP",
+    "tipe_unit": "ORGAN",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 5,
+    "kode_unit": "UN58.5",
+    "nama_unit": "Biro Akademik, Kemahasiswaan, Perencanaan, dan Kerja Sama",
+    "singkatan": "BAKPK",
+    "tipe_unit": "BIRO",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 6,
+    "kode_unit": "UN58.6",
+    "nama_unit": "Biro Keuangan dan Umum",
+    "singkatan": "BKU",
+    "tipe_unit": "BIRO",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 7,
+    "kode_unit": "UN58.10",
+    "nama_unit": "Fakultas Keguruan dan Ilmu Pendidikan",
+    "singkatan": "FKIP",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 8,
+    "kode_unit": "UN58.11",
+    "nama_unit": "Fakultas Ekonomi dan Bisnis",
+    "singkatan": "FEB",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 9,
+    "kode_unit": "UN58.12",
+    "nama_unit": "Fakultas Pertanian",
+    "singkatan": "FP",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 10,
+    "kode_unit": "UN58.13",
+    "nama_unit": "Fakultas Teknik",
+    "singkatan": "FT",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 11,
+    "kode_unit": "UN58.14",
+    "nama_unit": "Fakultas Ilmu Sosial dan Ilmu Politik",
+    "singkatan": "FISIP",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 12,
+    "kode_unit": "UN58.15",
+    "nama_unit": "Fakultas Ilmu Kesehatan",
+    "singkatan": "FIK",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 13,
+    "kode_unit": "UN58.16",
+    "nama_unit": "Fakultas Agama Islam",
+    "singkatan": "FAI",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 14,
+    "kode_unit": "UN58.17",
+    "nama_unit": "Program Pascasarjana",
+    "singkatan": "PASCA",
+    "tipe_unit": "FAKULTAS",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 15,
+    "kode_unit": "UN58.21",
+    "nama_unit": "Lembaga Penelitian dan Pengabdian kepada Masyarakat",
+    "singkatan": "LPPM",
+    "tipe_unit": "LEMBAGA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 16,
+    "kode_unit": "UN58.22",
+    "nama_unit": "Lembaga Penjaminan Mutu dan Pengembangan Pembelajaran",
+    "singkatan": "LPMPP",
+    "tipe_unit": "LEMBAGA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 17,
+    "kode_unit": "UN58.31",
+    "nama_unit": "Unit Penunjang Akademik Perpustakaan",
+    "singkatan": "UPA PERPUS",
+    "tipe_unit": "UPA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 18,
+    "kode_unit": "UN58.32",
+    "nama_unit": "Unit Penunjang Akademik Teknologi Informasi dan Komunikasi",
+    "singkatan": "UPA TIK",
+    "tipe_unit": "UPA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 19,
+    "kode_unit": "UN58.33",
+    "nama_unit": "Unit Penunjang Akademik Bahasa",
+    "singkatan": "UPA BAHASA",
+    "tipe_unit": "UPA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 20,
+    "kode_unit": "UN58.34",
+    "nama_unit": "Unit Penunjang Akademik Pengembangan Karier dan Kewirausahaan Mahasiswa",
+    "singkatan": "UPA PKKM",
+    "tipe_unit": "UPA",
+    "parent_kode": "UN58",
+    "is_active": true
+  },
+  {
+    "id": 21,
+    "kode_unit": "UN58.35",
+    "nama_unit": "Unit Penunjang Akademik Layanan Uji Kompetensi",
+    "singkatan": "UPA LUK",
+    "tipe_unit": "UPA",
+    "parent_kode": "UN58",
+    "is_active": true
+  }
+]

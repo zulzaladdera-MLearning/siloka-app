@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-slate-100 text-slate-900 min-h-screen antialiased font-sans;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+}
+
+/* Tipografi Naskah Dinas Resmi: 100% Times New Roman dengan Angka Rata Tegak (Lining Numbers) */
+.font-serif,
+.font-times,
+.a4-sheet,
+.a4-sheet p,
+.a4-sheet span,
+.a4-sheet td,
+.a4-sheet th,
+.a4-sheet div,
+.a4-sheet li {
+  font-family: "Times New Roman", "Tinos", Times, serif !important;
+}
+
+/* Pastikan nomor NIP, tanggal, dan nomor surat menggunakan angka lining rata baseline standar resmi */
+.font-serif,
+.font-times,
+.a4-sheet {
+  font-variant-numeric: lining-nums tabular-nums normal !important;
+  font-feature-settings: "lnum" 1, "tnum" 1 !important;
+}
+
+/* Custom sleek scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-400;
+}
+
+/* Global Image & Asset Protection (Anti-Save / Anti-Drag / Anti-Copy) */
+img, .protected-asset {
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+}
+
+/* Subtle pattern for executive background */
+.bg-unsil-pattern {
+  background-color: #064428;
+  background-image: radial-gradient(#085d37 1.5px, transparent 1.5px), radial-gradient(#042e1b 1.5px, #064428 1.5px);
+  background-size: 40px 40px;
+  background-position: 0 0, 20px 20px;
+}
+
+/* Print container hidden on screen */
+#siloka-print-root {
+  display: none;
+}
+
+/* Print styling for Official A4 Documents */
+@media print {
+  /* 1. Hide the entire React SPA interface so it leaves 0px blank gap */
+  #root {
+    display: none !important;
+  }
+
+  /* 2. Setup clean white A4 canvas */
+  html, body {
+    background: #ffffff !important;
+    color: #020617 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* 3. Display print container in standard document flow */
+  #siloka-print-root {
+    display: block !important;
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #ffffff !important;
+    visibility: visible !important;
+  }
+
+  #siloka-print-root * {
+    visibility: visible !important;
+  }
+
+  /* 4. Multi-page pagination rules (for SK & Lampiran 2-page print) */
+  .page-break,
+  .break-before-page,
+  [data-page-break="true"] {
+    page-break-before: always !important;
+    break-before: page !important;
+    display: block !important;
+    clear: both !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .a4-sheet {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    page-break-inside: auto;
+  }
+
+  /* Table formatting for clean printing */
+  table {
+    page-break-inside: auto;
+  }
+  tr {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+
+  .print\:hidden {
+    display: none !important;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 8mm 12mm 8mm 12mm;
+  }
+}
+
+
+

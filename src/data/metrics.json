@@ -1,0 +1,32 @@
+{
+  "suratMasuk": {
+    "total": 142,
+    "baruHariIni": 18,
+    "deltaPercent": 12.5,
+    "trend": "up",
+    "description": "Dibandingkan minggu lalu"
+  },
+  "antreanParafTte": {
+    "total": 24,
+    "urgentCount": 5,
+    "priorityLabel": "5 Memerlukan TTE Segera",
+    "trend": "warning",
+    "description": "Menunggu persetujuan pimpinan"
+  },
+  "pemberitahuanRetensi": {
+    "total": 38,
+    "inaktifSiapMusnah": 14,
+    "permanenCount": 24,
+    "trend": "neutral",
+    "description": "JRA Aktif Semester Genap 2026"
+  },
+  "brankasDigital": {
+    "totalDokumen": 856,
+    "totalAsetSertifikat": 64,
+    "storageUsedMb": 4120,
+    "storageLimitMb": 10240,
+    "syncStatus": "Tersinkronisasi Enkripsi AES-256",
+    "description": "Server BKU UNSIL On-Premise"
+  }
+}
+

@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" fill="none">
+  <defs>
+    <linearGradient id="unsilGold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FDE047" />
+      <stop offset="50%" stop-color="#EAB308" />
+      <stop offset="100%" stop-color="#CA8A04" />
+    </linearGradient>
+    <linearGradient id="unsilGreen" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#065F46" />
+      <stop offset="100%" stop-color="#022C22" />
+    </linearGradient>
+  </defs>
+  <!-- Outer Ring -->
+  <circle cx="50" cy="50" r="46" fill="url(#unsilGreen)" stroke="url(#unsilGold)" stroke-width="3.5" />
+  <!-- Inner Beaded Ring -->
+  <circle cx="50" cy="50" r="41" fill="none" stroke="#FDE047" stroke-width="1" stroke-dasharray="2.5,2.5" />
+  <!-- Five-pointed Lotus Base -->
+  <path d="M50 15 L58 35 L80 37 L63 51 L68 73 L50 61 L32 73 L37 51 L20 37 L42 35 Z" fill="#047857" stroke="url(#unsilGold)" stroke-width="1.5" />
+  <!-- Central Shield -->
+  <path d="M50 25 C62 25 68 34 68 50 C68 64 50 78 50 78 C50 78 32 64 32 50 C32 34 38 25 50 25 Z" fill="url(#unsilGold)" />
+  <path d="M50 28 C59 28 64 35 64 49 C64 60 50 73 50 73 C50 73 36 60 36 49 C36 35 41 28 50 28 Z" fill="#064E3B" />
+  <!-- Kujang / Torch Motif -->
+  <path d="M50 32 L53 44 C53 44 57 43 57 47 C57 51 51 52 51 58 L52 66 L48 66 L49 58 C49 52 43 51 43 47 C43 43 47 44 47 44 Z" fill="url(#unsilGold)" />
+  <circle cx="50" cy="35" r="2.5" fill="#FEF08A" />
+  <!-- Laurel / Wreath Base -->
+  <path d="M30 68 C38 75 62 75 70 68" stroke="#FDE047" stroke-width="2" stroke-linecap="round" fill="none" />
+</svg>
+
