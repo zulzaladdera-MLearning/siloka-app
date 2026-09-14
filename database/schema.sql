@@ -470,3 +470,28 @@ FROM naskah_dinas n
 JOIN master_unit_kerja u ON n.unit_kerja_id = u.kode_unit
 JOIN master_user usr ON n.created_by_user_id = usr.id;
 
+
+-- =============================================================================
+-- 14. TABEL EVENT LOG PROCESS MINING (Data Science & Bottleneck Detection)
+-- Standar: IEEE XES (Extensible Event Stream) / PM4Py / Disco / Celonis
+-- Dikelola Khusus oleh Unit Penunjang Akademik Teknologi Informasi & Komunikasi (UPA TIK)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS trx_process_log (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    case_id VARCHAR(100) NOT NULL,               -- Trace ID: Pengikat siklus naskah dinas (misal: 'SRT-2026-0871')
+    activity_name VARCHAR(150) NOT NULL,        -- Nama aktivitas baku terstandar (misal: 'Pengajuan Draf Surat')
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP, -- Waktu eksekusi aksi (presisi detik/milidetik ISO 8601)
+    resource_name VARCHAR(255) NOT NULL,        -- Aktor pengeksekusi: Nama Lengkap & Jabatan Kedinasan
+    resource_group VARCHAR(150) NOT NULL,       -- Kelompok sumber daya: Kode & Nama Unit Kerja (misal: 'UN58.10 - FKIP')
+    lifecycle_transition VARCHAR(50) NOT NULL DEFAULT 'COMPLETE', -- 'START', 'COMPLETE', 'SCHEDULE', 'SUSPEND', 'RESUME', 'ABORT'
+    metadata JSONB NULL,                         -- Atribut kontekstual (SLA, sifat, keamanan, tujuan, nomor agenda, TTE)
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Indeks performa query penambangan proses (Process Discovery, Conformance Checking, Performance Analysis)
+CREATE INDEX IF NOT EXISTS idx_process_log_case_id ON trx_process_log(case_id);
+CREATE INDEX IF NOT EXISTS idx_process_log_activity ON trx_process_log(activity_name);
+CREATE INDEX IF NOT EXISTS idx_process_log_timestamp ON trx_process_log(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_process_log_resource_group ON trx_process_log(resource_group);
+CREATE INDEX IF NOT EXISTS idx_process_log_metadata_gin ON trx_process_log USING gin(metadata);
+

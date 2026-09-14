@@ -47,42 +47,42 @@ export const MetricCards = ({
   const storageUsedMb = 4120 + ((letters.length - 221) * 2.5);
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5 mb-8">
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-6 sm:mb-8">
       {/* 1. Surat Masuk Baru */}
       <div
         onClick={() => onSelectFilter && onSelectFilter('Surat Masuk')}
-        className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+        className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
           currentFilter === 'Surat Masuk'
             ? 'ring-2 ring-unsil-green-700 border-unsil-green-700'
             : 'border-slate-200/80 hover:border-unsil-green-600/50'
         }`}
       >
-        <div className="absolute top-0 right-0 w-24 h-24 bg-unsil-green-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+        <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-unsil-green-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
         <div className="relative z-10">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-lg bg-unsil-green-800 text-white flex items-center justify-center shadow-md shadow-unsil-green-950/20">
-              <Inbox className="w-5 h-5 text-unsil-gold-300" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-unsil-green-800 text-white flex items-center justify-center shadow-sm sm:shadow-md shadow-unsil-green-950/20">
+              <Inbox className="w-4 h-4 sm:w-5 sm:h-5 text-unsil-gold-300" />
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
-              <TrendingUp className="w-3 h-3" /> +12.5%
+            <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 sm:px-2 py-0.5 rounded-full border border-emerald-200">
+              <TrendingUp className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> +12%
             </span>
           </div>
 
-          <div className="mt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Surat Masuk Baru
+          <div className="mt-2.5 sm:mt-4">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
+              Surat Masuk
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold text-slate-900">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+              <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
                 {suratMasukTotal}
               </span>
-              <span className="text-xs font-medium text-emerald-600">
+              <span className="text-[10px] sm:text-xs font-medium text-emerald-600 truncate">
                 +{suratMasukBaruHariIni} hari ini
               </span>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
             <span>Dibandingkan minggu lalu</span>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-unsil-green-800 group-hover:translate-x-0.5 transition-all" />
           </div>
@@ -92,40 +92,40 @@ export const MetricCards = ({
       {/* 2. Antrean Paraf & TTE */}
       <div
         onClick={() => onSelectFilter && onSelectFilter('Diparaf')}
-        className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+        className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
           currentFilter === 'Diparaf'
             ? 'ring-2 ring-amber-600 border-amber-600'
             : 'border-slate-200/80 hover:border-amber-500/50'
         }`}
       >
-        <div className="absolute top-0 right-0 w-24 h-24 bg-amber-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+        <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-amber-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
         <div className="relative z-10">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-md shadow-amber-900/20">
-              <FileSignature className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-white flex items-center justify-center shadow-sm sm:shadow-md shadow-amber-900/20">
+              <FileSignature className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 animate-pulse">
-              <AlertCircle className="w-3 h-3" /> {urgentCount} Urgent
+            <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-rose-700 bg-rose-50 px-1.5 sm:px-2 py-0.5 rounded-full border border-rose-200 animate-pulse">
+              <AlertCircle className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> {urgentCount} Urgent
             </span>
           </div>
 
-          <div className="mt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Antrean Paraf / TTE
+          <div className="mt-2.5 sm:mt-4">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
+              Paraf / TTE
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold text-slate-900">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+              <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
                 {antreanTotal}
               </span>
-              <span className="text-xs font-medium text-amber-700">
+              <span className="text-[10px] sm:text-xs font-medium text-amber-700 truncate">
                 Menunggu
               </span>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
             <span className="text-amber-800 font-medium truncate">
-              {urgentCount > 0 ? `${urgentCount} Memerlukan TTE Segera` : 'Semua TTE Selesai Terproses'}
+              {urgentCount > 0 ? `${urgentCount} Memerlukan TTE Segera` : 'Semua TTE Selesai'}
             </span>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-amber-700 group-hover:translate-x-0.5 transition-all" />
           </div>
@@ -135,38 +135,38 @@ export const MetricCards = ({
       {/* 3. Pemberitahuan Retensi */}
       <div
         onClick={() => onSelectFilter && onSelectFilter('Diarsipkan')}
-        className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+        className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
           currentFilter === 'Diarsipkan'
             ? 'ring-2 ring-indigo-600 border-indigo-600'
             : 'border-slate-200/80 hover:border-indigo-500/50'
         }`}
       >
-        <div className="absolute top-0 right-0 w-24 h-24 bg-indigo-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+        <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-indigo-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
         <div className="relative z-10">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-900/20">
-              <Archive className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-indigo-600 text-white flex items-center justify-center shadow-sm sm:shadow-md shadow-indigo-900/20">
+              <Archive className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">
-              <Clock className="w-3 h-3" /> JRA 2026
+            <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 sm:px-2 py-0.5 rounded-full border border-indigo-200">
+              <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" /> JRA 2026
             </span>
           </div>
 
-          <div className="mt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Pemberitahuan Retensi
+          <div className="mt-2.5 sm:mt-4">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
+              Retensi Arsip
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold text-slate-900">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+              <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
                 {retensiTotal}
               </span>
-              <span className="text-xs font-medium text-indigo-600">
-                {inaktifSiapMusnah} siap musnah
+              <span className="text-[10px] sm:text-xs font-medium text-indigo-600 truncate">
+                {inaktifSiapMusnah} musnah
               </span>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
             <span>JRA Aktif Semester Genap 2026</span>
             <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-indigo-700 group-hover:translate-x-0.5 transition-all" />
           </div>
@@ -176,38 +176,38 @@ export const MetricCards = ({
       {/* 4. Brankas Digital */}
       <div
         onClick={() => onSelectFilter && onSelectFilter('Brankas')}
-        className={`bg-white rounded-xl p-5 border shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+        className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
           currentFilter === 'Brankas'
             ? 'ring-2 ring-emerald-600 border-emerald-600'
             : 'border-slate-200/80 hover:border-emerald-500/50'
         }`}
       >
-        <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+        <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
         <div className="relative z-10">
           <div className="flex items-center justify-between">
-            <div className="w-10 h-10 rounded-lg bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shadow-md shadow-unsil-green-950/20 border border-unsil-gold-500/40">
-              <Vault className="w-5 h-5" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shadow-sm sm:shadow-md shadow-unsil-green-950/20 border border-unsil-gold-500/40">
+              <Vault className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-2 py-0.5 rounded-full border border-emerald-300">
-              <ShieldCheck className="w-3 h-3 text-emerald-700" /> AES-256
+            <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-full border border-emerald-300">
+              <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-700" /> AES
             </span>
           </div>
 
-          <div className="mt-4">
-            <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+          <div className="mt-2.5 sm:mt-4">
+            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
               Brankas Digital
             </span>
-            <div className="flex items-baseline gap-2 mt-1">
-              <span className="text-3xl font-extrabold text-slate-900">
+            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+              <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
                 {brankasTotal}
               </span>
-              <span className="text-xs font-medium text-slate-600">
-                ({totalAsetBmn} Aset BMN)
+              <span className="text-[10px] sm:text-xs font-medium text-slate-600 truncate">
+                {totalAsetBmn} BMN
               </span>
             </div>
           </div>
 
-          <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
             <div className="flex items-center gap-1 text-slate-600">
               <HardDrive className="w-3 h-3" />
               <span>{(storageUsedMb / 1024).toFixed(1)} GB / 10 GB</span>

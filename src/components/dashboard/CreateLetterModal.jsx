@@ -110,7 +110,12 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
   const generateRandomSeq = () => String(Math.floor(100 + Math.random() * 900)).padStart(4, '0');
 
   // Mode Tampilan: 'split' (Form & Pratinjau berdampingan) | 'form' (Hanya Formulir) | 'preview' (Hanya Pratinjau A4)
-  const [viewMode, setViewMode] = useState('split');
+  const [viewMode, setViewMode] = useState(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      return 'form';
+    }
+    return 'split';
+  });
   const [selectedTemplateId, setSelectedTemplateId] = useState('surat-dinas');
 
   // Auto-fill kode unit berdasarkan unit kerja user yang login
@@ -264,42 +269,42 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
   }, [tembusanText]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
       <div
-        className={`bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 ${
+        className={`bg-white rounded-none sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col transition-all duration-300 ${
           viewMode === 'split'
-            ? 'w-full max-w-7xl h-[94vh]'
+            ? 'w-full max-w-7xl h-full sm:h-[94vh]'
             : viewMode === 'preview'
-            ? 'w-full max-w-4xl h-[94vh]'
-            : 'w-full max-w-3xl max-h-[92vh]'
+            ? 'w-full max-w-4xl h-full sm:h-[94vh]'
+            : 'w-full max-w-3xl h-full sm:max-h-[92vh]'
         }`}
       >
         {/* MODAL HEADER */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-unsil-green-950 text-white flex items-center justify-between shrink-0 shadow-md">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-unsil-gold-500/20 border border-unsil-gold-400/40 flex items-center justify-center shadow-inner">
-              <Plus className="w-5 h-5 text-unsil-gold-300" />
+        <div className="px-3.5 sm:px-5 py-2.5 sm:py-3.5 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-unsil-green-950 text-white flex items-center justify-between shrink-0 shadow-md">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-unsil-gold-500/20 border border-unsil-gold-400/40 flex items-center justify-center shadow-inner shrink-0">
+              <Plus className="w-4 h-4 sm:w-5 sm:h-5 text-unsil-gold-300" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                Registrasi & Pengendalian Surat (Modul Staf)
-                <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-800 text-emerald-100 border border-emerald-700">
+              <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 sm:gap-2">
+                <span className="truncate">Registrasi Surat</span>
+                <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-emerald-800 text-emerald-100 border border-emerald-700">
                   {activeUnitObj.singkatan}
                 </span>
               </h2>
-              <p className="text-[11px] text-emerald-200">
+              <p className="text-[10px] sm:text-[11px] text-emerald-200 hidden sm:block">
                 Formula Rumus Penomoran: [No]/UN58/[Unit]/[Klasifikasi]/[Tahun]
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2">
             {/* View Mode Switcher */}
-            <div className="hidden sm:flex items-center bg-unsil-green-900/80 p-1 rounded-lg border border-unsil-green-700/60 text-xs">
+            <div className="flex items-center bg-unsil-green-900/80 p-0.5 sm:p-1 rounded-lg border border-unsil-green-700/60 text-xs">
               <button
                 type="button"
                 onClick={() => setViewMode('split')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
                   viewMode === 'split'
                     ? 'bg-unsil-gold-500 text-unsil-green-950 shadow-xs'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
@@ -307,13 +312,13 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
                 title="Tampilan Berdampingan Formulir & Pratinjau A4"
               >
                 <Columns className="w-3.5 h-3.5" />
-                <span>Split View</span>
+                <span>Split</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewMode('form')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all ${
                   viewMode === 'form'
                     ? 'bg-unsil-gold-500 text-unsil-green-950 shadow-xs'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
@@ -321,13 +326,13 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
                 title="Tampilan Formulir Saja"
               >
                 <FileText className="w-3.5 h-3.5" />
-                <span>Formulir</span>
+                <span>Form</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setViewMode('preview')}
-                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1 rounded-md text-[11px] sm:text-xs font-semibold transition-all ${
                   viewMode === 'preview'
                     ? 'bg-unsil-gold-500 text-unsil-green-950 shadow-xs'
                     : 'text-emerald-100 hover:text-white hover:bg-white/10'
@@ -335,7 +340,7 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
                 title="Tampilan Pratinjau Kertas A4"
               >
                 <Eye className="w-3.5 h-3.5" />
-                <span>Pratinjau A4</span>
+                <span>Pratinjau</span>
               </button>
             </div>
 
@@ -343,7 +348,7 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-colors shadow-xs"
+              className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold border border-white/20 transition-colors shadow-xs"
               title="Cetak Langsung Lembar A4 (Ctrl+P)"
             >
               <Printer className="w-3.5 h-3.5 text-unsil-gold-300" />
@@ -746,7 +751,7 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
           {/* SISI KANAN: PRATINJAU LEMBAR KERTAS A4 */}
           {(viewMode === 'split' || viewMode === 'preview') && (
             <div
-              className={`flex-1 overflow-y-auto bg-slate-200/90 p-4 sm:p-8 flex justify-center items-start shadow-inner ${
+              className={`flex-1 overflow-y-auto overflow-x-auto bg-slate-200/90 p-2 sm:p-8 flex justify-center items-start shadow-inner ${
                 viewMode === 'split' ? 'w-full md:w-[54%]' : 'w-full'
               }`}
             >
@@ -950,26 +955,26 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
         </div>
 
         {/* MODAL FOOTER */}
-        <div className="px-6 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-          <div className="flex items-center gap-2 text-[11px] text-slate-500">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Format: <strong>{TEMPLATES.find((t) => t.id === selectedTemplateId)?.name}</strong></span>
-            <span className="text-slate-300">•</span>
-            <span>Nomor: <strong className="font-mono text-slate-800">{generatedNomorSurat}</strong></span>
+        <div className="px-3.5 sm:px-6 py-2.5 sm:py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-3 shrink-0">
+          <div className="flex items-center gap-2 text-[10px] sm:text-[11px] text-slate-500 overflow-hidden">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+            <span className="truncate">Format: <strong>{TEMPLATES.find((t) => t.id === selectedTemplateId)?.name}</strong></span>
+            <span className="text-slate-300 hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Nomor: <strong className="font-mono text-slate-800">{generatedNomorSurat}</strong></span>
           </div>
 
-          <div className="flex items-center gap-2 justify-end">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 justify-end w-full sm:w-auto">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
+              className="flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors text-center"
             >
               Batal
             </button>
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors shadow-xs"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors shadow-xs"
             >
               <Printer className="w-3.5 h-3.5 text-slate-600" />
               <span>Cetak Pratinjau</span>
@@ -977,10 +982,10 @@ export const CreateLetterModal = ({ isOpen, onClose, onSaveLetter, currentUser }
             <button
               type="button"
               onClick={handleSubmit}
-              className="inline-flex items-center gap-1.5 px-5 py-2 rounded-lg text-xs font-bold bg-unsil-green-900 hover:bg-unsil-green-950 text-white shadow-md shadow-unsil-green-950/20 transition-all"
+              className="flex-2 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2 rounded-lg text-xs font-bold bg-unsil-green-900 hover:bg-unsil-green-950 text-white shadow-md shadow-unsil-green-950/20 transition-all"
             >
               <Plus className="w-4 h-4 text-unsil-gold-400" />
-              <span>Simpan & Daftarkan Surat</span>
+              <span>Simpan & Daftarkan</span>
             </button>
           </div>
         </div>

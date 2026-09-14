@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ShieldCheck,
   AlertTriangle,
@@ -14,9 +14,12 @@ import {
   Copy,
   Check,
   Building,
-  ChevronDown
+  ChevronDown,
+  Activity,
+  Database
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
+import { ProcessMiningLogger } from '../../domain';
 
 export const AuditLogView = ({ auditLogs, currentUser }) => {
   const [filterSeverity, setFilterSeverity] = useState('Semua');
@@ -24,10 +27,35 @@ export const AuditLogView = ({ auditLogs, currentUser }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [copiedId, setCopiedId] = useState(null);
 
+  // Akses Khusus: UPT / UPA TIK UNSIL (UN58.32)
+  const isUptTik =
+    currentUser?.unit_kerja_id === 'UN58.32' ||
+    currentUser?.unit_kerja_id === 'UN58.TIK' ||
+    (currentUser?.email && currentUser.email.includes('tik@unsil.ac.id')) ||
+    (currentUser?.roleLabel && currentUser.roleLabel.toLowerCase().includes('tik')) ||
+    (currentUser?.unit && currentUser.unit.toLowerCase().includes('tik'));
+
   const isAuthorized =
     currentUser?.role === 'PIMPINAN' ||
     currentUser?.role === 'PEJABAT' ||
-    currentUser?.role === 'PENGAWAS';
+    currentUser?.role === 'PENGAWAS' ||
+    isUptTik;
+
+  // Real-time summary Process Mining (Khusus akun UPT TIK)
+  const [pmSummary, setPmSummary] = useState(() => {
+    return ProcessMiningLogger.getInstance().getMetricsSummary();
+  });
+
+  useEffect(() => {
+    if (!isUptTik) return;
+    const updateSummary = () => {
+      setPmSummary(ProcessMiningLogger.getInstance().getMetricsSummary());
+    };
+    window.addEventListener('siloka:process_mining_event', updateSummary);
+    return () => {
+      window.removeEventListener('siloka:process_mining_event', updateSummary);
+    };
+  }, [isUptTik]);
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -111,16 +139,122 @@ export const AuditLogView = ({ auditLogs, currentUser }) => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleExportCsv}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold shadow-sm transition-colors"
-          >
-            <Download className="w-3.5 h-3.5 text-unsil-gold-400" />
-            <span>Ekspor Log Forensik (CSV)</span>
-          </button>
-        </div>
+        {/* Tombol Ekspor Khusus UPT TIK UNSIL (Disembunyikan untuk akun lainnya) */}
+        {isUptTik && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={handleExportCsv}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold shadow-sm transition-colors"
+              title="Unduh Log Audit Forensik Sistem"
+            >
+              <Download className="w-3.5 h-3.5 text-unsil-gold-400" />
+              <span>Ekspor Log Forensik (CSV)</span>
+            </button>
+
+            <button
+              onClick={() => ProcessMiningLogger.getInstance().downloadCSV()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold shadow-sm transition-colors"
+              title="Unduh Dataset Process Mining (CSV Standar IEEE XES)"
+            >
+              <Download className="w-3.5 h-3.5 text-indigo-200" />
+              <span>Ekspor Dataset Process Mining (CSV)</span>
+            </button>
+          </div>
+        )}
       </div>
+
+      {/* PANEL EKSKLUSIF UPT TIK: DATA SCIENCE & PROCESS MINING */}
+      {isUptTik && (
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white p-5 sm:p-6 rounded-2xl border border-indigo-500/30 shadow-lg space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-800/40 pb-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-400/30 text-[11px] font-semibold mb-2">
+                <Activity className="w-3.5 h-3.5 text-indigo-400" />
+                Khusus Otoritas UPA TIK (UN58.32) • Data Science & Process Mining
+              </div>
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                Automated Event Logger Engine (IEEE XES / PM4Py Ready)
+              </h3>
+              <p className="text-xs text-slate-300 mt-1">
+                Dataset runtunan proses tercatat secara non-blocking di latar belakang untuk analisis <em>bottleneck</em> birokrasi, perhitungan SLA naskah dinas, dan evaluasi kinerja proses (Process Mining).
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => ProcessMiningLogger.getInstance().downloadCSV()}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold shadow-md transition-all hover:scale-[1.02]"
+              >
+                <Download className="w-3.5 h-3.5 text-indigo-200" />
+                <span>Ekspor Dataset Process Mining (CSV)</span>
+              </button>
+              <button
+                onClick={() => ProcessMiningLogger.getInstance().downloadJSON()}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
+              >
+                <Download className="w-3.5 h-3.5 text-slate-400" />
+                <span>JSON</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Process Mining KPI Highlights */}
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div className="bg-slate-800/60 p-3.5 rounded-xl border border-indigo-500/20">
+              <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">
+                Total Traces (Cases)
+              </span>
+              <div className="text-2xl font-black text-white mt-1">
+                {pmSummary.totalCases} Kasus
+              </div>
+              <span className="text-[11px] text-slate-400">Kasus surat terpantau</span>
+            </div>
+            <div className="bg-slate-800/60 p-3.5 rounded-xl border border-indigo-500/20">
+              <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">
+                Total Events Tercatat
+              </span>
+              <div className="text-2xl font-black text-emerald-400 mt-1">
+                {pmSummary.totalEvents} Events
+              </div>
+              <span className="text-[11px] text-slate-400">Presisi ISO 8601</span>
+            </div>
+            <div className="bg-slate-800/60 p-3.5 rounded-xl border border-indigo-500/20">
+              <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">
+                Rata-rata Event / Kasus
+              </span>
+              <div className="text-2xl font-black text-amber-300 mt-1">
+                {pmSummary.averageEventsPerCase}
+              </div>
+              <span className="text-[11px] text-slate-400">Kedalaman siklus</span>
+            </div>
+            <div className="bg-slate-800/60 p-3.5 rounded-xl border border-indigo-500/20">
+              <span className="text-[10px] uppercase font-bold text-indigo-300 tracking-wider block">
+                Kompatibilitas Analisis
+              </span>
+              <div className="text-2xl font-black text-purple-300 mt-1">
+                PM4Py & Disco
+              </div>
+              <span className="text-[11px] text-slate-400">Standard IEEE XES</span>
+            </div>
+          </div>
+
+          {/* Console Tip */}
+          <div className="bg-slate-950/70 p-3 rounded-lg border border-slate-800 font-mono text-[11px] text-slate-300 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Terminal className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                Akses Console:{' '}
+                <strong className="text-emerald-400">
+                  window.ProcessMiningLogger.getInstance().getEvents()
+                </strong>
+              </span>
+            </div>
+            <span className="text-[10px] bg-slate-800 text-indigo-300 px-2.5 py-0.5 rounded border border-indigo-800/40">
+              Non-Blocking LocalStorage
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* KPI Security Metrics */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

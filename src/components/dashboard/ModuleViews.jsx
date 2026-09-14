@@ -386,10 +386,9 @@ export const BrankasDigitalView = () => {
 };
 
 export const SettingsView = ({ user }) => {
-  const [activeSubTab, setActiveSubTab] = useState('satker'); // 'satker', 'users', 'config'
+  const [activeSubTab, setActiveSubTab] = useState('satker'); // 'satker', 'config'
   const [unitSearch, setUnitSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
-  const [userSearch, setUserSearch] = useState('');
 
   const currentUserUnit = useMemo(() => {
     return (
@@ -415,17 +414,6 @@ export const SettingsView = ({ user }) => {
       return matchSearch && matchType;
     });
   }, [unitSearch, typeFilter]);
-
-  const filteredUsers = useMemo(() => {
-    return usersData.filter((u) => {
-      const q = userSearch.toLowerCase();
-      const nama = (u.nama_lengkap || u.name || '').toLowerCase();
-      const nip = (u.nip_nik || u.nip || '').toLowerCase();
-      const email = (u.email || u.username || '').toLowerCase();
-      const unit = (u.unit || u.unit_kerja_id || '').toLowerCase();
-      return nama.includes(q) || nip.includes(q) || email.includes(q) || unit.includes(q);
-    });
-  }, [userSearch]);
 
   const unitTypeBadgeColors = {
     UNIVERSITAS: 'bg-emerald-100 text-emerald-900 border-emerald-300',
@@ -469,17 +457,6 @@ export const SettingsView = ({ user }) => {
         >
           <Building2 className="w-4 h-4" />
           <span>Master Unit Kerja ({unitKerjaList.length})</span>
-        </button>
-        <button
-          onClick={() => setActiveSubTab('users')}
-          className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-bold transition-colors ${
-            activeSubTab === 'users'
-              ? 'bg-unsil-green-900 text-white shadow-xs'
-              : 'bg-white hover:bg-slate-100 text-slate-700 border border-slate-200'
-          }`}
-        >
-          <Users className="w-4 h-4" />
-          <span>Master User ({usersData.length})</span>
         </button>
         <button
           onClick={() => setActiveSubTab('config')}
@@ -602,114 +579,6 @@ export const SettingsView = ({ user }) => {
           <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
             <span>Menampilkan {filteredUnits.length} dari 21 satuan kerja resmi UNSIL</span>
             <span>Ref: SK Rektor & Tata Naskah Dinas UNSIL</span>
-          </div>
-        </div>
-      )}
-
-      {/* TAB 2: MASTER USER */}
-      {activeSubTab === 'users' && (
-        <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs space-y-4 p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div>
-              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-                <Users className="w-4 h-4 text-unsil-green-800" />
-                Direktori Master User & Pemetaan Unit Kerja (Tabel users)
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Semua akun berada dalam satu tabel terpadu dengan relasi unit_kerja_id dan role multi-tenancy
-              </p>
-            </div>
-
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Cari nama, NIP, email..."
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                className="pl-8 pr-3 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-hidden focus:ring-1 focus:ring-unsil-green-800 w-56"
-              />
-            </div>
-          </div>
-
-          <div className="overflow-x-auto border border-slate-100 rounded-lg">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-2.5 px-3">Pegawai / NIP</th>
-                  <th className="py-2.5 px-3">Email Kedinasan</th>
-                  <th className="py-2.5 px-3">Satuan Kerja Relasi</th>
-                  <th className="py-2.5 px-3">Role Kedinasan</th>
-                  <th className="py-2.5 px-3 text-center">Status TTE</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredUsers.map((u) => {
-                  const unitMatch = unitKerjaList.find(
-                    (uk) => uk.kode_unit === u.unit_kerja_id || uk.id === u.unit_kerja_id
-                  );
-                  const isCurrent = u.id === user?.id || u.email === user?.email;
-                  return (
-                    <tr
-                      key={u.id}
-                      className={`hover:bg-slate-50 transition-colors ${
-                        isCurrent ? 'bg-emerald-50/50 font-semibold' : ''
-                      }`}
-                    >
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-2">
-                          <img
-                            src={u.avatar}
-                            alt=""
-                            className="w-7 h-7 rounded-full object-cover border border-slate-200"
-                          />
-                          <div>
-                            <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                              {u.nama_lengkap || u.name}
-                              {isCurrent && (
-                                <span className="text-[10px] bg-emerald-100 text-emerald-800 px-1.5 py-0.2 rounded font-semibold">
-                                  Anda
-                                </span>
-                              )}
-                            </p>
-                            <p className="font-mono text-[10px] text-slate-400">NIP: {u.nip_nik || u.nip}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3 font-mono text-slate-600">{u.email || u.username}</td>
-                      <td className="py-2.5 px-3">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono font-bold text-unsil-green-900 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px]">
-                            {u.unit_kerja_id}
-                          </span>
-                          <span className="text-slate-800 font-medium">
-                            {unitMatch?.nama_unit || u.unit}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="py-2.5 px-3">
-                        <span className="font-semibold text-slate-800 block">{u.role}</span>
-                        <span className="text-[10px] text-slate-500">{u.roleLabel}</span>
-                      </td>
-                      <td className="py-2.5 px-3 text-center">
-                        {u.signatureReady ? (
-                          <span className="text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded">
-                            Sertifikat Siap
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-slate-400 bg-slate-50 px-2 py-0.5 rounded">
-                            Belum Ada
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="text-[11px] text-slate-400 pt-1">
-            Menampilkan {filteredUsers.length} akun terdaftar di sistem persuratan SILOKA UNSIL.
           </div>
         </div>
       )}

@@ -18,4 +18,5 @@ export * from './documents/NotaDinas';
 export * from './services/DispositionService';
 export * from './services/ArchiveManager';
 export * from './services/AuditLogger';
+export * from './services/ProcessMiningLogger';
 

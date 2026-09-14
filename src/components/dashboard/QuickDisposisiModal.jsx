@@ -65,19 +65,19 @@ export const QuickDisposisiModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-2xl rounded-none sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-unsil-green-950 to-unsil-green-900 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-unsil-gold-500/20 border border-unsil-gold-400/40 flex items-center justify-center">
-              <SendHorizontal className="w-5 h-5 text-unsil-gold-300" />
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-unsil-green-950 to-unsil-green-900 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-unsil-gold-500/20 border border-unsil-gold-400/40 flex items-center justify-center shrink-0">
+              <SendHorizontal className="w-4 h-4 sm:w-5 sm:h-5 text-unsil-gold-300" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">
+              <h2 className="text-xs sm:text-sm font-bold text-white">
                 Lembar E-Disposisi Elektronik BKU
               </h2>
-              <p className="text-xs text-emerald-200">
+              <p className="text-[11px] sm:text-xs text-emerald-200">
                 Penerusan instruksi pimpinan secara berjenjang
               </p>
             </div>
@@ -93,7 +93,7 @@ export const QuickDisposisiModal = ({
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto space-y-4 text-xs text-slate-700">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 overflow-y-auto space-y-3.5 sm:space-y-4 text-xs text-slate-700">
           {/* Target Surat Selector */}
           <div>
             <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">

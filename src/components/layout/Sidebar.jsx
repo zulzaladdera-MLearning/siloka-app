@@ -11,7 +11,8 @@ import {
   ChevronRight,
   ShieldCheck,
   ExternalLink,
-  HelpCircle
+  HelpCircle,
+  LogOut
 } from 'lucide-react';
 
 export const Sidebar = ({
@@ -19,8 +20,24 @@ export const Sidebar = ({
   setActiveTab,
   isCollapsed,
   setIsCollapsed,
+  onLogout,
+  user,
   unreadCounts = { disposisi: 3, tte: 5, retensi: 14 }
 }) => {
+  // Akses Log Audit & Keamanan: Pimpinan, Pengawas SPI, dan Khusus UPT/UPA TIK (Analitik Process Mining)
+  const isUptTik =
+    user?.unit_kerja_id === 'UN58.32' ||
+    user?.unit_kerja_id === 'UN58.TIK' ||
+    (user?.email && user.email.includes('tik@unsil.ac.id')) ||
+    (user?.roleLabel && user.roleLabel.toLowerCase().includes('tik')) ||
+    (user?.unit && user.unit.toLowerCase().includes('tik'));
+
+  const canAccessAuditLog =
+    user?.role === 'PIMPINAN' ||
+    user?.role === 'PEJABAT' ||
+    user?.role === 'PENGAWAS' ||
+    isUptTik;
+
   const menuItems = [
     {
       id: 'dashboard',
@@ -62,13 +79,17 @@ export const Sidebar = ({
       badge: 'Enkripsi',
       badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px]',
     },
-    {
-      id: 'audit-log',
-      label: 'Log Audit & Keamanan',
-      icon: ShieldCheck,
-      badge: 'BSSN',
-      badgeColor: 'bg-emerald-900 text-unsil-gold-300 font-mono text-[9px]',
-    },
+    ...(canAccessAuditLog
+      ? [
+          {
+            id: 'audit-log',
+            label: 'Log Audit & Keamanan',
+            icon: ShieldCheck,
+            badge: 'BSSN',
+            badgeColor: 'bg-emerald-900 text-unsil-gold-300 font-mono text-[9px]',
+          },
+        ]
+      : []),
     {
       id: 'settings',
       label: 'Pengaturan Sistem',
@@ -231,10 +252,30 @@ export const Sidebar = ({
                 Portal <ExternalLink className="w-3 h-3" />
               </a>
             </div>
+
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition"
+                title="Keluar dari Akun SILOKA"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span>Keluar Sesi</span>
+              </button>
+            )}
           </div>
         ) : (
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-unsil-green-400 animate-pulse" title="Server Online" />
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="p-2 rounded-lg hover:bg-rose-500/20 text-rose-400 transition"
+                title="Keluar Sesi"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            )}
           </div>
         )}
       </div>

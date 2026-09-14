@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { LoginPage } from './components/auth/LoginPage';
+import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { MainLayout } from './components/layout/MainLayout';
 import { MetricCards } from './components/dashboard/MetricCards';
 import { ActivityTable } from './components/dashboard/ActivityTable';
@@ -23,23 +24,37 @@ import unitKerjaList from './data/unitKerja.json';
 import { CreateLetterModal } from './components/dashboard/CreateLetterModal';
 import { initialAuditLogs, createAuditEntry } from './utils/security';
 import { DOCUMENT_TEMPLATES } from './components/documents/DocumentTemplates';
+import { ProcessMiningLogger, PROCESS_ACTIVITIES } from './domain';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
     try {
-      const isExplicitlyLoggedOut = localStorage.getItem('siloka_logged_out');
+      const isExplicitlyLoggedOut =
+        localStorage.getItem('siloka_logged_out') ||
+        sessionStorage.getItem('siloka_logged_out');
       if (isExplicitlyLoggedOut === 'true') {
         return null;
       }
-      const savedUser = localStorage.getItem('siloka_active_user');
-      if (savedUser) {
-        return JSON.parse(savedUser);
+
+      const authToken =
+        localStorage.getItem('siloka_auth_token') ||
+        sessionStorage.getItem('siloka_auth_token');
+      const savedUser =
+        localStorage.getItem('siloka_active_user') ||
+        sessionStorage.getItem('siloka_active_user');
+
+      // Only re-hydrate user if an active auth token exists
+      if (authToken && savedUser) {
+        const parsed = JSON.parse(savedUser);
+        if (parsed && (parsed.email || parsed.username || parsed.id)) {
+          return parsed;
+        }
       }
     } catch (e) {
       console.error('Error loading saved user', e);
     }
-    // Default to Dr. Nana Sujana (Kepala Biro BKU) so existing sessions stay active
-    return usersData.find((u) => u.email === 'nana.sujana@unsil.ac.id') || usersData[0];
+    // Default to unauthenticated (LoginPage will be shown first)
+    return null;
   });
 
   const [letters, setLetters] = useState(() => {
@@ -86,12 +101,14 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [metricFilter, setMetricFilter] = useState(null);
 
-  // Sync to localStorage
+  // Sync active user to storage (respecting rememberMe preference)
   useEffect(() => {
     if (currentUser) {
-      localStorage.setItem('siloka_active_user', JSON.stringify(currentUser));
-    } else {
-      localStorage.removeItem('siloka_active_user');
+      if (localStorage.getItem('siloka_auth_token')) {
+        localStorage.setItem('siloka_active_user', JSON.stringify(currentUser));
+      } else if (sessionStorage.getItem('siloka_auth_token')) {
+        sessionStorage.setItem('siloka_active_user', JSON.stringify(currentUser));
+      }
     }
   }, [currentUser]);
 
@@ -141,6 +158,29 @@ export default function App() {
     (currentUser?.role === 'PEJABAT' &&
       (currentUser?.unit_kerja_id === 'UN58' || currentUser?.unit_kerja_id === 'UN58.6'));
 
+  // Helper otorisasi UPT TIK (Unit Penunjang Akademik Teknologi Informasi & Komunikasi)
+  const isUptTikUser = (user) => {
+    if (!user) return false;
+    return (
+      user.unit_kerja_id === 'UN58.32' ||
+      user.unit_kerja_id === 'UN58.TIK' ||
+      (user.email && user.email.includes('tik@unsil.ac.id')) ||
+      (user.roleLabel && user.roleLabel.toLowerCase().includes('tik')) ||
+      (user.unit && user.unit.toLowerCase().includes('tik'))
+    );
+  };
+
+  // Otorisasi Akses Menu Log Audit & Keamanan (Pimpinan, SPI, dan Akun UPT TIK)
+  const canUserAccessAuditLog = (user) => {
+    if (!user) return false;
+    return (
+      user.role === 'PIMPINAN' ||
+      user.role === 'PEJABAT' ||
+      user.role === 'PENGAWAS' ||
+      isUptTikUser(user)
+    );
+  };
+
   // Multi-Tenancy Scoping:
   // - OPERATOR_UNIT / STAF_PERSURATAN: Hanya melihat surat milik unit kerjanya atau surat masuk tujuan unitnya
   // - PEJABAT / PENGAWAS (Akses Universitas): Dapat melihat seluruh unit atau filter per unit
@@ -189,29 +229,55 @@ export default function App() {
     setAuditLogs((prev) => [entry, ...prev]);
   };
 
-  const handleLogin = (user) => {
+  const handleLogin = (user, rememberMe = true) => {
+    // Clear any previous logout flags
     localStorage.removeItem('siloka_logged_out');
-    localStorage.setItem('siloka_active_user', JSON.stringify(user));
+    sessionStorage.removeItem('siloka_logged_out');
+
+    const generatedToken = `siloka_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+
+    if (rememberMe) {
+      localStorage.setItem('siloka_auth_token', generatedToken);
+      localStorage.setItem('siloka_active_user', JSON.stringify(user));
+      // Purge session storage
+      sessionStorage.removeItem('siloka_auth_token');
+      sessionStorage.removeItem('siloka_active_user');
+    } else {
+      sessionStorage.setItem('siloka_auth_token', generatedToken);
+      sessionStorage.setItem('siloka_active_user', JSON.stringify(user));
+      // Purge local storage
+      localStorage.removeItem('siloka_auth_token');
+      localStorage.removeItem('siloka_active_user');
+    }
+
     setCurrentUser(user);
+
     const entry = createAuditEntry({
       user,
       action: 'AUTH_LOGIN_SUCCESS',
-      details: `Login berhasil melalui Intranet Kampus UNSIL (${user.roleLevel})`,
+      details: `Login berhasil melalui Intranet Kampus UNSIL (${user.roleLevel || user.role})`,
       severity: 'NORMAL'
     });
     setAuditLogs((prev) => [entry, ...prev]);
-    showToast(`Selamat datang di SILOKA, ${user.name}!`, 'success');
+    showToast(`Selamat datang di SILOKA, ${user.nama_lengkap || user.name}!`, 'success');
   };
 
   const handleLogout = () => {
     if (currentUser) {
       recordAuditLog({
         action: 'AUTH_LOGOUT',
-        details: `Sesi berakhir atas inisiatif pengguna: ${currentUser.name}`
+        details: `Sesi berakhir atas inisiatif pengguna: ${currentUser.nama_lengkap || currentUser.name}`
       });
     }
+
+    // Set logout flag & purge both storage locations
     localStorage.setItem('siloka_logged_out', 'true');
+    sessionStorage.setItem('siloka_logged_out', 'true');
     localStorage.removeItem('siloka_active_user');
+    localStorage.removeItem('siloka_auth_token');
+    sessionStorage.removeItem('siloka_active_user');
+    sessionStorage.removeItem('siloka_auth_token');
+
     setCurrentUser(null);
     setActiveTab('dashboard');
     showToast('Anda telah keluar dari sesi SILOKA.', 'info');
@@ -250,6 +316,20 @@ export default function App() {
       details: `Disposisi diterbitkan untuk ${newDisposisi.targetUnit} (Agenda: ${newDisposisi.nomorAgenda}) oleh ${currentUser.name}`
     });
 
+    // Injeksi Asinkron Process Mining: Pemberian Instruksi Disposisi
+    ProcessMiningLogger.getInstance().recordEvent(
+      newDisposisi.letterId,
+      PROCESS_ACTIVITIES.DISPOSITION_ISSUED,
+      currentUser,
+      {
+        targetUnit: newDisposisi.targetUnit,
+        nomorAgenda: newDisposisi.nomorAgenda,
+        dueDate: newDisposisi.dueDate,
+        instruksi: newDisposisi.actions?.join(', ') || newDisposisi.customNote,
+        slaHours: 24
+      }
+    );
+
     showToast(`E-Disposisi berhasil diteruskan ke ${newDisposisi.targetUnit}!`, 'success');
   };
 
@@ -266,6 +346,24 @@ export default function App() {
       action: 'LETTER_REGISTERED',
       details: `Registrasi surat dinas baru: ${letterWithAudit.nomorSurat} (${letterWithAudit.perihal.slice(0, 50)}...) oleh ${currentUser.nama_lengkap || currentUser.name} [Unit: ${currentUnit.singkatan}]`
     });
+
+    // Injeksi Asinkron Process Mining: Registrasi Surat Masuk vs Pengajuan Draf Surat
+    const isSuratMasuk = letterWithAudit.kategori === 'Surat Masuk';
+    ProcessMiningLogger.getInstance().recordEvent(
+      letterWithAudit.id || letterWithAudit.nomorSurat,
+      isSuratMasuk ? PROCESS_ACTIVITIES.INBOUND_REGISTRATION : PROCESS_ACTIVITIES.DRAFT_SUBMISSION,
+      currentUser,
+      {
+        kategori: letterWithAudit.kategori,
+        sifat: letterWithAudit.sifat,
+        kategoriKeamanan: letterWithAudit.kategoriKeamanan,
+        kodeKlasifikasi: letterWithAudit.kodeKlasifikasi,
+        subKlasifikasi: letterWithAudit.subKlasifikasi,
+        tujuan: letterWithAudit.tujuan,
+        pengirim: letterWithAudit.pengirim,
+        slaHours: letterWithAudit.sifat === 'Amat Segera' ? 12 : letterWithAudit.sifat === 'Segera' ? 24 : 48
+      }
+    );
 
     showToast(`Surat nomor ${letterWithAudit.nomorSurat} berhasil didaftarkan ke SILOKA!`, 'success');
   };
@@ -318,6 +416,20 @@ export default function App() {
       details: `Pembubuhan TTE BSrE sukses (Sertifikat: ${certSerial}) pada surat ID ${letterId} oleh ${signerName} (NIP. ${signerNip})`
     });
 
+    // Injeksi Asinkron Process Mining: Penandatanganan TTE BSrE
+    ProcessMiningLogger.getInstance().recordEvent(
+      letterId,
+      PROCESS_ACTIVITIES.TTE_SIGNED,
+      currentUser,
+      {
+        certSerial,
+        signerName,
+        signerNip,
+        status: 'APPROVED_AND_SIGNED',
+        slaHours: 12
+      }
+    );
+
     showToast(`Tanda Tangan Elektronik (TTE BSrE) berhasil dibubuhkan! Cap dinas fisik dihapus otomatis.`, 'success');
   };
 
@@ -340,35 +452,75 @@ export default function App() {
       details: `Naskah dinas ID ${letterId} berhasil dipindahkan ke Arsip & Retensi (JRA) oleh ${currentUser.name}`
     });
 
+    // Injeksi Asinkron Process Mining: Pengarsipan Dokumen JRA
+    ProcessMiningLogger.getInstance().recordEvent(
+      letterId,
+      PROCESS_ACTIVITIES.ARCHIVED_JRA,
+      currentUser,
+      {
+        destination: 'Jadwal Retensi Arsip (JRA)',
+        status: 'Diarsipkan'
+      }
+    );
+
     showToast(`Naskah dinas berhasil dipindahkan ke Jadwal Retensi Arsip (JRA)!`, 'success');
   };
 
-  // If not authenticated, render login page
+  // If user is not authenticated, strictly render LoginPage to prevent any null-reference evaluation in children
   if (!currentUser) {
     return (
       <>
         <LoginPage onLoginSuccess={handleLogin} />
-        {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={() => setToast(null)}
+          />
+        )}
       </>
     );
   }
 
   return (
     <>
-      <MainLayout
-        user={currentUser}
-        onLogout={handleLogout}
-        onSwitchUser={(newUser) => {
-          recordAuditLog({
-            action: 'SWITCH_USER_ROLE',
-            details: `Beralih peran dari ${currentUser.roleLabel} ke ${newUser.roleLabel}`
-          });
-          setCurrentUser(newUser);
-          showToast(`Beralih peran sebagai: ${newUser.roleLabel}`, 'info');
-        }}
+      <ProtectedRoute
+        isAuthenticated={Boolean(currentUser)}
+        fallback={<LoginPage onLoginSuccess={handleLogin} />}
+      >
+        <MainLayout
+          user={currentUser}
+          onLogout={handleLogout}
+          onSwitchUser={(newUser) => {
+            recordAuditLog({
+              action: 'SWITCH_USER_ROLE',
+              details: `Beralih peran dari ${currentUser.roleLabel} ke ${newUser.roleLabel}`
+            });
+            // Update active user in whichever storage is holding the token
+            if (localStorage.getItem('siloka_auth_token')) {
+              localStorage.setItem('siloka_active_user', JSON.stringify(newUser));
+            } else if (sessionStorage.getItem('siloka_auth_token')) {
+              sessionStorage.setItem('siloka_active_user', JSON.stringify(newUser));
+            }
+            setCurrentUser(newUser);
+            if (
+              activeTab === 'audit-log' &&
+              !canUserAccessAuditLog(newUser)
+            ) {
+              setActiveTab('dashboard');
+            }
+            showToast(`Beralih peran sebagai: ${newUser.roleLabel}`, 'info');
+          }}
         allUsers={usersData}
         activeTab={activeTab}
         setActiveTab={(tab) => {
+          if (
+            tab === 'audit-log' &&
+            !canUserAccessAuditLog(currentUser)
+          ) {
+            setActiveTab('dashboard');
+            return;
+          }
           setActiveTab(tab);
           setMetricFilter(null);
         }}
@@ -543,7 +695,7 @@ export default function App() {
 
         {activeTab === 'brankas-digital' && <BrankasDigitalView />}
 
-        {activeTab === 'audit-log' && (
+        {activeTab === 'audit-log' && canUserAccessAuditLog(currentUser) && (
           <AuditLogView
             auditLogs={auditLogs}
             currentUser={currentUser}
@@ -604,6 +756,7 @@ export default function App() {
           />
         )}
       </MainLayout>
-    </>
-  );
+    </ProtectedRoute>
+  </>
+);
 }

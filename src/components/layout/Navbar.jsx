@@ -73,15 +73,25 @@ export const Navbar = ({
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Cari nomor surat, perihal, pengirim, atau kode klasifikasi..."
-            className="w-full pl-9 pr-4 py-2 bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-unsil-green-700 rounded-lg text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 transition duration-150"
+            placeholder="Cari surat, pengirim, perihal..."
+            className="w-full pl-9 pr-3 py-1.5 sm:py-2 bg-slate-100/80 hover:bg-slate-100 focus:bg-white border border-transparent focus:border-unsil-green-700 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 transition duration-150"
           />
         </div>
       </div>
 
       {/* Right Actions & Profile */}
-      <div className="flex items-center gap-2 sm:gap-3 ml-4">
-        {/* Quick Action Buttons */}
+      <div className="flex items-center gap-1.5 sm:gap-3 ml-2 sm:ml-4 shrink-0">
+        {/* Mobile Quick Add Button */}
+        <button
+          onClick={onOpenCreateLetter}
+          className="lg:hidden p-2 rounded-lg bg-unsil-green-800 text-white hover:bg-unsil-green-900 shadow-xs active:scale-95 transition-all"
+          title="Buat Naskah Surat Baru"
+          aria-label="Buat Surat Baru"
+        >
+          <Plus className="w-4 h-4 text-unsil-gold-400" />
+        </button>
+
+        {/* Quick Action Buttons Desktop */}
         <div className="hidden lg:flex items-center gap-2">
           <button
             onClick={onOpenQuickDisposisi}

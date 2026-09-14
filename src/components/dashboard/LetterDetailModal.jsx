@@ -92,23 +92,23 @@ export const LetterDetailModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4 bg-slate-950/70 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-3xl rounded-none sm:rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col h-full sm:h-auto sm:max-h-[90vh]">
         {/* Header */}
-        <div className="px-6 py-4 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-slate-950 text-white flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-white/10 flex items-center justify-center border border-unsil-gold-400/30">
-              <FileText className="w-5 h-5 text-unsil-gold-300" />
+        <div className="px-4 sm:px-6 py-3 sm:py-4 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-slate-950 text-white flex items-center justify-between shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white/10 flex items-center justify-center border border-unsil-gold-400/30 shrink-0">
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-unsil-gold-300" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-mono tracking-wide text-unsil-gold-300">
+                <span className="text-[11px] sm:text-xs font-mono tracking-wide text-unsil-gold-300">
                   {letter.nomorSurat}
                 </span>
                 <span className="text-white/40">•</span>
-                <span className="text-xs text-emerald-200">{letter.kategori}</span>
+                <span className="text-[11px] sm:text-xs text-emerald-200">{letter.kategori}</span>
               </div>
-              <h2 className="text-sm font-bold text-white line-clamp-1">
+              <h2 className="text-xs sm:text-sm font-bold text-white line-clamp-1">
                 Detail Persuratan & Jejak Administrasi
               </h2>
             </div>
@@ -124,44 +124,44 @@ export const LetterDetailModal = ({
         </div>
 
         {/* Navigation Tabs */}
-        <div className="px-6 py-2 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5">
+        <div className="px-3 sm:px-6 py-2 bg-slate-100/90 border-b border-slate-200 flex items-center justify-between gap-2 shrink-0 overflow-x-auto scrollbar-none">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setActiveTabMode('metadata')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
                 activeTabMode === 'metadata'
                   ? 'bg-white text-unsil-green-950 shadow-xs border border-slate-300'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              Detail & Jejak Persuratan
+              Detail & Jejak
             </button>
             <button
               onClick={() => setActiveTabMode('document')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition ${
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition whitespace-nowrap ${
                 activeTabMode === 'document'
                   ? 'bg-unsil-green-800 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Lembar Naskah Dinas Resmi (A4)</span>
+              <span>Naskah Resmi (A4)</span>
             </button>
           </div>
 
           {activeTabMode === 'document' && (
             <button
               onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL')}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-xs"
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-xs shrink-0"
             >
-              <Printer className="w-3.5 h-3.5 text-unsil-green-800" /> Cetak A4
+              <Printer className="w-3.5 h-3.5 text-unsil-green-800" /> Cetak
             </button>
           )}
         </div>
 
         {/* Content Body: Conditional Switcher between Document A4 and Metadata */}
         {activeTabMode === 'document' ? (
-          <div className="p-6 overflow-y-auto bg-slate-200/70 flex flex-col items-center">
+          <div className="p-3 sm:p-6 overflow-y-auto overflow-x-auto bg-slate-200/70 flex flex-col items-center">
             <div id="letter-detail-printable-area" className="w-full printable-document">
               {letter.templateType === 'pos' ? (
                 <PosTemplateView data={letter.templateData} />
@@ -443,16 +443,16 @@ export const LetterDetailModal = ({
       )}
 
         {/* Footer Actions */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors"
+            className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors text-center"
           >
             Tutup
           </button>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 justify-end w-full sm:w-auto">
             {/* Action 1: Bubuhkan TTE BSrE (untuk Pejabat/Pimpinan jika status Diparaf/Dikirim dan belum TTE) */}
             {(currentUser?.role === 'PEJABAT' || currentUser?.role === 'PIMPINAN') && !letter.tteVerified && (
               <button
@@ -461,10 +461,10 @@ export const LetterDetailModal = ({
                   onClose();
                   onSignTte && onSignTte(letter.id);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors"
               >
                 <FileSignature className="w-3.5 h-3.5 text-amber-200" />
-                <span>Bubuhkan TTE BSrE</span>
+                <span>TTE BSrE</span>
               </button>
             )}
 
@@ -476,10 +476,10 @@ export const LetterDetailModal = ({
                   onClose();
                   onArchiveLetter && onArchiveLetter(letter.id);
                 }}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-700 hover:bg-indigo-800 text-white shadow-sm transition-colors"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-700 hover:bg-indigo-800 text-white shadow-sm transition-colors"
               >
                 <Archive className="w-3.5 h-3.5 text-indigo-200" />
-                <span>Arsipkan ke JRA</span>
+                <span>Arsipkan</span>
               </button>
             )}
 
@@ -491,10 +491,10 @@ export const LetterDetailModal = ({
                   onClose();
                   onOpenDisposisi(letter);
                 }}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
+                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
               >
                 <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
-                <span>Buat / Teruskan Disposisi</span>
+                <span>Disposisi</span>
               </button>
             )}
           </div>
