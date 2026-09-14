@@ -108,18 +108,6 @@ export const LoginPage = ({ onLoginSuccess }) => {
           <p className="text-sm text-slate-300 leading-relaxed">
             Portal eksekutif dan operasional digital untuk percepatan alur disposisi pimpinan, validasi tanda tangan elektronik (TTE), pengendalian surat keluar-masuk, serta tata kelola retensi arsip resmi Universitas Siliwangi.
           </p>
-
-          {/* Key Pillars */}
-          <div className="grid grid-cols-2 gap-3 mt-6">
-            <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
-              <div className="text-unsil-gold-400 font-bold text-sm">E-Disposisi & TTE</div>
-              <div className="text-xs text-slate-300 mt-0.5">Alur disposisi berjenjang terverifikasi</div>
-            </div>
-            <div className="p-3 rounded-lg bg-white/5 border border-white/10 backdrop-blur-sm">
-              <div className="text-unsil-gold-400 font-bold text-sm">Brankas Digital JRA</div>
-              <div className="text-xs text-slate-300 mt-0.5">Arsip vital terenkripsi & Jadwal Retensi</div>
-            </div>
-          </div>
         </div>
       </div>
 
