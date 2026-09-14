@@ -555,26 +555,26 @@ export default function App() {
                   Pengguna aktif: <span className="font-semibold text-unsil-green-900">{currentUser.nama_lengkap || currentUser.name}</span> ({currentUser.roleLabel})
                 </p>
               </div>
-              <div className="flex items-center gap-2 text-xs">
-                <span className="px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-mono text-[11px]">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="hidden sm:inline-block px-2.5 py-1 rounded-md bg-white border border-slate-200 text-slate-600 font-mono text-[11px]">
                   IP: <strong>10.58.12.44</strong> (Intranet)
                 </span>
-                <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-unsil-green-900 border border-emerald-200 font-semibold flex items-center gap-1.5">
+                <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-unsil-green-900 border border-emerald-200 font-semibold flex items-center gap-1.5 text-[11px] sm:text-xs">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                  BSSN Tier-4 Enkripsi Aktif
+                  BSSN Tier-4 Enkripsi
                 </span>
               </div>
             </div>
 
             {/* Multi-Tenancy Scope & Unit Identity Banner */}
-            <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-unsil-green-900 text-white flex items-center justify-center font-mono font-bold text-xs shrink-0 shadow-sm border border-unsil-gold-500/30">
+            <div className="p-3 sm:p-3.5 rounded-xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5 sm:gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg bg-unsil-green-900 text-white flex items-center justify-center font-mono font-bold text-xs shrink-0 shadow-sm border border-unsil-gold-500/30">
                   {currentUnit.singkatan}
                 </div>
                 <div>
                   <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-slate-900">
+                    <span className="text-xs sm:text-sm font-bold text-slate-900">
                       {currentUnit.nama_unit}
                     </span>
                     <span className="text-[10px] font-mono font-semibold px-2 py-0.5 rounded bg-emerald-50 text-unsil-green-900 border border-emerald-200">
@@ -584,18 +584,18 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
                 <button
                   onClick={() => setIsQuickRegisterOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
                 >
                   <span>Registrasi Cepat</span>
                 </button>
                 <button
                   onClick={() => setIsCreateLetterOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
                 >
-                  <span>Buat Naskah ({DOCUMENT_TEMPLATES.length} Format)</span>
+                  <span>+ Buat Naskah</span>
                 </button>
               </div>
             </div>

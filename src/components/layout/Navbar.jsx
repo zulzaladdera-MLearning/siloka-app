@@ -22,10 +22,13 @@ export const Navbar = ({
   searchQuery,
   setSearchQuery,
   unreadCount = 3,
+  toggleSidebar,
   onToggleMobileSidebar
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+
+  const handleToggle = toggleSidebar || onToggleMobileSidebar;
 
   const notifications = [
     {
@@ -55,13 +58,14 @@ export const Navbar = ({
     <header className="sticky top-0 z-20 bg-white border-b border-slate-200 shadow-sm h-16 flex items-center justify-between px-4 sm:px-6">
       {/* Left Search & Mobile Toggle */}
       <div className="flex items-center gap-3 flex-1 max-w-xl">
-        {onToggleMobileSidebar && (
+        {handleToggle && (
           <button
-            onClick={onToggleMobileSidebar}
-            className="md:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100"
-            aria-label="Buka Menu"
+            onClick={handleToggle}
+            className="block md:hidden p-2 rounded-lg text-slate-700 hover:bg-slate-100 active:bg-slate-200 transition-colors shrink-0"
+            aria-label="Buka Menu Sidebar"
+            title="Buka Menu Navigasi"
           >
-            <Menu className="w-5 h-5" />
+            <Menu className="w-5 h-5 text-slate-700" />
           </button>
         )}
 

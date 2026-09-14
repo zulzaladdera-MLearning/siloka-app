@@ -16,50 +16,37 @@ export const MainLayout = ({
   setSearchQuery,
   children
 }) => {
+  // State collapse di desktop
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  // State toggle mobile drawer
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   return (
     <div className="min-h-screen bg-slate-100 flex text-slate-800 antialiased selection:bg-unsil-green-900 selection:text-unsil-gold-400">
-      {/* Mobile Sidebar Backdrop */}
-      {isMobileSidebarOpen && (
+      {/* 4. Backdrop / Overlay Gelap (Hanya muncul saat sidebar terbuka di mode mobile) */}
+      {isSidebarOpen && (
         <div
-          onClick={() => setIsMobileSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-xs md:hidden animate-in fade-in duration-200"
-          aria-label="Tutup Menu"
+          onClick={toggleSidebar}
+          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-xs block md:hidden animate-in fade-in duration-200"
+          aria-label="Tutup Menu Sidebar"
         />
       )}
 
-      {/* Sidebar Desktop */}
-      <div className={`hidden md:block ${isSidebarCollapsed ? 'w-20' : 'w-64'} shrink-0 transition-all duration-300`}>
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-          onLogout={onLogout}
-          user={user}
-        />
-      </div>
-
-      {/* Mobile Drawer (Accessible from Top Burger & Bottom Nav 'Menu') */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 md:hidden shadow-2xl ${
-          isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        }`}
-      >
-        <Sidebar
-          activeTab={activeTab}
-          setActiveTab={(tab) => {
-            setActiveTab(tab);
-            setIsMobileSidebarOpen(false);
-          }}
-          isCollapsed={false}
-          setIsCollapsed={() => setIsMobileSidebarOpen(false)}
-          onLogout={onLogout}
-          user={user}
-        />
-      </div>
+      {/* 1 & 2. Sidebar Mobile Drawer & Desktop Navigation */}
+      <Sidebar
+        activeTab={activeTab}
+        setActiveTab={(tab) => {
+          setActiveTab(tab);
+          setIsSidebarOpen(false);
+        }}
+        isCollapsed={isSidebarCollapsed}
+        setIsCollapsed={setIsSidebarCollapsed}
+        onLogout={onLogout}
+        user={user}
+        isSidebarOpen={isSidebarOpen}
+        toggleSidebar={toggleSidebar}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-x-hidden">
@@ -72,7 +59,8 @@ export const MainLayout = ({
           onOpenQuickDisposisi={onOpenQuickDisposisi}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
-          onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          toggleSidebar={toggleSidebar}
+          isSidebarOpen={isSidebarOpen}
         />
 
         {/* Responsive Content Container: extra bottom padding on mobile for MobileBottomNav */}
@@ -98,7 +86,7 @@ export const MainLayout = ({
         <MobileBottomNav
           activeTab={activeTab}
           setActiveTab={setActiveTab}
-          onOpenMobileMenu={() => setIsMobileSidebarOpen(true)}
+          onOpenMobileMenu={toggleSidebar}
         />
       </div>
     </div>

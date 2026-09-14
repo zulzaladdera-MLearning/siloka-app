@@ -12,17 +12,21 @@ import {
   ShieldCheck,
   ExternalLink,
   HelpCircle,
-  LogOut
+  LogOut,
+  X
 } from 'lucide-react';
 
 export const Sidebar = ({
   activeTab,
   setActiveTab,
-  isCollapsed,
+  isCollapsed = false,
   setIsCollapsed,
   onLogout,
   user,
-  unreadCounts = { disposisi: 3, tte: 5, retensi: 14 }
+  unreadCounts = { disposisi: 3, tte: 5, retensi: 14 },
+  className = '',
+  isSidebarOpen = false,
+  toggleSidebar
 }) => {
   // Akses Log Audit & Keamanan: Pimpinan, Pengawas SPI, dan Khusus UPT/UPA TIK (Analitik Process Mining)
   const isUptTik =
@@ -100,14 +104,14 @@ export const Sidebar = ({
 
   return (
     <aside
-      className={`fixed top-0 left-0 z-30 h-screen transition-all duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white ${
-        isCollapsed ? 'w-20' : 'w-64'
-      }`}
+      className={`fixed md:sticky top-0 left-0 z-50 h-screen transition-transform duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white shrink-0 select-none shadow-2xl md:shadow-none ${
+        isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+      } md:translate-x-0 ${isCollapsed ? 'w-20' : 'w-64'} ${className}`}
     >
       {/* Sidebar Header */}
       <div>
         {isCollapsed ? (
-          <div className="h-16 flex items-center justify-center border-b border-unsil-green-900/60 bg-unsil-green-900/30 relative">
+          <div className="h-16 flex items-center justify-center border-b border-unsil-green-900/60 bg-unsil-green-900/30 relative shrink-0">
             <button
               onClick={() => setIsCollapsed(false)}
               className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-md shadow-unsil-green-950/40 border border-unsil-gold-400/40 shrink-0 select-none protected-asset hover:scale-105 hover:ring-2 hover:ring-unsil-gold-400 transition-all cursor-pointer"
@@ -134,7 +138,7 @@ export const Sidebar = ({
             </button>
           </div>
         ) : (
-          <div className="h-16 flex items-center justify-between px-4 border-b border-unsil-green-900/60 bg-unsil-green-900/30">
+          <div className="h-16 flex items-center justify-between px-4 border-b border-unsil-green-900/60 bg-unsil-green-900/30 shrink-0">
             <div className="flex items-center gap-3 overflow-hidden">
               <div
                 className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shadow-md shadow-unsil-green-950/40 border border-unsil-gold-400/40 shrink-0 select-none protected-asset"
@@ -162,18 +166,29 @@ export const Sidebar = ({
             </div>
 
             <button
-              onClick={() => setIsCollapsed(true)}
+              onClick={() => {
+                if (toggleSidebar && window.innerWidth < 768) {
+                  toggleSidebar();
+                } else if (setIsCollapsed) {
+                  setIsCollapsed(true);
+                }
+              }}
               className="p-1.5 rounded-lg text-unsil-green-300 hover:text-white hover:bg-unsil-green-800/60 transition-colors"
-              title="Ciutkan Sidebar"
-              aria-label="Ciutkan Sidebar"
+              title="Tutup / Ciutkan Sidebar"
+              aria-label="Tutup / Ciutkan Sidebar"
             >
-              <ChevronLeft className="w-4 h-4" />
+              <span className="block md:hidden">
+                <X className="w-5 h-5 text-emerald-200" />
+              </span>
+              <span className="hidden md:block">
+                <ChevronLeft className="w-4 h-4" />
+              </span>
             </button>
           </div>
         )}
 
         {/* Navigation Items */}
-        <div className="px-3 py-4">
+        <div className="px-3 py-4 flex-1 overflow-y-auto">
           {!isCollapsed && (
             <div className="px-3 mb-2 text-[10px] font-bold uppercase tracking-wider text-unsil-green-300/80">
               Menu Utama
@@ -186,7 +201,12 @@ export const Sidebar = ({
               return (
                 <button
                   key={item.id}
-                  onClick={() => setActiveTab(item.id)}
+                  onClick={() => {
+                    setActiveTab(item.id);
+                    if (toggleSidebar && window.innerWidth < 768) {
+                      toggleSidebar();
+                    }
+                  }}
                   title={isCollapsed ? item.label : undefined}
                   className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative group ${
                     isActive
@@ -229,7 +249,7 @@ export const Sidebar = ({
       </div>
 
       {/* Sidebar Footer Info */}
-      <div className="p-3 border-t border-unsil-green-900/60 bg-unsil-green-950/90">
+      <div className="p-3 border-t border-unsil-green-900/60 bg-unsil-green-950/90 shrink-0">
         {!isCollapsed ? (
           <div className="space-y-3">
             <div className="p-2.5 rounded-lg bg-unsil-green-900/40 border border-unsil-green-800/50 flex items-center gap-2.5">
@@ -255,7 +275,12 @@ export const Sidebar = ({
 
             {onLogout && (
               <button
-                onClick={onLogout}
+                onClick={() => {
+                  if (toggleSidebar && window.innerWidth < 768) {
+                    toggleSidebar();
+                  }
+                  onLogout();
+                }}
                 className="w-full flex items-center justify-center gap-2 p-2 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold transition"
                 title="Keluar dari Akun SILOKA"
               >
