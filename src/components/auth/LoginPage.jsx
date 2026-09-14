@@ -121,19 +121,6 @@ export const LoginPage = ({ onLoginSuccess }) => {
             </div>
           </div>
         </div>
-
-        {/* Bottom Security / System Info */}
-        <div className="hidden md:flex relative z-10 pt-6 border-t border-white/10 flex-wrap items-center justify-between gap-4 text-xs text-slate-400">
-          <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Server Data Center Mugarsari Aktif</span>
-          </div>
-          <div className="flex items-center gap-3">
-            <span>Standar BSSN & ANRI</span>
-            <span>•</span>
-            <span>SSL 256-Bit</span>
-          </div>
-        </div>
       </div>
 
       {/* Right Login Form Section */}
