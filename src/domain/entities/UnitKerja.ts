@@ -92,15 +92,21 @@ export class UnitKerja {
    * Sesuai kaidah Pedoman Tata Naskah Dinas Kemendikbudristek / UNSIL
    */
   public getFormatKopSurat(): IKopSuratHeader {
-    const isTingkatUniversitas = this.#kodeUnit === 'UN58';
+    // Sesuai Pasal 30 (2) Peraturan Rektor No. 3/2023, surat Rektor/Wakil Rektor/Biro
+    // menggunakan kop surat tingkat Universitas (tanpa nama fakultas/biro di baris ketiga).
+    const isTingkatUniversitas =
+      this.#kodeUnit === 'UN58' ||
+      this.#tipeUnit === 'UNIVERSITAS' ||
+      this.#tipeUnit === 'BIRO' ||
+      this.#tipeUnit === 'ORGAN';
 
     return {
-      kementerian: 'KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI',
+      kementerian: 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI',
       universitas: 'UNIVERSITAS SILIWANGI',
       namaUnit: isTingkatUniversitas ? '' : this.#namaUnit.toUpperCase(),
       alamat: 'Jalan Siliwangi Nomor 24 Kota Tasikmalaya Kode Pos 46115',
       kontak: 'Telepon (0265) 330634, 333092 Faksimil (0265) 325812',
-      lamanWeb: 'Laman: www.unsil.ac.id Pos-el: humas@unsil.ac.id'
+      lamanWeb: 'Laman: www.unsil.ac.id Pos-el: info@unsil.ac.id'
     };
   }
 

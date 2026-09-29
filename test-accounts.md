@@ -12,6 +12,7 @@ Dokumen ini berisi daftar lengkap kredensial akun dummy untuk pengujian fitur E-
 - **Kata Sandi Standar (Testing):** `Siloka2026!`
 - **Passphrase TTE BSrE (Khusus Pejabat):** `UNSIL-TTE-2026`
 - **Catatan Otorisasi:**
+  - Role **`Super Admin`**: Administrator Sistem dengan akses penuh ke modul **Pengaturan Sistem** (RBAC, Sinkronisasi SIMPEG, Impor Massal .xlsx, Mutasi Pegawai, dan Konfigurasi BSrE TTE).
   - Role **`PEJABAT`**: Berwenang menandatangani surat dinas via TTE BSrE dan menerbitkan lembar disposisi instruksi pimpinan.
   - Role **`OPERATOR_UNIT`**: Berwenang membuat konsep draf naskah dinas dan membubuhkan paraf verifikasi tata usaha.
   - Role **`PENGAWAS`**: Akses monitoring/read-only audit trail kearsipan & kepatuhan tata naskah.

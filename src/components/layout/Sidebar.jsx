@@ -10,11 +10,16 @@ import {
   ChevronLeft,
   ChevronRight,
   ShieldCheck,
+  Activity,
   ExternalLink,
   HelpCircle,
   LogOut,
-  X
+  X,
+  BookOpen,
+  Receipt,
+  Users
 } from 'lucide-react';
+import { canAccessBrankasDigital } from '../../utils/authGuards';
 
 export const Sidebar = ({
   activeTab,
@@ -28,19 +33,43 @@ export const Sidebar = ({
   isSidebarOpen = false,
   toggleSidebar
 }) => {
-  // Akses Log Audit & Keamanan: Pimpinan, Pengawas SPI, dan Khusus UPT/UPA TIK (Analitik Process Mining)
-  const isUptTik =
+  // Tugas 1: Otorisasi RBAC Menu Pengaturan Sistem (Hanya untuk Super Admin)
+  const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'SUPER_ADMIN';
+
+  // Akses Khusus Bagian IT / UPA TIK (UN58.32)
+  const isUptTik = Boolean(
     user?.unit_kerja_id === 'UN58.32' ||
     user?.unit_kerja_id === 'UN58.TIK' ||
-    (user?.email && user.email.includes('tik@unsil.ac.id')) ||
-    (user?.roleLabel && user.roleLabel.toLowerCase().includes('tik')) ||
-    (user?.unit && user.unit.toLowerCase().includes('tik'));
+    user?.kode_unit === 'UN58.32' ||
+    user?.kode_unit === 'UN58.TIK' ||
+    (user?.email && (user.email.includes('tik@unsil.ac.id') || user.email.includes('it@unsil.ac.id'))) ||
+    (user?.roleLabel && (
+      user.roleLabel.toLowerCase().includes('tik') ||
+      /\b(it|ti)\b/i.test(user.roleLabel) ||
+      user.roleLabel.toLowerCase().includes('teknologi informasi') ||
+      user.roleLabel.toLowerCase().includes('programmer') ||
+      user.roleLabel.toLowerCase().includes('server')
+    )) ||
+    (user?.unit && (
+      user.unit.toLowerCase().includes('tik') ||
+      user.unit.toLowerCase().includes('teknologi informasi')
+    ))
+  );
 
-  const canAccessAuditLog =
-    user?.role === 'PIMPINAN' ||
-    user?.role === 'PEJABAT' ||
-    user?.role === 'PENGAWAS' ||
-    isUptTik;
+  // Akses Log Process Mining: Khusus Super Admin Saja
+  const canAccessAuditLog = isSuperAdmin;
+
+  // Evaluasi Hak Akses Granular Berdasarkan Role Permissions & Tupoksi
+  // Catatan Separation of Duties: Super Admin fokus pada administrasi sistem (RBAC, Mutasi, TTE, Audit Log),
+  // sehingga menu tupoksi operasional staf (Agenda, Keuangan DIPA/SPM, Kepegawaian ASN/PAK) disembunyikan dari Super Admin.
+  const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
+  const hasTupoksiPerm = (perm) => !isSuperAdmin && userPermissions.includes(perm);
+
+  const canViewKeuangan = hasTupoksiPerm('keuangan:view');
+  const canViewKepegawaian = hasTupoksiPerm('kepegawaian:view');
+  const canAccessAgenda = hasTupoksiPerm('surat:agenda_access');
+  const canManageUsers = isSuperAdmin || userPermissions.includes('admin:manage_users');
+  const canAccessBrankas = canAccessBrankasDigital(user);
 
   const menuItems = [
     {
@@ -69,6 +98,42 @@ export const Sidebar = ({
       icon: Mail,
       badge: null,
     },
+    // Menu Khusus Tupoksi Arsiparis / Agendator (surat:agenda_access)
+    ...(canAccessAgenda
+      ? [
+          {
+            id: 'buku-agenda',
+            label: 'Buku Agenda Masuk & Ekspedisi',
+            icon: BookOpen,
+            badge: 'Agenda',
+            badgeColor: 'bg-cyan-900 text-cyan-200 text-[10px] font-bold',
+          },
+        ]
+      : []),
+    // Menu Khusus Tupoksi Staf Keuangan (keuangan:view)
+    ...(canViewKeuangan
+      ? [
+          {
+            id: 'brankas-keuangan',
+            label: 'Brankas Keuangan / Verifikasi SPM',
+            icon: Receipt,
+            badge: 'DIPA/SPM',
+            badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px] font-bold',
+          },
+        ]
+      : []),
+    // Menu Khusus Tupoksi Staf Kepegawaian (kepegawaian:view)
+    ...(canViewKepegawaian
+      ? [
+          {
+            id: 'administrasi-kepegawaian',
+            label: 'Administrasi Kepegawaian / SKP',
+            icon: Users,
+            badge: 'ASN/PAK',
+            badgeColor: 'bg-blue-900 text-blue-200 text-[10px] font-bold',
+          },
+        ]
+      : []),
     {
       id: 'retensi-arsip',
       label: 'Retensi Arsip',
@@ -76,30 +141,41 @@ export const Sidebar = ({
       badge: unreadCounts.retensi > 0 ? unreadCounts.retensi : null,
       badgeColor: 'bg-amber-100 text-amber-900 font-semibold',
     },
-    {
-      id: 'brankas-digital',
-      label: 'Brankas Digital',
-      icon: Vault,
-      badge: 'Enkripsi',
-      badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px]',
-    },
+    // Menu Khusus Brankas Digital: Hanya untuk Pejabat Struktural (Rektor, Dekan, Kepala LPPM/LPMPP, Ketua SPI, dll.) & Staf Khusus Arsiparis Pusat/Biro
+    ...(canAccessBrankas
+      ? [
+          {
+            id: 'brankas-digital',
+            label: 'Brankas Digital',
+            icon: Vault,
+            badge: 'Enkripsi',
+            badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px]',
+          },
+        ]
+      : []),
     ...(canAccessAuditLog
       ? [
           {
             id: 'audit-log',
-            label: 'Log Audit & Keamanan',
-            icon: ShieldCheck,
-            badge: 'BSSN',
-            badgeColor: 'bg-emerald-900 text-unsil-gold-300 font-mono text-[9px]',
+            label: 'Process Mining Log',
+            icon: Activity,
+            badge: 'XES',
+            badgeColor: 'bg-indigo-900 text-indigo-300 font-mono text-[9px]',
           },
         ]
       : []),
-    {
-      id: 'settings',
-      label: 'Pengaturan Sistem',
-      icon: Settings,
-      badge: null,
-    },
+    // Menu Khusus Super Admin / User Management (admin:manage_users)
+    ...(canManageUsers
+      ? [
+          {
+            id: 'settings',
+            label: 'User Management (Super Admin)',
+            icon: Settings,
+            badge: 'RBAC',
+            badgeColor: 'bg-unsil-gold-500 text-unsil-green-950 font-bold text-[10px]',
+          },
+        ]
+      : []),
   ];
 
   return (

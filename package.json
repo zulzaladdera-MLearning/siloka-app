@@ -9,11 +9,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@hookform/resolvers": "^5.9.1",
+    "bcryptjs": "^3.0.3",
     "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
     "lucide-react": "^0.468.0",
+    "nodemailer": "^10.0.10",
+    "pg": "^8.23.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "tailwind-merge": "^2.5.5"
+    "react-hook-form": "^7.88.0",
+    "tailwind-merge": "^2.5.5",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",
@@ -25,4 +34,3 @@
     "vite": "^6.0.1"
   }
 }
-

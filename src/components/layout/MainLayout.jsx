@@ -14,6 +14,8 @@ export const MainLayout = ({
   onOpenQuickDisposisi,
   searchQuery,
   setSearchQuery,
+  letters = [],
+  onSelectLetter,
   children
 }) => {
   // State collapse di desktop
@@ -61,6 +63,8 @@ export const MainLayout = ({
           setSearchQuery={setSearchQuery}
           toggleSidebar={toggleSidebar}
           isSidebarOpen={isSidebarOpen}
+          letters={letters}
+          onSelectLetter={onSelectLetter}
         />
 
         {/* Responsive Content Container: extra bottom padding on mobile for MobileBottomNav */}

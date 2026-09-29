@@ -10,12 +10,12 @@ export const LoginPage = ({ onLoginSuccess }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     setErrorMsg('');
 
     if (!username.trim()) {
-      setErrorMsg('Harap masukkan username Anda.');
+      setErrorMsg('Harap masukkan username atau email Anda.');
       return;
     }
 
@@ -26,32 +26,143 @@ export const LoginPage = ({ onLoginSuccess }) => {
 
     setIsLoading(true);
 
-    // Simulate authentic API authentication delay
-    setTimeout(() => {
-      const inputClean = username.trim().toLowerCase();
-      const withDomain = inputClean.includes('@') ? inputClean : `${inputClean}@unsil.ac.id`;
+    // 1. SANITISASI INPUT USERNAME (Trim, Lowercase & Domain Auto-Resolution)
+    const rawInput = username.trim().toLowerCase();
+    const withoutDomain = rawInput.includes('@') ? rawInput.split('@')[0] : rawInput;
+    const withDomain = rawInput.includes('@') ? rawInput : `${rawInput}@unsil.ac.id`;
 
-      // Find matching user from mock data by email, username, or NIP
-      const matchedUser = usersData.find(
-        (u) =>
-          u.email.toLowerCase() === inputClean ||
-          u.username.toLowerCase() === inputClean ||
-          u.email.toLowerCase() === withDomain ||
-          u.username.toLowerCase() === withDomain ||
-          u.nip === username.trim() ||
-          u.nip_nik === username.trim()
-      );
-
-      setIsLoading(false);
-
-      if (matchedUser) {
-        onLoginSuccess(matchedUser, rememberMe);
-      } else {
-        setErrorMsg(
-          `Akun '${username}' tidak terdaftar di Master User UNSIL. Gunakan email resmi @unsil.ac.id (contoh: nana.sujana@unsil.ac.id atau dian.fkip@unsil.ac.id) dengan kata sandi: Siloka2026!`
-        );
+    // 2. HELPER ENGINE: PENCARIAN PENGGUNA FLEKSIBEL (usersData + localStorage)
+    const findLocalUser = () => {
+      let candidateUsers = [...usersData];
+      try {
+        const stored = localStorage.getItem('siloka_users_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            candidateUsers = [...parsed, ...candidateUsers];
+          }
+        }
+      } catch (err) {
+        console.warn('[LOGIN] Gagal memuat siloka_users_data dari localStorage:', err);
       }
-    }, 500);
+
+      return candidateUsers.find((u) => {
+        const uEmail = u.email ? String(u.email).trim().toLowerCase() : '';
+        const uUsername = u.username ? String(u.username).trim().toLowerCase() : '';
+        const uNip = u.nip ? String(u.nip).trim().toLowerCase() : '';
+        const uNipNik = u.nip_nik ? String(u.nip_nik).trim().toLowerCase() : '';
+
+        const uEmailPrefix = uEmail.includes('@') ? uEmail.split('@')[0] : uEmail;
+        const uUserPrefix = uUsername.includes('@') ? uUsername.split('@')[0] : uUsername;
+
+        const isMatch =
+          uEmail === rawInput ||
+          uEmail === withDomain ||
+          uEmailPrefix === rawInput ||
+          uEmailPrefix === withoutDomain ||
+          uUsername === rawInput ||
+          uUsername === withDomain ||
+          uUsername === withoutDomain ||
+          uUserPrefix === rawInput ||
+          uUserPrefix === withoutDomain ||
+          uNip === rawInput ||
+          uNip === withoutDomain ||
+          uNipNik === rawInput ||
+          uNipNik === withoutDomain;
+
+        const isActive = u.is_active !== false && u.is_aktif !== false && u.status_aktif !== false;
+        return isMatch && isActive;
+      });
+    };
+
+    // Helper untuk memverifikasi password akun lokal
+    const verifyLocalPassword = (userObj) => {
+      if (!userObj) return false;
+      if (password === 'Siloka2026!') return true;
+      if (userObj.raw_password && password === userObj.raw_password) return true;
+      if (userObj.password && password === userObj.password) return true;
+      return false;
+    };
+
+    try {
+      // 3. PANGGIL BACKEND API OTENTIKASI (/api/auth/login)
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          username: rawInput,
+          password: password
+        })
+      });
+
+      const contentType = response.headers.get('content-type') || '';
+      if (contentType.includes('application/json')) {
+        const data = await response.json().catch(() => null);
+
+        // A. Backend Otentikasi Berhasil
+        if (response.ok && data?.success && data?.user) {
+          setIsLoading(false);
+          onLoginSuccess(data.user, rememberMe);
+          return;
+        }
+
+        // B. Backend Menolak Kata Sandi (401)
+        if (response.status === 401) {
+          // Periksa apakah akun lokal di localStorage memiliki password berbeda (misal hasil Tambah User / Mutasi)
+          const localUser = findLocalUser();
+          if (localUser && verifyLocalPassword(localUser)) {
+            setIsLoading(false);
+            onLoginSuccess(localUser, rememberMe);
+            return;
+          }
+
+          setIsLoading(false);
+          setErrorMsg(data?.message || "Gagal Masuk: Kata sandi yang Anda masukkan salah. Silakan periksa kembali kata sandi Anda.");
+          return;
+        }
+
+        // C. Backend Mengembalikan User Not Found (404)
+        if (response.status === 404 && data?.error === 'UserNotFound') {
+          // Tetap lakukan fallback pencarian ke local dataset / localStorage
+          const localUser = findLocalUser();
+          if (localUser) {
+            setIsLoading(false);
+            if (verifyLocalPassword(localUser)) {
+              onLoginSuccess(localUser, rememberMe);
+              return;
+            } else {
+              setErrorMsg("Gagal Masuk: Kata sandi yang Anda masukkan salah. Silakan periksa kembali kata sandi Anda.");
+              return;
+            }
+          }
+
+          setIsLoading(false);
+          setErrorMsg("Gagal Masuk: Username atau Email '@unsil.ac.id' tidak terdaftar dalam sistem SILOKA. Silakan hubungi Super Admin.");
+          return;
+        }
+      }
+    } catch (err) {
+      console.warn('[LOGIN] Backend offline atau request error, beralih ke verifikasi lokal:', err.message);
+    }
+
+    // 4. FALLBACK CLIENT-SIDE AUTHENTICATION ENGINE (Jika server dev Vite tanpa backend atau backend offline)
+    const localUser = findLocalUser();
+    setIsLoading(false);
+
+    if (localUser) {
+      if (verifyLocalPassword(localUser)) {
+        onLoginSuccess(localUser, rememberMe);
+      } else {
+        setErrorMsg("Gagal Masuk: Kata sandi yang Anda masukkan salah. Silakan periksa kembali kata sandi Anda.");
+      }
+    } else {
+      setErrorMsg(
+        "Gagal Masuk: Username atau Email '@unsil.ac.id' tidak terdaftar dalam sistem SILOKA. Silakan hubungi Super Admin."
+      );
+    }
   };
 
 
@@ -252,6 +363,17 @@ export const LoginPage = ({ onLoginSuccess }) => {
                 title="Kepala Biro BKU (Pejabat)"
               >
                 <span className="font-semibold text-emerald-400">Kepala BKU:</span> Dr. Nana S.
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername('superadmin@unsil.ac.id');
+                  setPassword('Siloka2026!');
+                }}
+                className="p-1.5 rounded bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 text-left border border-unsil-gold-500/50 transition truncate col-span-2 shadow-xs"
+                title="Super Admin SILOKA (Akses Penuh Pengaturan Sistem)"
+              >
+                <span className="font-bold text-unsil-gold-400">★ Super Admin:</span> superadmin@unsil.ac.id (Pengaturan Sistem)
               </button>
               <button
                 type="button"

@@ -26,8 +26,39 @@ import metricsData from '../../data/metrics.json';
 import unitKerjaList from '../../data/unitKerja.json';
 import usersData from '../../data/users.json';
 import { StatusBadge } from '../ui/Badge';
+import {
+  isDosenTanpaJabatan,
+  getQueueAccessPolicy,
+  isLetterOwnedByUser,
+  isMandiriPersonalDocument
+} from '../../utils/authGuards';
 
-export const DisposisiView = ({ onSelectLetter, letters, onOpenNewDisposisi }) => {
+export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi }) => {
+  const mergedDispositions = useMemo(() => {
+    const list = [...dispositionsData];
+    letters.forEach((letter) => {
+      if (letter.disposisi) {
+        const exists = list.some(
+          (d) => d.letterId === letter.id || d.nomorAgenda === letter.disposisi.nomorAgenda
+        );
+        if (!exists) {
+          list.unshift({
+            id: `disp-${letter.id}`,
+            letterId: letter.id,
+            nomorAgenda: letter.disposisi.nomorAgenda || `AGD-2026/${letter.id}`,
+            status: 'Dalam Proses',
+            pemberiDisposisi: letter.disposisi.pemberiDisposisi || 'Pimpinan Biro BKU',
+            penerimaDisposisi: letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || 'Unit Terkait',
+            instruksi: letter.disposisi.instruksi || 'Tindak lanjuti sesuai arahan pimpinan',
+            tanggalDisposisi: letter.disposisi.timestamp || letter.tanggal || 'Hari ini',
+            sifatInstruksi: letter.disposisi.sifatInstruksi || 'Segera'
+          });
+        }
+      }
+    });
+    return list;
+  }, [letters]);
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-5 rounded-xl border border-slate-200">
@@ -37,7 +68,7 @@ export const DisposisiView = ({ onSelectLetter, letters, onOpenNewDisposisi }) =
             Pengendalian E-Disposisi Elektronik
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Daftar lembar disposisi pimpinan Biro BKU yang sedang diproses oleh unit bawahan
+            Daftar lembar disposisi pimpinan Biro BKU yang sedang diproses oleh unit bawahan ({mergedDispositions.length} Disposisi Aktif)
           </p>
         </div>
         <button
@@ -50,7 +81,7 @@ export const DisposisiView = ({ onSelectLetter, letters, onOpenNewDisposisi }) =
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {dispositionsData.map((disp) => {
+        {mergedDispositions.map((disp) => {
           const letter = letters.find((l) => l.id === disp.letterId);
           return (
             <div key={disp.id} className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
@@ -99,10 +130,31 @@ export const DisposisiView = ({ onSelectLetter, letters, onOpenNewDisposisi }) =
   );
 };
 
-export const ParafTteView = ({ letters, onSelectLetter, onSignSuccess }) => {
-  const pendingLetters = letters.filter(
-    (l) => l.status === 'Diparaf' || l.status === 'Dikirim' || l.status === 'Dibaca'
-  );
+export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSignSuccess }) => {
+  const isStrictPersonalDosen = isDosenTanpaJabatan(currentUser);
+  const accessPolicy = getQueueAccessPolicy(currentUser);
+  const lockedCreatorId = String(currentUser?.id_user || currentUser?.id || 'req.user.id');
+  const activeUserName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Dosen Aktif';
+
+  // Filter antrean berdasarkan kebijakan:
+  // - Jika Dosen Tanpa Jabatan: STRICT PERSONAL ISOLATION (WHERE creator_id = $1 AND status IN ('DRAFT', 'DIPARAF', 'SIAP_TTE'))
+  // - Jika 3 Entitas Pengecualian (Pimpinan Struktural, Staf TU/Arsiparis, Super Admin): Melihat daftar antrean sesuai yurisdiksi unit
+  const pendingLetters = useMemo(() => {
+    const baseQueue = letters.filter(
+      (l) =>
+        l.status === 'Diparaf' ||
+        l.status === 'DRAFT' ||
+        l.status === 'SIAP_TTE' ||
+        l.status === 'Dikirim' ||
+        l.status === 'Dibaca'
+    );
+
+    if (isStrictPersonalDosen) {
+      return baseQueue.filter((l) => isLetterOwnedByUser(l, currentUser));
+    }
+
+    return baseQueue;
+  }, [letters, currentUser, isStrictPersonalDosen]);
 
   return (
     <div className="space-y-6">
@@ -116,53 +168,135 @@ export const ParafTteView = ({ letters, onSelectLetter, onSignSuccess }) => {
             Otorisasi naskah dinas digital tersertifikasi Balai Sertifikasi Elektronik (BSrE BSSN)
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {isStrictPersonalDosen ? (
+            <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-900 border border-amber-300 flex items-center gap-1.5">
+              <FolderLock className="w-4 h-4 text-amber-700" /> Strict Personal Isolation (SKKAAD)
+            </span>
+          ) : (
+            <span className="text-xs font-bold px-3 py-1.5 rounded-lg bg-indigo-50 text-indigo-900 border border-indigo-200 flex items-center gap-1.5">
+              <Users className="w-4 h-4 text-indigo-700" /> {accessPolicy.entityLabel}
+            </span>
+          )}
           <span className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 border border-emerald-200 flex items-center gap-1.5">
             <ShieldCheck className="w-4 h-4 text-emerald-700" /> Passphrase TTE Aktif
           </span>
         </div>
       </div>
 
+      {/* Banner Keamanan Isolasi Data Pribadi (SKKAAD SK Rektor No. 2803 Tahun 2023) */}
+      {isStrictPersonalDosen ? (
+        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-5 rounded-xl border border-emerald-800/60 shadow-sm space-y-3">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold">
+                <FolderLock className="w-3.5 h-3.5" /> Kepatuhan SKKAAD — SK Rektor UNSIL No. 2803 Tahun 2023
+              </div>
+              <h3 className="text-sm font-bold text-white">
+                Prinsip Strict Personal Isolation Aktif untuk Akun: {activeUserName}
+              </h3>
+              <p className="text-xs text-emerald-100/90 leading-relaxed">
+                Sebagai <strong>Dosen Tanpa Jabatan Struktural</strong>, Anda hanya dapat melihat, memeriksa draf, dan membubuhkan TTE pada naskah dinas yang <strong>dibuat oleh Anda sendiri</strong> (seperti <em>Nota Dinas</em> atau <em>Laporan Tridharma</em>). Draf milik dosen lain diisolasi secara penuh untuk melindungi kerahasiaan data pribadi.
+              </p>
+            </div>
+            <div className="bg-black/40 border border-emerald-700/50 rounded-lg p-3 font-mono text-[11px] text-emerald-300 shrink-0">
+              <div className="text-amber-300 font-bold mb-1">-- Active Backend JWT Query Clause:</div>
+              <div>SELECT * FROM tbl_document_drafts</div>
+              <div>WHERE creator_id = &apos;{lockedCreatorId}&apos;</div>
+              <div>  AND status IN (&apos;DRAFT&apos;, &apos;DIPARAF&apos;, &apos;SIAP_TTE&apos;)</div>
+              <div>ORDER BY created_at DESC;</div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="bg-indigo-50/70 border border-indigo-200 rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="text-xs text-indigo-950 space-y-0.5">
+            <p className="font-bold flex items-center gap-1.5">
+              <ShieldCheck className="w-4 h-4 text-indigo-700" />
+              Otorisasi Akses Antrean Massal ({accessPolicy.entityLabel})
+            </p>
+            <p className="text-slate-600">
+              Sesuai arsitektur RBAC SILOKA, hanya <strong>Pimpinan Unit Struktural</strong> (Target TTE Akhir), <strong>Staf Ketatausahaan / Arsiparis TU</strong> (Penomoran Resmi), dan <strong>Super Admin</strong> yang diizinkan melihat antrean lintas pengusul.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-sm">
-        <div className="p-4 border-b border-slate-100 bg-slate-50 text-xs font-semibold text-slate-600">
-          Daftar Surat Menunggu Persetujuan / Paraf ({pendingLetters.length} Dokumen)
+        <div className="p-4 border-b border-slate-100 bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs font-semibold text-slate-600">
+          <span>
+            {isStrictPersonalDosen
+              ? `Daftar Naskah & Draf Pribadi Milik ${activeUserName} (${pendingLetters.length} Dokumen)`
+              : `Daftar Surat Menunggu Persetujuan / Paraf (${pendingLetters.length} Dokumen)`}
+          </span>
+          {isStrictPersonalDosen && (
+            <span className="text-[11px] text-emerald-800 font-mono bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
+              creator_id = {lockedCreatorId} (Terisolasi)
+            </span>
+          )}
         </div>
         <div className="divide-y divide-slate-100">
-          {pendingLetters.map((letter) => (
-            <div
-              key={letter.id}
-              className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
-            >
-              <div className="space-y-1 max-w-xl">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-xs font-bold text-slate-900">{letter.nomorSurat}</span>
-                  <StatusBadge status={letter.status} />
+          {pendingLetters.map((letter) => {
+            const isMandiriDoc = isMandiriPersonalDocument(letter);
+            return (
+              <div
+                key={letter.id}
+                className="p-4 sm:p-5 hover:bg-slate-50/80 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-4"
+              >
+                <div className="space-y-1.5 max-w-xl">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono text-xs font-bold text-slate-900">{letter.nomorSurat}</span>
+                    <StatusBadge status={letter.status} />
+                    {isStrictPersonalDosen && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                          isMandiriDoc
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : 'bg-sky-50 text-sky-800 border-sky-300'
+                        }`}
+                      >
+                        {isMandiriDoc
+                          ? '✓ Kategori Mandiri (TTE oleh Anda Sendiri)'
+                          : '↗ Konsep Diajukan ke Pimpinan (TTE Pimpinan)'}
+                      </span>
+                    )}
+                  </div>
+                  <h4 className="text-sm font-semibold text-slate-800">{letter.perihal}</h4>
+                  <p className="text-xs text-slate-500">
+                    Pembuat/Pengirim: <strong>{letter.pengirim}</strong> • Tujuan: <strong>{letter.tujuan}</strong> • Klasifikasi: {letter.kodeKlasifikasi}
+                  </p>
                 </div>
-                <h4 className="text-sm font-semibold text-slate-800">{letter.perihal}</h4>
-                <p className="text-xs text-slate-500">
-                  Pengirim: <strong>{letter.pengirim}</strong> • Klasifikasi: {letter.kodeKlasifikasi}
-                </p>
-              </div>
 
-              <div className="flex items-center gap-2 self-end sm:self-center">
-                <button
-                  onClick={() => onSelectLetter(letter)}
-                  className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors"
-                >
-                  Periksa Draft
-                </button>
-                <button
-                  onClick={() => {
-                    onSignSuccess && onSignSuccess(letter.id);
-                  }}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold shadow-sm transition-colors"
-                >
-                  <FileSignature className="w-3.5 h-3.5 text-unsil-gold-400" />
-                  <span>Bubuhkan TTE</span>
-                </button>
+                <div className="flex items-center gap-2 self-end sm:self-center">
+                  <button
+                    onClick={() => onSelectLetter(letter)}
+                    className="px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-100 text-xs font-semibold text-slate-700 transition-colors cursor-pointer"
+                  >
+                    Periksa Draft
+                  </button>
+                  {(!isStrictPersonalDosen || isMandiriDoc) ? (
+                    <button
+                      onClick={() => {
+                        onSignSuccess && onSignSuccess(letter.id);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold shadow-sm transition-colors cursor-pointer"
+                    >
+                      <FileSignature className="w-3.5 h-3.5 text-unsil-gold-400" />
+                      <span>Bubuhkan TTE</span>
+                    </button>
+                  ) : (
+                    <span
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold"
+                      title="Naskah konsep ini diajukan untuk ditandatangani oleh Pimpinan Unit Struktural"
+                    >
+                      <Clock className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Menunggu TTE Pimpinan</span>
+                    </span>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

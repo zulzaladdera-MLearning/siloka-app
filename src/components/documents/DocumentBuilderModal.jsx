@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   FileText,
@@ -65,19 +65,138 @@ import {
   PenggunaanTteTemplateView,
   DOCUMENT_TEMPLATES
 } from './DocumentTemplates';
-import { printDocument } from '../../utils/printDocument';
+import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
+import { determineKopSurat } from '../../utils/kopSuratHelper';
+import { FormatBarSelector } from './FormatBarSelector';
+import {
+  getAuthorizedTemplates,
+  getDefaultTemplateForUser,
+  getLecturerTemplateSopMetadata,
+  getRektoratOfficialSopProfile,
+  isTemplateAllowedForUser,
+  normalizeUserRole
+} from '../../config/documentFormats';
+import { getPejabatByUnit } from '../../utils/pejabatHelper';
+import SmartKlasifikasiNumberingPanel from './SmartKlasifikasiNumberingPanel';
 
 export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUser }) => {
   if (!isOpen) return null;
 
   const currentYear = new Date().getFullYear();
-  const [selectedTemplate, setSelectedTemplate] = useState('pos'); // Official UNSIL Templates
+  const [selectedTemplate, setSelectedTemplate] = useState(() => getDefaultTemplateForUser(currentUser));
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'form' | 'preview'
+  const [smartNumberingMeta, setSmartNumberingMeta] = useState({
+    nomorSuratAkhir: '',
+    kodeKlasifikasi: 'KP.05.00',
+    namaKlasifikasi: 'Administrasi Pegawai: Surat perintah dinas/Surat tugas',
+    tingkatKeamanan: 'B',
+    kodeUnit: 'UN58',
+    nomorUrut: 1,
+    tahun: currentYear,
+    jraMetadata: null
+  });
+  const [securityTriggerMeta, setSecurityTriggerMeta] = useState({
+    isRestrictedSecret: false,
+    tingkatKeamanan: 'B',
+    isPrintBlocked: false,
+    authorizedPrintOverride: false,
+    jraMetadata: null
+  });
+
+  // Profil SOP khusus bagi akun Rektor (23 Template) dan Wakil Rektor (16 Template) sesuai Peraturan Rektor No. 3/2023 & SK No. 2803/2023
+  const rektoratSopProfile = useMemo(() => {
+    return getRektoratOfficialSopProfile(currentUser);
+  }, [currentUser]);
+
+  // Deteksi akun Dosen Biasa (Tanpa Jabatan Struktural / Tugas Tambahan) — 8 Template Utama + 2 Template Kondisional
+  const isLecturerWithoutStructuralPosition = useMemo(() => {
+    return normalizeUserRole(currentUser) === 'DOSEN_NON_JABATAN';
+  }, [currentUser]);
+
+  const currentLecturerSopMeta = useMemo(() => {
+    if (!isLecturerWithoutStructuralPosition) return null;
+    return getLecturerTemplateSopMetadata(selectedTemplate);
+  }, [isLecturerWithoutStructuralPosition, selectedTemplate]);
+
+  const lecturerLeaderOptions = useMemo(() => {
+    if (!isLecturerWithoutStructuralPosition) return [];
+    const unitLeaders = getPejabatByUnit(currentUser).map((p) => ({
+      id: `unit-${p.id}`,
+      jabatan: p.jabatan,
+      signerTitle: `${p.jabatan},`,
+      namaLengkap: `${p.nama}${p.gelar ? `, ${p.gelar}` : ''}`,
+      nip: p.nip,
+      pangkatGol: 'Pembina Utama Muda / IV/c'
+    }));
+    const kajurOption = {
+      id: 'kajur-unit',
+      jabatan: `Ketua Jurusan pada ${currentUser?.unit_kerja_nama || 'Fakultas'}`,
+      signerTitle: `Ketua Jurusan,`,
+      namaLengkap: unitLeaders[1]?.namaLengkap || 'Dr. Ir. H. Budi Santoso, M.T.',
+      nip: unitLeaders[1]?.nip || '197504122001121002',
+      pangkatGol: 'Pembina / IV/a'
+    };
+    const rektorOption = {
+      id: 'rektor-unsil',
+      jabatan: 'Rektor Universitas Siliwangi',
+      signerTitle: 'Rektor,',
+      namaLengkap: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+      nip: '196708161996031001',
+      pangkatGol: 'Pembina Utama Madya / IV/d'
+    };
+    return [...unitLeaders, kajurOption, rektorOption];
+  }, [isLecturerWithoutStructuralPosition, currentUser]);
+
+  const [selectedLecturerLeaderId, setSelectedLecturerLeaderId] = useState('');
+
+  const activeLecturerLeader = useMemo(() => {
+    if (!lecturerLeaderOptions.length) return null;
+    return (
+      lecturerLeaderOptions.find((l) => l.id === selectedLecturerLeaderId) ||
+      lecturerLeaderOptions[0]
+    );
+  }, [lecturerLeaderOptions, selectedLecturerLeaderId]);
+
+  const authorizedTemplatesList = useMemo(() => {
+    return getAuthorizedTemplates(currentUser);
+  }, [currentUser]);
+
+  // Deteksi otomatis ukuran kertas PDF resmi (F4 untuk Arahan, A4 untuk Korespondensi/Lainnya)
+  const currentPaperInfo = useMemo(() => {
+    return getPaperSizeInfo(selectedTemplate);
+  }, [selectedTemplate]);
+
+  // Format Kop Surat Dinamis resmi sesuai Pasal 30(2) & Pasal 31(1,2,6) Peraturan Rektor No. 3/2023
+  const kopConfig = useMemo(() => {
+    return determineKopSurat(currentUser);
+  }, [currentUser]);
+
+  // Deteksi peran konseptor fakultas / jurusan berdasarkan Peraturan Rektor No. 3/2023 Tabel 1
+  const isFacultyDrafter = useMemo(() => {
+    if (!currentUser) return true; // Default safe: batasi ke wewenang fakultas/jurusan
+    if (rektoratSopProfile) return false;
+    const role = (currentUser.role || '').toUpperCase();
+    const unit = (currentUser.kode_unit_kerja || currentUser.unit_kerja_id || currentUser.kode_unit || '').toUpperCase();
+
+    // Super admin dan pimpinan universitas (Rektorat) memiliki akses penuh sesuai Tabel 1
+    if (role === 'SUPER_ADMIN' || role === 'SUPER ADMIN') return false;
+    if (unit === 'UN58' || (role === 'PEJABAT' && unit === 'UN58')) return false;
+
+    // Dosen tanpa jabatan struktural universitas dan staf fakultas dibatasi sesuai Tabel 1
+    return true;
+  }, [currentUser, rektoratSopProfile]);
+
+  // Auto-redirect jika pengguna tidak berwenang pada template aktif (Tabel 1 Peraturan Rektor No. 3/2023)
+  useEffect(() => {
+    if (!isTemplateAllowedForUser(selectedTemplate, currentUser)) {
+      setSelectedTemplate(getDefaultTemplateForUser(currentUser));
+    }
+  }, [currentUser, selectedTemplate]);
 
   // --- STATE FOR POS (PermenPAN-RB / Kemendikbudristek) ---
   const [posData, setPosData] = useState({
-    unitKerja: 'Biro Keuangan dan Umum (BKU)',
-    nomorPos: `POS/UN58/BKU/KU/01/${currentYear}`,
+    unitKerja: 'Universitas Siliwangi (Rektorat)',
+    nomorPos: `1/UN58/OT.01.01/${currentYear}`,
     tglPembuatan: '08 September 2026',
     tglRevisi: '08 September 2026',
     tglEfektif: '15 September 2026',
@@ -183,7 +302,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     namaRektor: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
     nipRektor: '196708161996031001',
     tteVerified: true,
-    hasLampiran: true,
+    hasLampiran: false,
     lampiranRows: [
       { no: 1, nama: 'Dr. Nana Sujana, Drs., M.Si.', nip: '196808301989031004', jabatan: 'Kepala Biro Umum dan Keuangan', peranTim: 'Penanggung Jawab Tim' },
       { no: 2, nama: 'Budi Santoso, S.E., M.Ak.', nip: '198203202008121002', jabatan: 'Koordinator Keuangan & BMN', peranTim: 'Ketua Pelaksana' },
@@ -290,7 +409,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
   // --- STATE FOR SURAT DINAS (SD) ---
   const [sdData, setSdData] = useState({
     nomorSurat: `092/UN58/TU.00.01/${currentYear}`,
-    lampiran: '1 (satu) Berkas',
+    lampiran: '-',
     hal: 'Undangan Rapat Koordinasi Tindak Lanjut Hasil Pengawasan Kearsipan',
     tempatTanggal: `Tasikmalaya, 8 September ${currentYear}`,
     yth: 'Para Dekan dan Kepala Biro di Lingkungan Universitas Siliwangi',
@@ -310,7 +429,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
   // --- STATE FOR SURAT UNDANGAN LEMBARAN (SU-LEMBAR) ---
   const [undanganLembarData, setUndanganLembarData] = useState({
     nomorSurat: `098/UN58/TU.02.00/${currentYear}`,
-    lampiran: '1 (satu) Lembar',
+    lampiran: '-',
     hal: 'Undangan Rapat Evaluasi Capaian Kinerja dan Kearsipan',
     tempatTanggal: `Tasikmalaya, 8 September ${currentYear}`,
     yth: 'Para Dekan Fakultas dan Direktur Pascasarjana',
@@ -326,7 +445,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     nip: '196708161996031001',
     tembusanText: 'Para Wakil Rektor di lingkungan UNSIL\nKetua Satuan Pengawas Internal (SPI)',
     tteVerified: true,
-    hasLampiran: true,
+    hasLampiran: false,
     lampiranDaftarText: 'Dekan Fakultas Keguruan dan Ilmu Pendidikan\nDekan Fakultas Ekonomi dan Bisnis\nDekan Fakultas Pertanian\nDekan Fakultas Teknik\nDekan Fakultas Ilmu Kesehatan\nDekan Fakultas Agama Islam\nDirektur Pascasarjana\nKetua Lembaga Penelitian dan Pengabdian kepada Masyarakat (LPPM)\nKetua Lembaga Penjaminan Mutu dan Pengembangan Pembelajaran (LPMPP)'
   });
 
@@ -1121,7 +1240,508 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     tembusan: tteDocData.tembusanText.split('\n').filter(Boolean)
   };
 
+  // Sinkronisasi otomatis Nomor Surat Akhir (System-Generated / Read-Only) ke seluruh template aktif
+  useEffect(() => {
+    const generatedNo = smartNumberingMeta.nomorSuratAkhir;
+    if (!generatedNo) return;
+
+    setPosData((prev) => ({ ...prev, nomorPos: generatedNo }));
+    setSeData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setSkData((prev) => ({ ...prev, nomorSk: generatedNo }));
+    setSpData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setStLembarData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setStKolomData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setNdData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setSdData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setUndanganLembarData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setMouData((prev) => ({ ...prev, nomorPihak1: generatedNo }));
+    setPksData((prev) => ({ ...prev, nomorPihak1: generatedNo }));
+    setSkuaData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setBaData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setSketData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setSperData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setSpengData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setPengData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setLapData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+    setTteDocData((prev) => ({ ...prev, nomorSurat: generatedNo }));
+  }, [smartNumberingMeta.nomorSuratAkhir, selectedTemplate]);
+
+  // Sinkronisasi otomatis Identitas Penandatangan & Materi Pokok SOP ketika login sebagai Rektor atau Wakil Rektor (Warek I, II, III)
+  useEffect(() => {
+    if (!rektoratSopProfile) return;
+
+    const {
+      subRoleKey,
+      officialTitle,
+      signerTitle,
+      officialName,
+      officialNip
+    } = rektoratSopProfile;
+
+    if (subRoleKey === 'REKTOR') {
+      setPosData((prev) => ({
+        ...prev,
+        unitKerja: 'Universitas Siliwangi (Rektorat)',
+        disahkanOlehJabatan: officialTitle,
+        disahkanOlehNama: officialName,
+        disahkanOlehNip: officialNip
+      }));
+      setSeData((prev) => ({
+        ...prev,
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      setSkData((prev) => ({
+        ...prev,
+        pejabatPenetap: 'REKTOR UNIVERSITAS SILIWANGI,',
+        namaJabatan: 'REKTOR,',
+        namaRektor: officialName,
+        nipRektor: officialNip
+      }));
+      setSpData((prev) => ({
+        ...prev,
+        pejabatPemberi: 'REKTOR UNIVERSITAS SILIWANGI,',
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      setStLembarData((prev) => ({
+        ...prev,
+        kalimatPembuka: 'Rektor Universitas Siliwangi dengan ini menugaskan kepada pejabat/pegawai:',
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nipPejabat: officialNip
+      }));
+      setStKolomData((prev) => ({
+        ...prev,
+        kalimatPembuka:
+          'Dalam rangka optimalisasi tata kelola universitas dan integrasi kearsipan digital, Rektor Universitas Siliwangi menugaskan kepada pegawai yang namanya tercantum di bawah ini:',
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nipPejabat: officialNip
+      }));
+      setNdData((prev) => ({
+        ...prev,
+        yth: 'Para Wakil Rektor, Dekan, Ketua Lembaga, dan Kepala Biro',
+        dari: officialTitle,
+        hal: 'Arahan Strategis Pelaksanaan Program Prioritas Universitas dan Kepatuhan JRA/SKKAAD',
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      setSdData((prev) => ({
+        ...prev,
+        hal: 'Penyampaian Kebijakan Pengelolaan Keuangan dan Tata Kelola Universitas Siliwangi',
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip,
+        tembusanText: 'Direktur Jenderal Pendidikan Tinggi, Riset, dan Teknologi\nPara Wakil Rektor di lingkungan UNSIL'
+      }));
+      setUndanganLembarData((prev) => ({
+        ...prev,
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      setMouData((prev) => ({
+        ...prev,
+        pihak1Nama: officialName,
+        pihak1Jabatan: officialTitle,
+        pihak1JabatanSingkat: officialTitle,
+        pihak1Nip: officialNip
+      }));
+      setPksData((prev) => ({
+        ...prev,
+        pihak1Nama: officialName,
+        pihak1Jabatan: officialTitle,
+        pihak1Nip: officialNip
+      }));
+      setSkuaData((prev) => ({
+        ...prev,
+        pemberiNama: officialName,
+        pemberiJabatan: officialTitle,
+        pemberiNip: officialNip
+      }));
+      setBaData((prev) => ({
+        ...prev,
+        mengetahuiNama: officialName,
+        mengetahuiJabatan: officialTitle,
+        mengetahuiNip: officialNip
+      }));
+      setSketData((prev) => ({
+        ...prev,
+        pejabatNama: officialName,
+        pejabatJabatan: officialTitle,
+        pejabatNip: officialNip
+      }));
+      setSperData((prev) => ({
+        ...prev,
+        namaYangMenyatakan: officialName,
+        nipYangMenyatakan: officialNip,
+        jabatan: officialTitle
+      }));
+      setSpengData((prev) => ({
+        ...prev,
+        pengirimJabatan: signerTitle,
+        pengirimNama: officialName,
+        pengirimNip: officialNip
+      }));
+      setPengData((prev) => ({
+        ...prev,
+        jabatan: officialTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      setNotulaData((prev) => ({
+        ...prev,
+        pemimpinRapat: `${officialName} (${officialTitle})`,
+        jabatanPenandatangan: signerTitle,
+        namaPenandatangan: officialName,
+        nipPenandatangan: officialNip
+      }));
+      setLapData((prev) => ({
+        ...prev,
+        jabatanPembuat: signerTitle,
+        namaPembuat: officialName,
+        nipPembuat: officialNip
+      }));
+      setTsData((prev) => ({
+        ...prev,
+        kepada: 'Kementerian Pendidikan, Kebudayaan, Riset, dan Teknologi',
+        dari: officialTitle,
+        jabatanPembuat: signerTitle,
+        namaPembuat: officialName,
+        nipPembuat: officialNip
+      }));
+      setDispRektorData((prev) => ({
+        ...prev,
+        namaRektor: officialName,
+        nipRektor: officialNip
+      }));
+      setTteDocData((prev) => ({
+        ...prev,
+        namaJabatan: signerTitle,
+        namaPejabat: officialName,
+        nip: officialNip
+      }));
+      return;
+    }
+
+    // WAKIL REKTOR (WAREK_1 Akademik, WAREK_2 Keuangan & Umum, WAREK_3 Kemahasiswaan & Alumni) — 16 Template Resmi
+    const bidangPerihalMap = {
+      WAREK_1: {
+        ndYth: 'Rektor Universitas Siliwangi',
+        ndHal: 'Laporan Evaluasi Kurikulum, Penjaminan Mutu Akademik, dan Pelaksanaan PMB TA 2026/2027',
+        sdHal: 'Koordinasi Penyusunan Rencana Strategis Akademik dan Pengembangan Program Studi (PR.00.02)',
+        stTugas: 'melaksanakan Monitoring dan Evaluasi Kurikulum OBE serta Pengawasan Ujian Seleksi PMB (PP.00.04)',
+        pengTentang: 'JADWAL PELAKSANAAN HER-REGISTRASI AKADEMIK, PENGISIAN KRS, DAN PERKULIAHAN SEMESTER GANJIL UNIVERSITAS SILIWANGI',
+        lapTentang: 'LAPORAN PENYELENGGARAAN PENERIMAAN MAHASISWA BARU (PMB) DAN EVALUASI AKADEMIK UNIVERSITAS SILIWANGI',
+        tsHal: 'Telaah Staf Penguatan Mutu Pembelajaran, Akreditasi Unggul Program Studi, dan Pengamanan Naskah Soal PMB (PP.00.04)'
+      },
+      WAREK_2: {
+        ndYth: 'Rektor Universitas Siliwangi',
+        ndHal: 'Laporan Realisasi Anggaran, Verifikasi SPJ Keuangan (KU.01.04), dan Usul Kenaikan Pangkat Pegawai (KP.04.03)',
+        sdHal: 'Tindak Lanjut Rekonsiliasi Laporan Keuangan, Penatausahaan BMN, dan Administrasi Kepegawaian (KU.01.04)',
+        stTugas: 'melaksanakan Rekonsiliasi Laporan Keuangan BLU, Penilaian Usul Kenaikan Pangkat (KP.04.03), dan Perjalanan Dinas (KR.01)',
+        pengTentang: 'JADWAL PENGUSULAN KENAIKAN PANGKAT (KP.04.03), PENYAMPAIAN SPJ KEUANGAN (KU.01.04), DAN INVENTARISASI BMN UNIVERSITAS SILIWANGI',
+        lapTentang: 'LAPORAN PERTANGGUNGJAWABAN KEUANGAN, PENGELOLAAN KEPEGAWAIAN, DAN TATA USAHA KEARSIPAN JRA/SKKAAD UNIVERSITAS SILIWANGI',
+        tsHal: 'Telaah Staf Optimalisasi Penyerapan Anggaran, Penataan SDM Kepegawaian (KP.04.03), dan Efisiensi Perjalanan Dinas (KR.01)'
+      },
+      WAREK_3: {
+        ndYth: 'Rektor Universitas Siliwangi',
+        ndHal: 'Laporan Pembinaan Organisasi Kemahasiswaan (KM.01.00), Penyaluran Beasiswa, dan Jejaring Tracer Study Alumni',
+        sdHal: 'Fasilitasi Kegiatan Kompetisi Mahasiswa Nasional, Beasiswa KIP-Kuliah, dan Kemitraan Ikatan Alumni (KM.02.00)',
+        stTugas: 'mendampingi Kontingen Mahasiswa Universitas Siliwangi pada Pekan Ilmiah Mahasiswa Nasional (PIMNAS) dan Pembinaan Ormawa',
+        pengTentang: 'PENDAFTARAN BEASISWA PRESTASI AKADEMIK & NON-AKADEMIK SERTA REGISTRASI KEGIATAN ORGANISASI KEMAHASISWAAN UNIVERSITAS SILIWANGI',
+        lapTentang: 'LAPORAN CAPAIAN PRESTASI MAHASISWA, PENYALURAN BEASISWA, DAN PELACAKAN ALUMNI (TRACER STUDY) UNIVERSITAS SILIWANGI',
+        tsHal: 'Telaah Staf Peningkatan Prestasi Kemahasiswaan Tingkat Nasional/Internasional dan Penguatan Peran Alumni'
+      }
+    };
+
+    const bidangInfo = bidangPerihalMap[subRoleKey] || bidangPerihalMap.WAREK_1;
+
+    setStLembarData((prev) => ({
+      ...prev,
+      kalimatPembuka: `a.n. Rektor Universitas Siliwangi, ${officialTitle} dengan ini menugaskan kepada pejabat/pegawai:`,
+      untukTugas: bidangInfo.stTugas,
+      namaJabatan: signerTitle,
+      namaPejabat: officialName,
+      nipPejabat: officialNip
+    }));
+    setStKolomData((prev) => ({
+      ...prev,
+      kalimatPembuka: `Dalam rangka pelaksanaan program kerja ${officialTitle}, dengan ini menugaskan kepada pegawai yang namanya tercantum di bawah ini:`,
+      untukTugas: bidangInfo.stTugas,
+      namaJabatan: signerTitle,
+      namaPejabat: officialName,
+      nipPejabat: officialNip
+    }));
+    setNdData((prev) => ({
+      ...prev,
+      yth: bidangInfo.ndYth,
+      dari: officialTitle,
+      hal: bidangInfo.ndHal,
+      namaJabatan: signerTitle,
+      namaPejabat: officialName,
+      nip: officialNip
+    }));
+    setSdData((prev) => ({
+      ...prev,
+      hal: bidangInfo.sdHal,
+      namaJabatan: signerTitle,
+      namaPejabat: officialName,
+      nip: officialNip,
+      tembusanText: 'Rektor Universitas Siliwangi (sebagai laporan)\nKepala Biro terkait di lingkungan UNSIL'
+    }));
+    setMouData((prev) => ({
+      ...prev,
+      pihak1Nama: officialName,
+      pihak1Jabatan: `${officialTitle} (Berdasarkan Pendelegasian Rektor)`,
+      pihak1JabatanSingkat: officialTitle,
+      pihak1Nip: officialNip
+    }));
+    setPksData((prev) => ({
+      ...prev,
+      pihak1Nama: officialName,
+      pihak1Jabatan: officialTitle,
+      pihak1Nip: officialNip
+    }));
+    setSkuaData((prev) => ({
+      ...prev,
+      pemberiNama: officialName,
+      pemberiJabatan: officialTitle,
+      pemberiNip: officialNip
+    }));
+    setBaData((prev) => ({
+      ...prev,
+      pihak1Nama: officialName,
+      pihak1Jabatan: officialTitle,
+      pihak1Nip: officialNip,
+      mengetahuiNama: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+      mengetahuiJabatan: 'Rektor Universitas Siliwangi',
+      mengetahuiNip: '196708161996031001'
+    }));
+    setSketData((prev) => ({
+      ...prev,
+      pejabatNama: officialName,
+      pejabatJabatan: officialTitle,
+      pejabatNip: officialNip
+    }));
+    setSperData((prev) => ({
+      ...prev,
+      namaYangMenyatakan: officialName,
+      nipYangMenyatakan: officialNip,
+      jabatan: officialTitle
+    }));
+    setSpengData((prev) => ({
+      ...prev,
+      pengirimJabatan: signerTitle,
+      pengirimNama: officialName,
+      pengirimNip: officialNip
+    }));
+    setPengData((prev) => ({
+      ...prev,
+      tentang: bidangInfo.pengTentang,
+      jabatan: officialTitle,
+      namaPejabat: officialName,
+      nip: officialNip
+    }));
+    setNotulaData((prev) => ({
+      ...prev,
+      pemimpinRapat: `${officialName} (${officialTitle})`,
+      jabatanPenandatangan: signerTitle,
+      namaPenandatangan: officialName,
+      nipPenandatangan: officialNip
+    }));
+    setLapData((prev) => ({
+      ...prev,
+      tentang: bidangInfo.lapTentang,
+      jabatanPembuat: signerTitle,
+      namaPembuat: officialName,
+      nipPembuat: officialNip
+    }));
+    setTsData((prev) => ({
+      ...prev,
+      kepada: 'Rektor Universitas Siliwangi',
+      dari: officialTitle,
+      hal: bidangInfo.tsHal,
+      jabatanPembuat: signerTitle,
+      namaPembuat: officialName,
+      nipPembuat: officialNip
+    }));
+    setTteDocData((prev) => ({
+      ...prev,
+      namaJabatan: signerTitle,
+      namaPejabat: officialName,
+      nip: officialNip
+    }));
+  }, [rektoratSopProfile]);
+
+  // Sinkronisasi otomatis Identitas Penandatangan & Pembuat Konsep untuk Dosen Biasa (Tanpa Jabatan Struktural)
+  // Sesuai Peraturan Rektor UNSIL No. 3 Tahun 2023:
+  // - Kategori 1 (Mandiri & Kondisional: nd, lap, ts, sper, notula, ba) -> Ditandatangani Langsung oleh Dosen
+  // - Kategori 2 (Konsep / Drafting: st_lembar, st_kolom, sd, sket, speng) -> Diajukan untuk Ditandatangani Pimpinan (Kajur / Dekan / Rektor)
+  useEffect(() => {
+    if (!isLecturerWithoutStructuralPosition || !currentUser) return;
+
+    const dosenName = currentUser.nama_lengkap || currentUser.name || 'Dr. Aris Martono, S.T., M.Kom.';
+    const dosenNip = currentUser.nip || '198805212015041002';
+    const unitName = currentUser.unit_kerja_nama || 'Fakultas Teknik';
+    const dosenJabatan = currentUser.roleLabel || `Dosen ${unitName}`;
+    const dosenSignerTitle = `${dosenJabatan},`;
+
+    const leaderJabatan = activeLecturerLeader?.jabatan || `Dekan ${unitName}`;
+    const leaderSignerTitle = activeLecturerLeader?.signerTitle || `Dekan,`;
+    const leaderName = activeLecturerLeader?.namaLengkap || 'Prof. Dr. Ir. H. Undang Syarief, M.P.';
+    const leaderNip = activeLecturerLeader?.nip || '196504121990031002';
+    const leaderPangkat = activeLecturerLeader?.pangkatGol || 'Pembina Utama Muda / IV/c';
+
+    // 1. KATEGORI MANDIRI (Ditandatangani Langsung oleh Dosen)
+    // 1a. Nota Dinas (Pasal 11)
+    setNdData((prev) => ({
+      ...prev,
+      yth: `Ketua Jurusan / Koordinator Program Studi / Dekan ${unitName}`,
+      dari: `${dosenName} (${dosenJabatan})`,
+      hal: 'Usulan Kegiatan Akademik dan Laporan Singkat Pelaksanaan Perkuliahan Semester Berjalan',
+      namaJabatan: dosenSignerTitle,
+      namaPejabat: dosenName,
+      nip: dosenNip
+    }));
+
+    // 1b. Laporan (Pasal 26)
+    setLapData((prev) => ({
+      ...prev,
+      tentang: `PELAKSANAAN KEGIATAN PENGAJARAN, PENELITIAN, DAN PENGABDIAN KEPADA MASYARAKAT DOSEN ${unitName.toUpperCase()}`,
+      jabatanPembuat: dosenSignerTitle,
+      namaPembuat: dosenName,
+      nipPembuat: dosenNip
+    }));
+
+    // 1c. Telaah Staf (Pasal 27)
+    setTsData((prev) => ({
+      ...prev,
+      kepada: `Dekan ${unitName} melalui Ketua Jurusan`,
+      dari: `${dosenName} (${dosenJabatan})`,
+      hal: 'Telaah Akademik Evaluasi Kurikulum Berbasis OBE dan Peningkatan Mutu Pembelajaran Mahasiswa',
+      jabatanPembuat: dosenSignerTitle,
+      namaPembuat: dosenName,
+      nipPembuat: dosenNip
+    }));
+
+    // 1d. Surat Pernyataan (Pasal 20)
+    setSperData((prev) => ({
+      ...prev,
+      namaYangMenyatakan: dosenName,
+      nipYangMenyatakan: dosenNip,
+      pangkatGolongan: 'Penata / III/c',
+      jabatan: `${dosenJabatan} pada ${unitName} Universitas Siliwangi`,
+      isiPernyataan: `Dengan ini menyatakan dengan sesungguhnya bahwa seluruh karya ilmiah, pelaksanaan pengajaran, penelitian, dan pengabdian kepada masyarakat yang saya laporkan pada Semester Tahun Akademik ${currentYear}/${currentYear + 1} adalah benar hasil karya sendiri dan bebas dari unsur plagiarisme. Apabila di kemudian hari ditemukan ketidaksesuaian, saya bersedia mempertanggungjawabkannya sesuai ketentuan akademik yang berlaku.`
+    }));
+
+    // 1e. Template Kondisional — Notula (Pasal 25)
+    setNotulaData((prev) => ({
+      ...prev,
+      namaRapat: `Rapat Koordinasi Kurikulum dan Evaluasi Akademik Jurusan pada ${unitName}`,
+      pemimpinRapat: `${leaderName} (${leaderJabatan})`,
+      notulis: `${dosenName} (Dosen Notulis Resmi Rapat)`,
+      jabatanPenandatangan: 'Notulis / Dosen Pencatat Rapat,',
+      namaPenandatangan: dosenName,
+      nipPenandatangan: dosenNip
+    }));
+
+    // 1f. Template Kondisional — Berita Acara (Pasal 18)
+    setBaData((prev) => ({
+      ...prev,
+      pihak1Nama: dosenName,
+      pihak1Nip: dosenNip,
+      pihak1Jabatan: `${dosenJabatan} (Pelaksana Kegiatan Kedinasan)`,
+      mengetahuiNama: leaderName,
+      mengetahuiJabatan: leaderJabatan,
+      mengetahuiNip: leaderNip
+    }));
+
+    // 2. KATEGORI KONSEP / DRAFTING (Diajukan oleh Dosen untuk Ditandatangani Pimpinan: Kajur / Dekan / Rektor)
+    // 2a. Surat Tugas Lembaran & Kolom (Pasal 9)
+    setStLembarData((prev) => ({
+      ...prev,
+      kalimatPembuka: `${leaderJabatan} Universitas Siliwangi dengan ini menugaskan kepada Dosen:`,
+      namaPegawai: dosenName,
+      nip: dosenNip,
+      pangkatGolongan: 'Penata, III/c',
+      jabatan: dosenJabatan,
+      untukTugas: 'sebagai Pemateri Seminar / Pelaksana Kegiatan Penelitian dan Pengabdian kepada Masyarakat (Tridharma Perguruan Tinggi)',
+      namaJabatan: leaderSignerTitle,
+      namaPejabat: leaderName,
+      nipPejabat: leaderNip,
+      tteVerified: false
+    }));
+
+    setStKolomData((prev) => ({
+      ...prev,
+      kalimatPembuka: `${leaderJabatan} Universitas Siliwangi dengan ini menugaskan kepada Tim Dosen yang namanya tercantum di bawah ini:`,
+      untukTugas: 'melaksanakan Kegiatan Penelitian Kolaboratif dan Pengabdian kepada Masyarakat di Lingkungan Mitra',
+      pesertaList: [
+        {
+          no: 1,
+          nama: dosenName,
+          nip: dosenNip,
+          pangkatGolongan: 'Penata, III/c',
+          jabatan: `${dosenJabatan} (Ketua Tim Pengusul)`
+        },
+        ...(prev.pesertaList.slice(1) || [])
+      ],
+      namaJabatan: leaderSignerTitle,
+      namaPejabat: leaderName,
+      nipPejabat: leaderNip,
+      tteVerified: false
+    }));
+
+    // 2b. Surat Dinas (Pasal 12)
+    setSdData((prev) => ({
+      ...prev,
+      hal: 'Permohonan Izin Observasi Penelitian, Kerja Sama Akademik, dan Kunjungan Ilmiah',
+      namaJabatan: leaderSignerTitle,
+      namaPejabat: leaderName,
+      nip: leaderNip,
+      tteVerified: false
+    }));
+
+    // 2c. Surat Keterangan (Pasal 19)
+    setSketData((prev) => ({
+      ...prev,
+      pejabatNama: leaderName,
+      pejabatNip: leaderNip,
+      pejabatPangkatGol: leaderPangkat,
+      pejabatJabatan: leaderJabatan,
+      pegawaiNama: dosenName,
+      pegawaiNip: dosenNip,
+      pegawaiPangkatGol: 'Penata / III/c',
+      pegawaiJabatan: `${dosenJabatan} pada ${unitName} Universitas Siliwangi`,
+      isiKeterangan: `Bahwa yang bersangkutan adalah benar Dosen Tetap aktif pada ${unitName} Universitas Siliwangi yang saat ini melaksanakan Tridharma Perguruan Tinggi (Pengajaran, Penelitian, dan Pengabdian kepada Masyarakat) pada Semester Tahun Akademik ${currentYear}/${currentYear + 1}.`,
+      tteVerified: false
+    }));
+
+    // 2d. Surat Pengantar (Pasal 21)
+    setSpengData((prev) => ({
+      ...prev,
+      pengirimJabatan: leaderSignerTitle,
+      pengirimNama: leaderName,
+      pengirimNip: leaderNip,
+      tteVerified: false
+    }));
+  }, [isLecturerWithoutStructuralPosition, currentUser, activeLecturerLeader, currentYear]);
+
   const handlePrint = () => {
+    if (securityTriggerMeta.isPrintBlocked) {
+      window.alert(
+        `PEMBLOKIRAN OPSI CETAK UMUM AKTIF (${
+          securityTriggerMeta.tingkatKeamanan === 'SR' ? 'SANGAT RAHASIA - SR' : 'RAHASIA - R'
+        }):\n\nSesuai SK Rektor UNSIL Nomor 2803 Tahun 2023 (SKKAAD), dokumen berkategori Rahasia/Sangat Rahasia wajib menggunakan Amplop Rangkap Dua dan dibatasi hak akses cetaknya.\n\nUntuk mencetak dokumen ini, aktifkan centang "Otorisasi Cetak Khusus Pejabat Berwenang" pada Panel Pengamanan di bagian atas formulir.`
+      );
+      return;
+    }
+
     const titleMap = {
       pos: `POS_${posData.nomorPos.replace(/\//g, '_')}`,
       se: `SE_${seData.nomorSurat.replace(/\//g, '_')}`,
@@ -1147,7 +1767,14 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
       disp_rektor: `Disposisi_Rektor_${dispRektorData.noAgenda.replace(/\//g, '_')}`,
       tte_doc: `Surat_Penggunaan_TTE_${tteDocData.nomorSurat.replace(/\//g, '_')}`
     };
-    printDocument('builder-printable-area', titleMap[selectedTemplate] || 'Naskah_Dinas_UNSIL');
+    printDocument(
+      'builder-printable-area',
+      titleMap[selectedTemplate] || 'Naskah_Dinas_UNSIL',
+      {
+        paperSize: currentPaperInfo.code,
+        templateId: selectedTemplate
+      }
+    );
   };
 
   const handleSaveToSiloka = () => {
@@ -1688,9 +2315,42 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     }
 
     if (finalLetterObject) {
+      const isLecturerDraftForLeader =
+        isLecturerWithoutStructuralPosition && currentLecturerSopMeta?.isDraftForLeader;
+      const isLecturerDirectSign =
+        isLecturerWithoutStructuralPosition && currentLecturerSopMeta?.isDirectLecturerSignature;
+
       const enrichedLetter = {
         ...finalLetterObject,
-        unit_kerja_id: finalLetterObject.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
+        nomorSurat: smartNumberingMeta.nomorSuratAkhir || finalLetterObject.nomorSurat,
+        kodeKlasifikasi: (smartNumberingMeta.kodeKlasifikasi || finalLetterObject.kodeKlasifikasi || 'KP').split('.')[0],
+        subKlasifikasi: smartNumberingMeta.kodeKlasifikasi || finalLetterObject.subKlasifikasi || 'KP.05.00',
+        namaKlasifikasi: smartNumberingMeta.namaKlasifikasi || '',
+        status: isLecturerDraftForLeader
+          ? 'Diparaf'
+          : isLecturerDirectSign
+          ? 'Disetujui'
+          : finalLetterObject.status,
+        statusTimestamp: isLecturerDraftForLeader
+          ? `Konsep Dosen (Drafter) — Diajukan Paraf Berjenjang untuk TTD ${activeLecturerLeader?.jabatan || 'Pimpinan'}`
+          : isLecturerDirectSign
+          ? `Ditandatangani Langsung oleh Dosen (${currentLecturerSopMeta?.pasal})`
+          : finalLetterObject.statusTimestamp,
+        tteVerified: isLecturerDraftForLeader
+          ? false
+          : isLecturerDirectSign
+          ? true
+          : finalLetterObject.tteVerified,
+        lecturerSopMetadata: currentLecturerSopMeta || null,
+        kategoriKeamanan:
+          smartNumberingMeta.tingkatKeamanan === 'SR'
+            ? 'Sangat Rahasia'
+            : smartNumberingMeta.tingkatKeamanan === 'R'
+            ? 'Rahasia'
+            : finalLetterObject.kategoriKeamanan || 'Biasa/Terbuka',
+        amplopRangkapDuaRequired: securityTriggerMeta.isRestrictedSecret,
+        jraMetadata: smartNumberingMeta.jraMetadata || null,
+        unit_kerja_id: finalLetterObject.unit_kerja_id || smartNumberingMeta.kodeUnit || currentUser?.unit_kerja_id || 'UN58.6',
         created_by_user_id: finalLetterObject.created_by_user_id || currentUser?.id || 'usr-02',
         created_at: finalLetterObject.created_at || new Date().toISOString()
       };
@@ -1724,7 +2384,13 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                 </span>
               </div>
               <p className="text-xs text-unsil-green-200/90 font-sans">
-                {DOCUMENT_TEMPLATES.length} Format Standar Tata Naskah Dinas Resmi Universitas Siliwangi
+                {rektoratSopProfile
+                  ? `Kewenangan ${rektoratSopProfile.officialTitle}: ${authorizedTemplatesList.length} Format Standar Naskah Dinas (${rektoratSopProfile.sopLegalReference})`
+                  : isLecturerWithoutStructuralPosition
+                  ? `Role Dosen Biasa (Tanpa Jabatan Struktural): 8 Template Utama + 2 Template Kondisional (2 Kategori Akses/Fungsi — Peraturan Rektor No. 3/2023)`
+                  : isFacultyDrafter
+                  ? `Format Standar Berdasarkan Tabel 1 Matriks Kewenangan (${authorizedTemplatesList.length} Format Naskah Dinas)`
+                  : `${authorizedTemplatesList.length} Format Standar Tata Naskah Dinas Resmi Universitas Siliwangi`}
               </p>
             </div>
           </div>
@@ -1757,17 +2423,29 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                   viewMode === 'preview' ? 'bg-unsil-green-800 text-white' : 'text-slate-300 hover:text-white'
                 }`}
               >
-                Pratinjau A4
+                Pratinjau ({currentPaperInfo.code})
               </button>
             </div>
 
             <button
               onClick={handlePrint}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition"
-              title="Cetak Naskah Dinas"
+              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${
+                securityTriggerMeta.isPrintBlocked
+                  ? 'bg-red-900/70 hover:bg-red-900 text-red-200 border-red-600 cursor-not-allowed'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title={
+                securityTriggerMeta.isPrintBlocked
+                  ? 'Opsi Cetak Umum Diblokir untuk Naskah Rahasia/Sangat Rahasia (SKKAAD)'
+                  : `Cetak Naskah Dinas Format Otomatis ${currentPaperInfo.code} (${currentPaperInfo.width} × ${currentPaperInfo.height})`
+              }
             >
               <Printer className="w-3.5 h-3.5 text-unsil-gold-400" />
-              <span>Cetak A4</span>
+              <span>
+                {securityTriggerMeta.isPrintBlocked
+                  ? `Cetak Terkunci (${securityTriggerMeta.tingkatKeamanan})`
+                  : `Cetak ${currentPaperInfo.code}`}
+              </span>
             </button>
 
             <button
@@ -1780,319 +2458,12 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
           </div>
         </div>
 
-        {/* Template Selector Bar */}
-        <div className="px-4 py-2.5 bg-white border-b border-slate-200 flex flex-wrap items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 overflow-x-auto text-xs font-medium pb-1 max-w-full">
-            <span className="text-slate-400 font-bold uppercase text-[10px] tracking-wider shrink-0 mr-1">
-              Format:
-            </span>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('pos')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'pos'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>1. POS/SOP</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('se')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'se'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileText className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>2. Surat Edaran</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('sk')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'sk'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileSignature className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>3. Keputusan Rektor</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('sp')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'sp'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileCheck className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>4. Surat Perintah</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('st_lembar')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'st_lembar'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>5. ST (Lembar)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('st_kolom')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'st_kolom'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Users className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>6. ST (Kolom)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('nd')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'nd'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>7. Nota Dinas</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('sd')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'sd'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Building className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>8. Surat Dinas</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('undangan_lembar')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'undangan_lembar'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Mail className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>9. Undangan (Lembar)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('undangan_kartu')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'undangan_kartu'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <CreditCard className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>10. Undangan (Kartu)</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('mou')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'mou'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Handshake className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>11. Nota Kesepahaman</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('pks')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'pks'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Handshake className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>12. PKS Dalam Negeri</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('skua')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'skua'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Key className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>13. Surat Kuasa</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('ba')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'ba'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>14. Berita Acara</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('sket')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'sket'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileBadge className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>15. Surat Keterangan</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('sper')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'sper'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <PenTool className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>16. Surat Pernyataan</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('speng')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'speng'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Send className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>17. Surat Pengantar</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('peng')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'peng'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <Megaphone className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>18. Pengumuman</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('notula')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'notula'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <ClipboardList className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>19. Notula</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('lap')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'lap'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileBarChart className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>20. Laporan</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('ts')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'ts'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <FileSearch className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>21. Telaah Staf</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('disp_rektor')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'disp_rektor'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <SendHorizontal className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>22. Disposisi Rektor</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSelectedTemplate('tte_doc')}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border shrink-0 transition ${
-                selectedTemplate === 'tte_doc'
-                  ? 'bg-unsil-green-50 border-unsil-green-700 text-unsil-green-950 font-bold shadow-xs'
-                  : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
-              }`}
-            >
-              <QrCode className="w-3.5 h-3.5 text-unsil-green-700" />
-              <span>23. Penggunaan TTE</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] text-slate-500 hidden sm:inline">
-              Otomatis tersinkronisasi ke penomoran BKU
-            </span>
-          </div>
-        </div>
+        {/* Template Selector Bar (Filtered & Sequentially Numbered by Role) */}
+        <FormatBarSelector
+          selectedTemplate={selectedTemplate}
+          onSelectTemplate={setSelectedTemplate}
+          currentUser={currentUser}
+        />
 
         {/* Main Split Content Area */}
         <div className="flex-1 flex overflow-hidden">
@@ -2103,6 +2474,89 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                 viewMode === 'split' ? 'w-full lg:w-1/2' : 'w-full'
               } p-6 overflow-y-auto border-r border-slate-200 space-y-6 text-xs text-slate-700`}
             >
+              {/* BANNER KHUSUS KATEGORI AKSES / FUNGSI DOSEN BIASA (TANPA JABATAN STRUKTURAL / TUGAS TAMBAHAN) */}
+              {isLecturerWithoutStructuralPosition && currentLecturerSopMeta && (
+                <div
+                  className={`p-4 rounded-xl border shadow-sm space-y-2.5 ${
+                    currentLecturerSopMeta.isDraftForLeader
+                      ? 'bg-indigo-50/90 border-indigo-200 text-indigo-950'
+                      : currentLecturerSopMeta.isConditional
+                      ? 'bg-amber-50/90 border-amber-200 text-amber-950'
+                      : 'bg-emerald-50/90 border-emerald-200 text-emerald-950'
+                  }`}
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`text-[10px] font-extrabold px-2.5 py-0.5 rounded-full uppercase tracking-wide ${
+                          currentLecturerSopMeta.isDraftForLeader
+                            ? 'bg-indigo-600 text-white'
+                            : currentLecturerSopMeta.isConditional
+                            ? 'bg-amber-600 text-white'
+                            : 'bg-emerald-700 text-white'
+                        }`}
+                      >
+                        {currentLecturerSopMeta.pasal} • {currentLecturerSopMeta.signerMechanism}
+                      </span>
+                      <span className="font-bold text-xs">
+                        {currentLecturerSopMeta.categoryTitle}
+                      </span>
+                    </div>
+                    <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-white/80 border border-slate-200 text-slate-700">
+                      Klasifikasi Baku: {currentLecturerSopMeta.defaultKlasifikasi}
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] leading-relaxed opacity-90">
+                    <strong>Fungsi SOP Dosen ({currentLecturerSopMeta.shortName}):</strong>{' '}
+                    {currentLecturerSopMeta.description}
+                  </p>
+
+                  {currentLecturerSopMeta.isDraftForLeader ? (
+                    <div className="pt-2 border-t border-indigo-200/70 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div className="text-[11px] font-semibold text-indigo-900">
+                        Pejabat Penandatangan Tujuan (Alur Paraf Berjenjang):
+                      </div>
+                      <select
+                        value={activeLecturerLeader?.id || ''}
+                        onChange={(e) => setSelectedLecturerLeaderId(e.target.value)}
+                        className="p-1.5 rounded-lg bg-white border border-indigo-300 text-xs font-semibold text-indigo-950 focus:ring-2 focus:ring-indigo-500"
+                      >
+                        {lecturerLeaderOptions.map((leader) => (
+                          <option key={leader.id} value={leader.id}>
+                            {leader.jabatan} — {leader.namaLengkap}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <div className="pt-1.5 border-t border-emerald-200/60 flex items-center justify-between text-[11px]">
+                      <span>
+                        <strong>Penandatangan Langsung:</strong>{' '}
+                        {currentUser?.nama_lengkap || currentUser?.name} (NIP.{' '}
+                        {currentUser?.nip || '198805212015041002'})
+                      </span>
+                      <span className="font-bold text-emerald-800">
+                        ✓ Wewenang TTD Mandiri Dosen
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* PANEL SISTEM PENOMORAN OTOMATIS & KLASIFIKASI JRA/SKKAAD (PENCEGAH HUMAN ERROR) */}
+              <SmartKlasifikasiNumberingPanel
+                templateKey={selectedTemplate}
+                templateLabel={
+                  DOCUMENT_TEMPLATES.find((t) => t.id === selectedTemplate)?.name ||
+                  'Naskah Dinas Resmi UNSIL'
+                }
+                currentUser={currentUser}
+                initialSequenceNumber={83}
+                onNumberChange={setSmartNumberingMeta}
+                onSecurityTriggerChange={setSecurityTriggerMeta}
+              />
+
               {/* TEMPLATE 1: POS FORM CONTROLS */}
               {selectedTemplate === 'pos' && (
                 <div className="space-y-5">
@@ -6854,17 +7308,51 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                 viewMode === 'split' ? 'w-full lg:w-1/2' : 'w-full'
               } p-4 sm:p-6 overflow-y-auto bg-slate-200/70 flex flex-col items-center`}
             >
-              <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-slate-500">
+              <div className="w-full max-w-4xl flex flex-wrap items-center justify-between mb-3 text-xs text-slate-500 gap-2">
                 <span className="font-bold uppercase tracking-wider text-[11px] text-slate-700 flex items-center gap-1.5">
-                  <Eye className="w-3.5 h-3.5 text-unsil-green-800" /> Pratinjau Lembar Naskah Dinas A4
+                  <Eye className="w-3.5 h-3.5 text-unsil-green-800" /> Pratinjau Lembar Naskah Dinas ({currentPaperInfo.code})
                 </span>
-                <span className="text-[11px] bg-white px-2 py-0.5 rounded shadow-xs border border-slate-200">
-                  Skala Otentik UNSIL
-                </span>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1 ${
+                    kopConfig.isTingkatUniversitas
+                      ? 'bg-blue-50 text-blue-900 border-blue-300'
+                      : 'bg-purple-50 text-purple-900 border-purple-300'
+                  }`}>
+                    Kop: {kopConfig.isTingkatUniversitas ? 'Tingkat Universitas (Pasal 30(2))' : `Unit: ${kopConfig.unitObj?.singkatan || 'Unit Kerja'} (Pasal 31)`}
+                  </span>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1.5 ${
+                    currentPaperInfo.isF4
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${currentPaperInfo.isF4 ? 'bg-amber-600 animate-pulse' : 'bg-emerald-600'}`} />
+                    Kertas: {currentPaperInfo.badgeLabel} ({currentPaperInfo.gramatur || 'HVS min. 70g'})
+                  </span>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-xs bg-indigo-50 text-indigo-900 border-indigo-300"
+                    title="Jenis dan Ukuran Huruf Naskah Dinas sesuai Peraturan Rektor UNSIL No. 3 Tahun 2023 Pasal 43–48"
+                  >
+                    Huruf: {currentPaperInfo.fontFamilyLabel || (currentPaperInfo.isF4 ? 'Bookman Old Style 12pt' : 'Times New Roman / Arial 12pt')}
+                  </span>
+                  <span
+                    className="px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-xs bg-teal-50 text-teal-900 border-teal-300"
+                    title="Pengaturan Ruang Tepi Naskah Dinas sesuai Pasal 47 Peraturan Rektor UNSIL No. 3 Tahun 2023"
+                  >
+                    {(selectedTemplate === 'ts' ? Boolean(tsData?.showKopSurat) : currentPaperInfo?.pasal47?.hasKop !== false)
+                      ? 'Pasal 47 • Tepi Atas: 1 Spasi di bawah Kop (4,5 cm) • Bawah/Kiri/Kanan: 1,5 cm'
+                      : 'Pasal 47 • Tepi Atas: 2 cm (Tanpa Kop) • Bawah/Kiri/Kanan: 1,5 cm'}
+                  </span>
+                </div>
               </div>
 
               {/* Document Paper Renderer */}
-              <div id="builder-printable-area" className="w-full transition-all printable-document">
+              <div
+                id="builder-printable-area"
+                data-paper-size={currentPaperInfo.code}
+                data-template-id={selectedTemplate}
+                data-has-kop={String(selectedTemplate === 'ts' ? Boolean(tsData?.showKopSurat) : currentPaperInfo?.pasal47?.hasKop !== false)}
+                className={`w-full transition-all printable-document ${currentPaperInfo.isF4 ? 'f4-document' : 'a4-document'}`}
+              >
                 {selectedTemplate === 'pos' && <PosTemplateView data={currentPosRenderData} />}
                 {selectedTemplate === 'se' && <SuratEdaranTemplateView data={currentSeRenderData} />}
                 {selectedTemplate === 'sk' && <KeputusanTemplateView data={currentSkRenderData} />}
@@ -6942,10 +7430,23 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
             <button
               type="button"
               onClick={handlePrint}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-semibold transition border border-slate-300"
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold transition border ${
+                securityTriggerMeta.isPrintBlocked
+                  ? 'bg-red-100 hover:bg-red-200 text-red-800 border-red-300 cursor-not-allowed'
+                  : 'bg-slate-100 hover:bg-slate-200 text-slate-800 border-slate-300'
+              }`}
+              title={
+                securityTriggerMeta.isPrintBlocked
+                  ? 'Opsi Cetak Umum Diblokir untuk Naskah Rahasia/Sangat Rahasia (SKKAAD)'
+                  : `Cetak / Ekspor PDF Otomatis (${currentPaperInfo.code})`
+              }
             >
-              <Printer className="w-4 h-4 text-slate-600" />
-              <span>Cetak / Ekspor PDF</span>
+              <Printer className={`w-4 h-4 ${securityTriggerMeta.isPrintBlocked ? 'text-red-600' : 'text-slate-600'}`} />
+              <span>
+                {securityTriggerMeta.isPrintBlocked
+                  ? `Cetak Umum Diblokir (${securityTriggerMeta.tingkatKeamanan})`
+                  : `Cetak / Ekspor PDF (${currentPaperInfo.code})`}
+              </span>
             </button>
 
             <button

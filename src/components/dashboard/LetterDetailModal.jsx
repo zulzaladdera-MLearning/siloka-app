@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   X,
   FileText,
@@ -17,10 +17,15 @@ import {
   EyeOff,
   ShieldCheck,
   Printer,
-  Archive
+  Archive,
+  AlertTriangle,
+  CheckCheck,
+  RotateCcw,
+  AlertCircle
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { generateForensicWatermark } from '../../utils/security';
+import { getLetterActionCapabilities, calculateLetterTracking } from '../../utils/letterActionPolicy';
 import {
   PosTemplateView,
   SuratEdaranTemplateView,
@@ -46,7 +51,7 @@ import {
   DisposisiRektorTemplateView,
   PenggunaanTteTemplateView
 } from '../documents/DocumentTemplates';
-import { printDocument } from '../../utils/printDocument';
+import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
 
 export const LetterDetailModal = ({
   letter,
@@ -55,12 +60,41 @@ export const LetterDetailModal = ({
   onOpenDisposisi,
   onSignTte,
   onArchiveLetter,
+  onApproveLetter,
+  onRejectLetter,
   currentUser,
   onLogAction
 }) => {
   if (!isOpen || !letter) return null;
 
   const [activeTabMode, setActiveTabMode] = useState('metadata'); // 'metadata' | 'document'
+  const [showRejectBox, setShowRejectBox] = useState(false);
+  const [rejectNote, setRejectNote] = useState('');
+  const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  // Kapabilitas aksi pengguna & aturan bisnis ketat (STRICT BUSINESS RULE)
+  const capabilities = useMemo(() => {
+    return getLetterActionCapabilities(letter, currentUser);
+  }, [letter, currentUser]);
+
+  // Kalkulasi 5 tahap visual tracking persuratan
+  const tracking = useMemo(() => {
+    return calculateLetterTracking(letter);
+  }, [letter]);
+
+  // Deteksi otomatis ukuran kertas PDF resmi (F4 untuk Naskah Arahan, A4 untuk Korespondensi/Lainnya)
+  const paperInfo = useMemo(() => {
+    return getPaperSizeInfo(letter);
+  }, [letter]);
+
+  // Data template dengan keterkaitan unit kerja penerbit surat
+  const effectiveTemplateData = useMemo(() => {
+    return {
+      ...(letter.templateData || {}),
+      unitKerja: letter.templateData?.unitKerja || letter.unit_kerja_id || currentUser?.unit_kerja_id,
+      unit_kerja_id: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id
+    };
+  }, [letter, currentUser]);
 
   const isRestrictedForUser =
     currentUser?.role === 'STAF' &&
@@ -145,70 +179,109 @@ export const LetterDetailModal = ({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Naskah Resmi (A4)</span>
+              <span>Naskah Resmi ({paperInfo.code})</span>
             </button>
           </div>
 
           {activeTabMode === 'document' && (
-            <button
-              onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL')}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-medium shadow-xs shrink-0"
-            >
-              <Printer className="w-3.5 h-3.5 text-unsil-green-800" /> Cetak
-            </button>
+            <div className="flex items-center gap-2">
+              <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs ${
+                paperInfo.isF4
+                  ? 'bg-amber-100 text-amber-900 border-amber-300'
+                  : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${paperInfo.isF4 ? 'bg-amber-600 animate-pulse' : 'bg-emerald-600'}`} />
+                Format: {paperInfo.badgeLabel} ({paperInfo.gramatur || 'HVS min. 70g'})
+              </span>
+
+              <span
+                className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-indigo-50 text-indigo-900 border-indigo-300"
+                title="Jenis dan Ukuran Huruf Naskah Dinas sesuai Peraturan Rektor UNSIL No. 3 Tahun 2023 Pasal 43–48"
+              >
+                Huruf: {paperInfo.fontFamilyLabel || (paperInfo.isF4 ? 'Bookman Old Style 12pt' : 'Times New Roman / Arial 12pt')}
+              </span>
+
+              <span
+                className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-teal-50 text-teal-900 border-teal-300"
+                title="Pengaturan Ruang Tepi Naskah Dinas sesuai Pasal 47 Peraturan Rektor UNSIL No. 3 Tahun 2023"
+              >
+                {paperInfo?.pasal47?.hasKop !== false
+                  ? 'Pasal 47 • Tepi Atas: 1 Spasi Kop (4,5 cm) • Bawah/Kiri/Kanan: 1,5 cm'
+                  : 'Pasal 47 • Tepi Atas: 2 cm (Tanpa Kop) • Bawah/Kiri/Kanan: 1,5 cm'}
+              </span>
+
+              <button
+                onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL', {
+                  paperSize: paperInfo.code,
+                  letter
+                })}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-xs shrink-0 transition"
+                title={`Cetak Dokumen PDF Otomatis (${paperInfo.code} - ${paperInfo.width} × ${paperInfo.height})`}
+              >
+                <Printer className="w-3.5 h-3.5 text-unsil-green-800" />
+                <span>Cetak ({paperInfo.code})</span>
+              </button>
+            </div>
           )}
         </div>
 
-        {/* Content Body: Conditional Switcher between Document A4 and Metadata */}
+        {/* Content Body: Conditional Switcher between Document (F4/A4) and Metadata */}
         {activeTabMode === 'document' ? (
           <div className="p-3 sm:p-6 overflow-y-auto overflow-x-auto bg-slate-200/70 flex flex-col items-center">
-            <div id="letter-detail-printable-area" className="w-full printable-document">
+            <div
+              id="letter-detail-printable-area"
+              data-paper-size={paperInfo.code}
+              data-category={letter.kategori}
+              data-template-id={letter.templateType}
+              data-has-kop={String(paperInfo?.pasal47?.hasKop !== false)}
+              className={`w-full printable-document ${paperInfo.isF4 ? 'f4-document' : 'a4-document'}`}
+            >
               {letter.templateType === 'pos' ? (
-                <PosTemplateView data={letter.templateData} />
+                <PosTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'se' ? (
-                <SuratEdaranTemplateView data={letter.templateData} />
+                <SuratEdaranTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'sk' ? (
-                <KeputusanTemplateView data={letter.templateData} />
+                <KeputusanTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'sp' ? (
-                <SuratPerintahTemplateView data={letter.templateData} />
+                <SuratPerintahTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'st_lembar' ? (
-                <SuratTugasLembaranTemplateView data={letter.templateData} />
+                <SuratTugasLembaranTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'st_kolom' ? (
-                <SuratTugasKolomTemplateView data={letter.templateData} />
+                <SuratTugasKolomTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'nd' ? (
-                <NotaDinasTemplateView data={letter.templateData} />
+                <NotaDinasTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'sd' ? (
-                <SuratDinasTemplateView data={letter.templateData} />
+                <SuratDinasTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'undangan_lembar' ? (
-                <SuratUndanganLembaranTemplateView data={letter.templateData} />
+                <SuratUndanganLembaranTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'undangan_kartu' ? (
-                <SuratUndanganKartuTemplateView data={letter.templateData} />
+                <SuratUndanganKartuTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'mou' ? (
-                <NotaKesepahamanTemplateView data={letter.templateData} />
+                <NotaKesepahamanTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'pks' ? (
-                <PerjanjianKerjaSamaTemplateView data={letter.templateData} />
+                <PerjanjianKerjaSamaTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'skua' ? (
-                <SuratKuasaTemplateView data={letter.templateData} />
+                <SuratKuasaTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'ba' ? (
-                <BeritaAcaraTemplateView data={letter.templateData} />
+                <BeritaAcaraTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'sket' ? (
-                <SuratKeteranganTemplateView data={letter.templateData} />
+                <SuratKeteranganTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'sper' ? (
-                <SuratPernyataanTemplateView data={letter.templateData} />
+                <SuratPernyataanTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'speng' ? (
-                <SuratPengantarTemplateView data={letter.templateData} />
+                <SuratPengantarTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'peng' ? (
-                <PengumumanTemplateView data={letter.templateData} />
+                <PengumumanTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'notula' ? (
-                <NotulaTemplateView data={letter.templateData} />
+                <NotulaTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'lap' ? (
-                <LaporanTemplateView data={letter.templateData} />
+                <LaporanTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'ts' || letter.templateType === 'telaah_staf' ? (
-                <TelaahStafTemplateView data={letter.templateData} />
+                <TelaahStafTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'disposisi_rektor' || letter.templateType === 'disp_rektor' ? (
-                <DisposisiRektorTemplateView data={letter.templateData} />
+                <DisposisiRektorTemplateView data={effectiveTemplateData} />
               ) : letter.templateType === 'tte_doc' || letter.templateType === 'penggunaan_tte' ? (
-                <PenggunaanTteTemplateView data={letter.templateData} />
+                <PenggunaanTteTemplateView data={effectiveTemplateData} />
               ) : (
                 <SuratEdaranTemplateView
                   data={{
@@ -226,6 +299,8 @@ export const LetterDetailModal = ({
                     namaJabatan: letter.pengirim,
                     namaPejabat: currentUser?.name || 'Dr. Nana Sujana, Drs., M.Si.',
                     nip: currentUser?.nip || '196808301989031004',
+                    unitKerja: letter.unit_kerja_id || currentUser?.unit_kerja_id,
+                    unit_kerja_id: letter.unit_kerja_id || currentUser?.unit_kerja_id,
                     tteVerified: letter.tteVerified
                   }}
                 />
@@ -236,7 +311,7 @@ export const LetterDetailModal = ({
           <div className="p-6 overflow-y-auto space-y-6 text-slate-700 text-sm">
             {/* Top Status & Classification Banner */}
             <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 bg-slate-50 rounded-xl border border-slate-200/80">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-slate-500 font-medium">Status Surat:</span>
                 <StatusBadge status={letter.status} />
                 <SifatBadge sifat={letter.sifat} />
@@ -245,11 +320,134 @@ export const LetterDetailModal = ({
                     🔒 Safeguard Terkunci
                   </span>
                 )}
+                {letter.tujuan_aksi && (
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                    letter.tujuan_aksi === 'TTD'
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : 'bg-blue-100 text-blue-900 border-blue-200'
+                  }`}>
+                    {letter.tujuan_aksi === 'TTD' ? '✍️ Permohonan TTE' : '📋 Disposisi Pimpinan'}
+                  </span>
+                )}
               </div>
               <div className="text-xs text-slate-500 font-mono">
                 Klasifikasi: <strong className="text-slate-800">{letter.subKlasifikasi || letter.kodeKlasifikasi || 'Umum'}</strong>
               </div>
             </div>
+
+            {/* Feature 7: 5-Stage Visual Real-Time Tracking Stepper */}
+            <div className="p-4 bg-slate-50/90 rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-unsil-green-800" />
+                  Jejak Progres Naskah Dinas ({tracking.currentStep}/5 Tahap)
+                </span>
+                {capabilities.isSignatureRequest ? (
+                  <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
+                    ⚡ Jalur Khusus TTE Pimpinan
+                  </span>
+                ) : (
+                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    Alur Disposisi Berjenjang
+                  </span>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                {tracking.stages.map((stg) => {
+                  const isDone = stg.isCompleted;
+                  const isCurr = stg.isCurrent;
+                  const isSkip = stg.isSkipped;
+
+                  return (
+                    <div
+                      key={stg.id}
+                      className={`relative p-2.5 rounded-lg border text-center transition-all ${
+                        isCurr
+                          ? 'bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-500/40'
+                          : isDone
+                          ? 'bg-white border-slate-200 shadow-2xs'
+                          : isSkip
+                          ? 'bg-slate-100/70 border-slate-200/60 opacity-60'
+                          : 'bg-slate-50/50 border-slate-200/50 opacity-40'
+                      }`}
+                    >
+                      <div className="flex items-center justify-center mb-1">
+                        {isDone ? (
+                          <div className="w-5 h-5 rounded-full bg-unsil-green-800 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">
+                            ✓
+                          </div>
+                        ) : isCurr ? (
+                          <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold animate-pulse">
+                            {stg.id}
+                          </div>
+                        ) : isSkip ? (
+                          <div className="w-5 h-5 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] font-bold">
+                            —
+                          </div>
+                        ) : (
+                          <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">
+                            {stg.id}
+                          </div>
+                        )}
+                      </div>
+                      <p className={`text-[11px] font-bold truncate ${
+                        isCurr ? 'text-emerald-950' : isDone ? 'text-slate-800' : 'text-slate-400'
+                      }`}>
+                        {stg.name}
+                      </p>
+                      <p className="text-[9.5px] text-slate-500 line-clamp-1 mt-0.5" title={stg.desc}>
+                        {stg.desc}
+                      </p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* STRICT BUSINESS RULE ENFORCEMENT BANNER */}
+            {capabilities.isSignatureRequest && (
+              <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 space-y-1.5 text-xs shadow-xs">
+                <div className="flex items-center gap-2 font-bold text-amber-900">
+                  <ShieldAlert className="w-4 h-4 text-amber-700 shrink-0" />
+                  Aturan Alur Kerja Khusus: Permohonan Tanda Tangan Elektronik (TTE)
+                </div>
+                <p className="leading-relaxed">
+                  Surat ini diajukan dengan tujuan khusus <strong>Permohonan Tanda Tangan Pimpinan</strong>. Sesuai regulasi tata naskah dinas Universitas Siliwangi, opsi <strong>Disposisi ditiadakan secara otomatis dari sistem</strong> demi menjamin kepastian alur penandatanganan.
+                </p>
+                <p className="text-[11px] text-amber-800 font-semibold pt-0.5">
+                  Tindakan resmi yang tersedia: <strong>Tanda Tangan Elektronik (TTE)</strong>, <strong>Persetujuan (Approve)</strong>, atau <strong>Minta Revisi / Tolak</strong>.
+                </p>
+              </div>
+            )}
+
+            {/* Rejection / Revision Alert */}
+            {letter.status === 'Ditolak' && (
+              <div className="p-4 rounded-xl bg-rose-50 border border-rose-300 text-rose-950 space-y-1 text-xs">
+                <div className="flex items-center gap-2 font-bold text-rose-900">
+                  <AlertTriangle className="w-4 h-4 text-rose-700 shrink-0" />
+                  Status Naskah: Dikembalikan untuk Revisi
+                </div>
+                <p className="text-rose-800 leading-relaxed">
+                  Pimpinan/Pejabat meminta perbaikan sebelum naskah dapat disetujui atau ditandatangani. Silakan tinjau catatan revisi pada riwayat paraf di bawah.
+                </p>
+              </div>
+            )}
+
+            {/* Nomor Surat Asal (Surat Masuk Eksternal) */}
+            {letter.nomorSuratAsal && (
+              <div className="p-3 bg-emerald-50/50 rounded-xl border border-emerald-200/80 flex items-center justify-between gap-3 text-xs">
+                <div>
+                  <span className="text-[10.5px] font-bold uppercase tracking-wider text-emerald-800 block">
+                    Nomor Surat Asal (Pengirim Eksternal)
+                  </span>
+                  <p className="font-mono font-bold text-slate-900 mt-0.5">{letter.nomorSuratAsal}</p>
+                </div>
+                <span className="text-[11px] bg-white text-emerald-900 font-semibold px-2.5 py-1 rounded-lg border border-emerald-200">
+                  Surat Masuk Terdaftar
+                </span>
+              </div>
+            )}
 
           {/* Role-Based Data Masking Notice */}
           {isRestrictedForUser && (
@@ -443,60 +641,151 @@ export const LetterDetailModal = ({
       )}
 
         {/* Footer Actions */}
-        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5 shrink-0">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors text-center"
-          >
-            Tutup
-          </button>
+        <div className="px-4 sm:px-6 py-3 bg-slate-50 border-t border-slate-100 flex flex-col gap-2.5 shrink-0">
+          {/* Inline Revision / Rejection Note Box */}
+          {showRejectBox && (
+            <div className="w-full p-3.5 bg-rose-50/90 border border-rose-200 rounded-xl space-y-2.5 text-xs animate-in fade-in duration-150">
+              <div className="flex items-center justify-between text-rose-900 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 text-rose-600" />
+                  Catatan Revisi / Alasan Pengembalian Naskah Dinas
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowRejectBox(false)}
+                  className="text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <textarea
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                placeholder="Tuliskan catatan perbaikan secara spesifik agar pengusul dapat merevisi draf surat..."
+                rows={2}
+                className="w-full p-2.5 text-xs border border-rose-300 rounded-lg bg-white text-slate-800 focus:ring-2 focus:ring-rose-500/20 focus:outline-none"
+                autoFocus
+              />
+              <div className="flex items-center justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowRejectBox(false)}
+                  className="px-3 py-1.5 rounded-lg text-slate-600 hover:bg-slate-200 font-semibold"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  disabled={!rejectNote.trim() || isSubmittingAction}
+                  onClick={async () => {
+                    setIsSubmittingAction(true);
+                    if (onRejectLetter) {
+                      await onRejectLetter(letter.id, rejectNote);
+                    }
+                    setIsSubmittingAction(false);
+                    setShowRejectBox(false);
+                    onClose();
+                  }}
+                  className="inline-flex items-center gap-1 px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-semibold rounded-lg shadow-xs transition disabled:opacity-50"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Kirim Penolakan & Minta Revisi</span>
+                </button>
+              </div>
+            </div>
+          )}
 
-          <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 justify-end w-full sm:w-auto">
-            {/* Action 1: Bubuhkan TTE BSrE (untuk Pejabat/Pimpinan jika status Diparaf/Dikirim dan belum TTE) */}
-            {(currentUser?.role === 'PEJABAT' || currentUser?.role === 'PIMPINAN') && !letter.tteVerified && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onSignTte && onSignTte(letter.id);
-                }}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-sm transition-colors"
-              >
-                <FileSignature className="w-3.5 h-3.5 text-amber-200" />
-                <span>TTE BSrE</span>
-              </button>
-            )}
+          <div className="flex flex-col-reverse sm:flex-row sm:items-center justify-between gap-2.5">
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-full sm:w-auto px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-200 transition-colors text-center"
+            >
+              Tutup
+            </button>
 
-            {/* Action 2: Arsipkan ke JRA (jika status Disetujui) */}
-            {letter.status === 'Disetujui' && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onArchiveLetter && onArchiveLetter(letter.id);
-                }}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-700 hover:bg-indigo-800 text-white shadow-sm transition-colors"
-              >
-                <Archive className="w-3.5 h-3.5 text-indigo-200" />
-                <span>Arsipkan</span>
-              </button>
-            )}
+            <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 justify-end w-full sm:w-auto">
+              {/* Action: Minta Revisi / Tolak (Pejabat yang berwenang) */}
+              {capabilities.canReject && !showRejectBox && (
+                <button
+                  type="button"
+                  onClick={() => setShowRejectBox(true)}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 shadow-xs transition-colors"
+                  title="Kembalikan naskah dengan catatan revisi"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Minta Revisi / Tolak</span>
+                </button>
+              )}
 
-            {/* Action 3: Buat / Teruskan Disposisi */}
-            {currentUser?.role !== 'PENGAWAS' && (
-              <button
-                type="button"
-                onClick={() => {
-                  onClose();
-                  onOpenDisposisi(letter);
-                }}
-                className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
-              >
-                <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
-                <span>Disposisi</span>
-              </button>
-            )}
+              {/* Action: Setujui (Approve) Naskah (Pejabat yang berwenang) */}
+              {capabilities.canApprove && (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (confirm('Setujui naskah dinas ini untuk diterbitkan / diproses lebih lanjut?')) {
+                      if (onApproveLetter) {
+                        await onApproveLetter(letter.id, 'Naskah dinas telah diverifikasi dan disetujui pimpinan.');
+                      }
+                      onClose();
+                    }
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-emerald-700 hover:bg-emerald-800 text-white shadow-xs transition-colors"
+                  title="Setujui naskah dinas ini"
+                >
+                  <CheckCheck className="w-3.5 h-3.5 text-emerald-200" />
+                  <span>Setujui (Approve)</span>
+                </button>
+              )}
+
+              {/* Action: Bubuhkan TTE BSrE (Pejabat / Pimpinan) */}
+              {capabilities.canSign && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onSignTte && onSignTte(letter.id);
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shadow-xs transition-colors"
+                  title="Bubuhkan Tanda Tangan Elektronik tersertifikasi BSrE BSSN"
+                >
+                  <FileSignature className="w-3.5 h-3.5 text-amber-200" />
+                  <span>TTE BSrE</span>
+                </button>
+              )}
+
+              {/* Action: Arsipkan ke JRA (jika status Disetujui) */}
+              {capabilities.canArchive && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onArchiveLetter && onArchiveLetter(letter.id);
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-700 hover:bg-indigo-800 text-white shadow-xs transition-colors"
+                  title="Pindahkan ke Jadwal Retensi Arsip (JRA)"
+                >
+                  <Archive className="w-3.5 h-3.5 text-indigo-200" />
+                  <span>Arsipkan</span>
+                </button>
+              )}
+
+              {/* Action: Teruskan Disposisi (STRICT ENFORCEMENT: COMPLETELY ABSENT FROM DOM IF isSignatureRequest) */}
+              {capabilities.canDispose && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    onClose();
+                    onOpenDisposisi(letter);
+                  }}
+                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
+                  title="Disposisi naskah ini ke unit / staf bawahan"
+                >
+                  <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
+                  <span>Disposisi</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -9,17 +9,21 @@ import {
   Clock,
   ShieldCheck,
   ChevronRight,
-  HardDrive
+  HardDrive,
+  Send
 } from 'lucide-react';
 import metricsData from '../../data/metrics.json';
+import { canAccessBrankasDigital } from '../../utils/authGuards';
 
 export const MetricCards = ({
   letters = [],
   scopedLetters = [],
   onSelectFilter,
-  currentFilter
+  currentFilter,
+  currentUser = null
 }) => {
   const activeDataset = scopedLetters.length > 0 ? scopedLetters : letters;
+  const showBrankasDigital = canAccessBrankasDigital(currentUser);
 
   // 1. Surat Masuk Baru
   const suratMasukList = activeDataset.filter((l) => l.kategori === 'Surat Masuk');
@@ -40,11 +44,14 @@ export const MetricCards = ({
   const retensiTotal = retensiList.length;
   const inaktifSiapMusnah = retensiList.filter((l) => !l.isLockedPermanen).length;
 
-  // 4. Brankas Digital
+  // 4. Brankas Digital (Hanya untuk Pejabat Struktural & Staf Khusus Arsiparis Pusat/Biro)
+  //    atau Surat Keluar & Konsep (untuk Dosen Biasa & Staf Pelaksana Biasa)
   const lockedLettersCount = letters.filter((l) => l.isLockedPermanen).length;
   const brankasTotal = 856 + (lockedLettersCount > 24 ? (lockedLettersCount - 24) : 0);
   const totalAsetBmn = 64;
   const storageUsedMb = 4120 + ((letters.length - 221) * 2.5);
+  const suratKeluarList = activeDataset.filter((l) => l.kategori !== 'Surat Masuk');
+  const suratKeluarTotal = suratKeluarList.length;
 
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4 mb-6 sm:mb-8">
@@ -173,49 +180,91 @@ export const MetricCards = ({
         </div>
       </div>
 
-      {/* 4. Brankas Digital */}
-      <div
-        onClick={() => onSelectFilter && onSelectFilter('Brankas')}
-        className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
-          currentFilter === 'Brankas'
-            ? 'ring-2 ring-emerald-600 border-emerald-600'
-            : 'border-slate-200/80 hover:border-emerald-500/50'
-        }`}
-      >
-        <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
-        <div className="relative z-10">
-          <div className="flex items-center justify-between">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shadow-sm sm:shadow-md shadow-unsil-green-950/20 border border-unsil-gold-500/40">
-              <Vault className="w-4 h-4 sm:w-5 sm:h-5" />
-            </div>
-            <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-full border border-emerald-300">
-              <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-700" /> AES
-            </span>
-          </div>
-
-          <div className="mt-2.5 sm:mt-4">
-            <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
-              Brankas Digital
-            </span>
-            <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
-              <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
-                {brankasTotal}
-              </span>
-              <span className="text-[10px] sm:text-xs font-medium text-slate-600 truncate">
-                {totalAsetBmn} BMN
+      {/* 4. Brankas Digital (Pejabat Struktural & Arsiparis Pusat/Biro) ATAU Surat Keluar & Konsep (Dosen & Staf Pelaksana Biasa) */}
+      {showBrankasDigital ? (
+        <div
+          onClick={() => onSelectFilter && onSelectFilter('Brankas')}
+          className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+            currentFilter === 'Brankas'
+              ? 'ring-2 ring-emerald-600 border-emerald-600'
+              : 'border-slate-200/80 hover:border-emerald-500/50'
+          }`}
+        >
+          <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-emerald-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shadow-sm sm:shadow-md shadow-unsil-green-950/20 border border-unsil-gold-500/40">
+                <Vault className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-full border border-emerald-300">
+                <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-700" /> AES
               </span>
             </div>
-          </div>
 
-          <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
-            <div className="flex items-center gap-1 text-slate-600">
-              <HardDrive className="w-3 h-3" />
-              <span>{(storageUsedMb / 1024).toFixed(1)} GB / 10 GB</span>
+            <div className="mt-2.5 sm:mt-4">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
+                Brankas Digital
+              </span>
+              <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+                <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
+                  {brankasTotal}
+                </span>
+                <span className="text-[10px] sm:text-xs font-medium text-slate-600 truncate">
+                  {totalAsetBmn} BMN
+                </span>
+              </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
+
+            <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
+              <div className="flex items-center gap-1 text-slate-600">
+                <HardDrive className="w-3 h-3" />
+                <span>{(storageUsedMb / 1024).toFixed(1)} GB / 10 GB</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-700 group-hover:translate-x-0.5 transition-all" />
+            </div>
           </div>
         </div>
-      </div>
+      ) : (
+        <div
+          onClick={() => onSelectFilter && onSelectFilter('Surat Keluar')}
+          className={`bg-white rounded-xl p-3.5 sm:p-5 border shadow-xs hover:shadow-md transition-all duration-200 cursor-pointer group relative overflow-hidden ${
+            currentFilter === 'Surat Keluar'
+              ? 'ring-2 ring-teal-600 border-teal-600'
+              : 'border-slate-200/80 hover:border-teal-500/50'
+          }`}
+        >
+          <div className="absolute top-0 right-0 w-16 h-16 sm:w-24 sm:h-24 bg-teal-50 rounded-bl-full -z-0 group-hover:scale-110 transition-transform duration-300" />
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-teal-700 text-white flex items-center justify-center shadow-sm sm:shadow-md shadow-teal-950/20">
+                <Send className="w-4 h-4 sm:w-5 sm:h-5" />
+              </div>
+              <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-teal-800 bg-teal-50 px-1.5 sm:px-2 py-0.5 rounded-full border border-teal-200">
+                Naskah Aktif
+              </span>
+            </div>
+
+            <div className="mt-2.5 sm:mt-4">
+              <span className="text-[10px] sm:text-xs font-semibold uppercase tracking-wider text-slate-500 line-clamp-1">
+                Surat Keluar & Konsep
+              </span>
+              <div className="flex items-baseline gap-1.5 sm:gap-2 mt-0.5 sm:mt-1">
+                <span className="text-xl sm:text-3xl font-extrabold text-slate-900">
+                  {suratKeluarTotal}
+                </span>
+                <span className="text-[10px] sm:text-xs font-medium text-teal-700 truncate">
+                  Dokumen Unit
+                </span>
+              </div>
+            </div>
+
+            <div className="hidden sm:flex mt-3 pt-3 border-t border-slate-100 items-center justify-between text-xs text-slate-500">
+              <span>Naskah dinas harian unit</span>
+              <ChevronRight className="w-4 h-4 text-slate-400 group-hover:text-teal-700 group-hover:translate-x-0.5 transition-all" />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

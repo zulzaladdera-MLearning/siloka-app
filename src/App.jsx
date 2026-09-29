@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { AuthProvider } from './context/AuthContext';
 import { LoginPage } from './components/auth/LoginPage';
 import { ProtectedRoute } from './components/auth/ProtectedRoute';
 import { MainLayout } from './components/layout/MainLayout';
@@ -14,8 +15,8 @@ import {
   ParafTteView,
   RetensiArsipView,
   BrankasDigitalView,
-  SettingsView,
 } from './components/dashboard/ModuleViews';
+import { SystemSettingsView } from './components/admin/SystemSettingsView';
 import { Toast } from './components/ui/Toast';
 
 import initialLetters from './data/letters.json';
@@ -25,6 +26,15 @@ import { CreateLetterModal } from './components/dashboard/CreateLetterModal';
 import { initialAuditLogs, createAuditEntry } from './utils/security';
 import { DOCUMENT_TEMPLATES } from './components/documents/DocumentTemplates';
 import { ProcessMiningLogger, PROCESS_ACTIVITIES } from './domain';
+import { isLetterSignatureRequest } from './utils/letterActionPolicy';
+import {
+  isSuperAdminUser,
+  canAccessBrankasDigital,
+  isDosenTanpaJabatan,
+  getQueueAccessPolicy,
+  isLetterOwnedByUser,
+  isMandiriPersonalDocument
+} from './utils/authGuards';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -47,6 +57,27 @@ export default function App() {
       if (authToken && savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && (parsed.email || parsed.username || parsed.id)) {
+          const emailLower = String(parsed.email || parsed.username || '').toLowerCase();
+          const nameLower = String(parsed.nama_lengkap || parsed.nama || parsed.name || '').toLowerCase();
+          const posLower = String(parsed.jabatan || parsed.roleLabel || parsed.role_label || '').toLowerCase();
+          const hasStructuralKeyword = /\b(rektor|dekan|direktur|ketua|kepala|koordinator|kaprodi|kajur|sekretaris)\b/i.test(posLower);
+          if (
+            Number(parsed.id_role) === 7 ||
+            emailLower.includes('aris.martono') ||
+            emailLower.includes('aris.test') ||
+            emailLower.includes('dosen.') ||
+            emailLower.includes('fajar.nugraha') ||
+            nameLower.includes('aris martono') ||
+            nameLower.includes('zulza laddera') ||
+            (/\bdosen\b/i.test(posLower) && !hasStructuralKeyword)
+          ) {
+            parsed.role = 'DOSEN_NON_JABATAN';
+            parsed.role_key = 'DOSEN_NON_JABATAN';
+            parsed.id_role = 7;
+            parsed.roleLabel = parsed.roleLabel || parsed.jabatan || 'Dosen Tanpa Jabatan';
+            parsed.jabatan = parsed.jabatan || parsed.roleLabel || 'Dosen Tanpa Jabatan';
+            parsed.is_pejabat = false;
+          }
           return parsed;
         }
       }
@@ -89,6 +120,66 @@ export default function App() {
   });
 
   const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
+
+  // State master users yang dapat dimutasi dan diperbarui via modul Pengaturan Sistem
+  const [allUsers, setAllUsers] = useState(() => {
+    try {
+      const savedUsers = localStorage.getItem('siloka_users_data');
+      if (savedUsers) {
+        const parsed = JSON.parse(savedUsers);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const merged = [...parsed];
+          usersData.forEach((seedUser) => {
+            const idx = merged.findIndex(
+              (u) =>
+                u.id === seedUser.id ||
+                (u.email && seedUser.email && u.email.toLowerCase() === seedUser.email.toLowerCase())
+            );
+            if (idx === -1) {
+              merged.push(seedUser);
+            } else if (
+              seedUser.id === 'usr-01' ||
+              seedUser.id.startsWith('usr-warek-')
+            ) {
+              merged[idx] = { ...seedUser, ...merged[idx], is_pejabat: true, jabatan: seedUser.jabatan };
+            } else if (seedUser.id.startsWith('usr-dosen-')) {
+              merged[idx] = { ...seedUser, ...merged[idx], role: 'DOSEN', is_pejabat: false };
+            }
+          });
+          localStorage.setItem('siloka_users_data', JSON.stringify(merged));
+          return merged;
+        }
+      }
+    } catch (e) {
+      console.error('Error loading saved users', e);
+    }
+    return usersData;
+  });
+
+  const handleUpdateUsers = (updatedOrNewUsers) => {
+    setAllUsers((prev) => {
+      const copy = [...prev];
+      updatedOrNewUsers.forEach((newU) => {
+        const existingIdx = copy.findIndex(
+          (u) =>
+            u.id === newU.id ||
+            (u.nip && u.nip === newU.nip) ||
+            (u.nip_nik && u.nip_nik === newU.nip_nik)
+        );
+        if (existingIdx !== -1) {
+          copy[existingIdx] = { ...copy[existingIdx], ...newU };
+        } else {
+          copy.unshift(newU);
+        }
+      });
+      try {
+        localStorage.setItem('siloka_users_data', JSON.stringify(copy));
+      } catch (e) {
+        console.error('Failed to persist users', e);
+      }
+      return copy;
+    });
+  };
 
   const [activeTab, setActiveTab] = useState(() => {
     try {
@@ -158,46 +249,205 @@ export default function App() {
     (currentUser?.role === 'PEJABAT' &&
       (currentUser?.unit_kerja_id === 'UN58' || currentUser?.unit_kerja_id === 'UN58.6'));
 
-  // Helper otorisasi UPT TIK (Unit Penunjang Akademik Teknologi Informasi & Komunikasi)
+  // Helper otorisasi Bagian IT / UPT TIK (Unit Penunjang Akademik Teknologi Informasi & Komunikasi)
   const isUptTikUser = (user) => {
     if (!user) return false;
-    return (
+    return Boolean(
       user.unit_kerja_id === 'UN58.32' ||
       user.unit_kerja_id === 'UN58.TIK' ||
-      (user.email && user.email.includes('tik@unsil.ac.id')) ||
-      (user.roleLabel && user.roleLabel.toLowerCase().includes('tik')) ||
-      (user.unit && user.unit.toLowerCase().includes('tik'))
+      user.kode_unit === 'UN58.32' ||
+      user.kode_unit === 'UN58.TIK' ||
+      (user.email && (user.email.includes('tik@unsil.ac.id') || user.email.includes('it@unsil.ac.id'))) ||
+      (user.roleLabel && (
+        user.roleLabel.toLowerCase().includes('tik') ||
+        /\b(it|ti)\b/i.test(user.roleLabel) ||
+        user.roleLabel.toLowerCase().includes('teknologi informasi') ||
+        user.roleLabel.toLowerCase().includes('programmer') ||
+        user.roleLabel.toLowerCase().includes('server')
+      )) ||
+      (user.unit && (
+        user.unit.toLowerCase().includes('tik') ||
+        user.unit.toLowerCase().includes('teknologi informasi')
+      ))
     );
   };
 
-  // Otorisasi Akses Menu Log Audit & Keamanan (Pimpinan, SPI, dan Akun UPT TIK)
+  // Otorisasi Akses Menu Process Mining & Log Engine (Khusus Super Admin)
   const canUserAccessAuditLog = (user) => {
     if (!user) return false;
-    return (
-      user.role === 'PIMPINAN' ||
-      user.role === 'PEJABAT' ||
-      user.role === 'PENGAWAS' ||
-      isUptTikUser(user)
-    );
+    return isSuperAdminUser(user);
   };
 
-  // Multi-Tenancy Scoping:
-  // - OPERATOR_UNIT / STAF_PERSURATAN: Hanya melihat surat milik unit kerjanya atau surat masuk tujuan unitnya
-  // - PEJABAT / PENGAWAS (Akses Universitas): Dapat melihat seluruh unit atau filter per unit
+  // Multi-Tenancy & Strict Personal Isolation Scoping (SK Rektor UNSIL No. 2803 Tahun 2023):
+  // 1. DOSEN_NON_JABATAN (Dosen Tanpa Jabatan): Strict Personal Isolation (WHERE creator_id = $1)
+  //    Dosen A hanya dapat melihat & membubuhkan TTE pada naskah yang dibuat oleh dirinya sendiri.
+  //    Dosen B sama sekali tidak bisa melihat draf milik Dosen A meskipun berada di fakultas/unit yang sama.
+  // 2. 3 Entitas Pengecualian Akses Massal:
+  //    - Pimpinan Unit Struktural (Rektor/Dekan/Kajur): Target Penandatangan Akhir (TTE)
+  //    - Staf Ketatausahaan / Arsiparis TU Fakultas & Biro: Kebutuhan penomoran resmi naskah dinas
+  //    - Super Admin: Kontrol sistem secara global
   const scopedLetters = useMemo(() => {
     if (!currentUser) return [];
 
-    if (isUniversityWideAccess) {
+    // STRICT PERSONAL ISOLATION untuk Dosen Tanpa Jabatan (SKKAAD SK Rektor No. 2803/2023)
+    if (isDosenTanpaJabatan(currentUser)) {
+      const userId = String(currentUser.id_user || currentUser.id || 'dosen-active');
+      const userName = currentUser.nama_lengkap || currentUser.nama || currentUser.name || 'Dosen Pengusul';
+      const userNip = currentUser.nip_nik || currentUser.nip || '-';
+      const userEmail = currentUser.email || '';
+      const unitId = currentUser.unit_kerja_id || currentUnit.kode_unit || 'UN58.13';
+      const unitShort = currentUnit.singkatan || 'FT';
+      const unitFullName = currentUnit.nama_unit || 'Fakultas Teknik';
+
+      // Filter ketat: HANYA surat yang dibuat oleh dosen yang sedang login (WHERE creator_id = $1)
+      const ownedLetters = letters.filter((letter) => isLetterOwnedByUser(letter, currentUser));
+
+      // Jika dosen belum memiliki draf pribadi di state, sediakan draf personal miliknya sendiri (terkunci pada creator_id dosen aktif)
+      const hasPersonalNotaDinas = ownedLetters.some((l) => String(l.id).includes(`ND-PERSONAL-${userId}`));
+      const personalSeedDrafts = hasPersonalNotaDinas
+        ? []
+        : [
+            {
+              id: `ND-PERSONAL-${userId}-01`,
+              nomorSurat: `DRAFT/ND/${unitShort}/2026`,
+              tanggal: new Date().toISOString().split('T')[0],
+              perihal: `Nota Dinas Laporan Kesiapan Perkuliahan & Praktikum Semester Ganjil (${userName})`,
+              kategori: 'Nota Dinas',
+              jenis_naskah: 'NOTA_DINAS',
+              kode_jenis_naskah: 'NOTA_DINAS',
+              kategori_akses: 'MANDIRI_DOSEN',
+              sifat: 'Penting',
+              kategoriKeamanan: 'Terbatas',
+              kodeKlasifikasi: 'PP',
+              subKlasifikasi: 'PP.01.02 (Perkuliahan & Evaluasi Akademik)',
+              pengirim: `${userName} (NIP. ${userNip})`,
+              tujuan: `Dekan ${unitFullName} melalui Ketua Jurusan`,
+              status: 'Diparaf',
+              status_db: 'SIAP_TTE',
+              statusTimestamp: 'Siap TTE Mandiri oleh Pembuat (Strict Personal Isolation)',
+              ringkasan: `Nota dinas internal yang disusun dan ditandatangani langsung oleh ${userName} mengenai evaluasi pelaksanaan perkuliahan dan kesiapan modul praktikum pada ${unitFullName}.`,
+              tteVerified: false,
+              isLockedPermanen: false,
+              unit_kerja_id: unitId,
+              creator_id: userId,
+              created_by_user_id: userId,
+              creator_nip: userNip,
+              creator_email: userEmail,
+              creator_name: userName,
+              created_at: new Date().toISOString(),
+              riwayatParaf: [
+                {
+                  nama: userName,
+                  jabatan: currentUser.roleLabel || 'Dosen Tanpa Jabatan',
+                  waktu: 'Hari ini, 08:30 WIB',
+                  catatan: 'Konsep Nota Dinas Mandiri dibuat oleh Dosen Pembuat (Siap TTE Mandiri)'
+                }
+              ]
+            },
+            {
+              id: `LAP-PERSONAL-${userId}-02`,
+              nomorSurat: `DRAFT/LAP/${unitShort}/2026`,
+              tanggal: new Date().toISOString().split('T')[0],
+              perihal: `Laporan Pelaksanaan Kegiatan Tridharma Perguruan Tinggi & Bimbingan Akademik (${userName})`,
+              kategori: 'Laporan',
+              jenis_naskah: 'LAPORAN',
+              kode_jenis_naskah: 'LAPORAN',
+              kategori_akses: 'MANDIRI_DOSEN',
+              sifat: 'Biasa',
+              kategoriKeamanan: 'Terbatas',
+              kodeKlasifikasi: 'PP',
+              subKlasifikasi: 'PP.00.03 (Pelaksanaan Tridharma Perguruan Tinggi)',
+              pengirim: `${userName} (NIP. ${userNip})`,
+              tujuan: `Dekan ${unitFullName}`,
+              status: 'Diparaf',
+              status_db: 'SIAP_TTE',
+              statusTimestamp: 'Siap TTE Mandiri oleh Pembuat (Strict Personal Isolation)',
+              ringkasan: `Laporan pertanggungjawaban pelaksanaan kegiatan pengajaran, penelitian, dan pengabdian masyarakat semester berjalan oleh ${userName}.`,
+              tteVerified: false,
+              isLockedPermanen: false,
+              unit_kerja_id: unitId,
+              creator_id: userId,
+              created_by_user_id: userId,
+              creator_nip: userNip,
+              creator_email: userEmail,
+              creator_name: userName,
+              created_at: new Date().toISOString(),
+              riwayatParaf: [
+                {
+                  nama: userName,
+                  jabatan: currentUser.roleLabel || 'Dosen Tanpa Jabatan',
+                  waktu: 'Hari ini, 09:00 WIB',
+                  catatan: 'Konsep Laporan Tridharma disusun oleh Dosen Pembuat (Siap TTE Mandiri)'
+                }
+              ]
+            },
+            {
+              id: `ST-PERSONAL-${userId}-03`,
+              nomorSurat: `[Menunggu Penomoran TU ${unitShort}]`,
+              tanggal: new Date().toISOString().split('T')[0],
+              perihal: `Draft Konsep Surat Tugas Pemateri Seminar & Pengabdian Masyarakat a.n. ${userName}`,
+              kategori: 'Surat Tugas',
+              jenis_naskah: 'SURAT_TUGAS',
+              kode_jenis_naskah: 'SURAT_TUGAS',
+              kategori_akses: 'KONSEP_PIMPINAN',
+              sifat: 'Segera',
+              kategoriKeamanan: 'Terbatas',
+              kodeKlasifikasi: 'KP',
+              subKlasifikasi: 'KP.04.01 (Penugasan Dosen & Tenaga Pendidik)',
+              pengirim: `Konseptor: ${userName} (Diajukan ke Dekan ${unitShort})`,
+              tujuan: `Dekan ${unitFullName} (Target Penandatangan Akhir TTE)`,
+              status: 'Diparaf',
+              status_db: 'DIPARAF',
+              statusTimestamp: 'Dalam Antrean Verifikasi Paraf Berjenjang -> TTE Dekan',
+              ringkasan: `Draf pengajuan Surat Tugas yang dikonsep oleh ${userName} untuk ditandatangani secara elektronik (TTE) oleh Dekan ${unitFullName}. Terisolasi dari akun dosen lain.`,
+              tteVerified: false,
+              isLockedPermanen: false,
+              unit_kerja_id: unitId,
+              creator_id: userId,
+              created_by_user_id: userId,
+              creator_nip: userNip,
+              creator_email: userEmail,
+              creator_name: userName,
+              created_at: new Date().toISOString(),
+              riwayatParaf: [
+                {
+                  nama: userName,
+                  jabatan: `Pembuat Konsep (${currentUser.roleLabel || 'Dosen Tanpa Jabatan'})`,
+                  waktu: 'Hari ini, 09:15 WIB',
+                  catatan: 'Draf Surat Tugas diajukan ke alur verifikasi berjenjang untuk TTE Pimpinan Unit'
+                }
+              ]
+            }
+          ];
+
+      return [...ownedLetters, ...personalSeedDrafts];
+    }
+
+    if (isUniversityWideAccess || isSuperAdminUser(currentUser)) {
       if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
         return letters.filter((l) => l.unit_kerja_id === selectedUnitFilter);
       }
       return letters;
     }
 
-    // Scoping ketat untuk operator unit dan pimpinan fakultas
+    // Scoping untuk Pimpinan Fakultas/Unit, Penugasan Unit Sekunder (misal: Dosen FT dengan Tugas Tambahan di LPPM), dan Staf TU
+    const activeSecondaryUnits = Array.isArray(currentUser?.secondary_units)
+      ? currentUser.secondary_units
+      : [];
+
     return letters.filter((letter) => {
-      // Dibuat oleh atau milik unit kerja user yang sedang login
+      // Dibuat oleh atau milik unit kerja utama user yang sedang login
       if (letter.unit_kerja_id === currentUser.unit_kerja_id) return true;
+
+      // Cek apakah surat milik salah satu Unit Sekunder / Tugas Tambahan aktif (misal: LPPM / UN58.08)
+      const matchesSecondaryUnit = activeSecondaryUnits.some(
+        (sec) =>
+          letter.unit_kerja_id === sec.unit_kerja_id ||
+          letter.unit_kerja_id === sec.kode_unit ||
+          (sec.kode_unit && String(letter.tujuan || '').toUpperCase().includes(sec.kode_unit)) ||
+          (sec.nama_unit && String(letter.tujuan || '').toLowerCase().includes(sec.nama_unit.toLowerCase()))
+      );
+      if (matchesSecondaryUnit) return true;
 
       // Surat masuk yang dialamatkan kepada unit atau pimpinan unit
       const userUnitShort = (currentUnit.singkatan || '').toLowerCase();
@@ -234,7 +484,19 @@ export default function App() {
     localStorage.removeItem('siloka_logged_out');
     sessionStorage.removeItem('siloka_logged_out');
 
-    const generatedToken = `siloka_jwt_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+    const tokenPayload = {
+      id_user: user.id || user.id_user,
+      role: user.role,
+      is_super_admin: isSuperAdminUser(user),
+      nama: user.nama || user.nama_lengkap || user.name
+    };
+    let base64Payload = '';
+    try {
+      base64Payload = btoa(unescape(encodeURIComponent(JSON.stringify(tokenPayload))));
+    } catch {
+      base64Payload = 'eyJyb2xlIjoiU3VwZXIgQWRtaW4ifQ';
+    }
+    const generatedToken = `siloka_jwt.${base64Payload}.${Date.now()}`;
 
     if (rememberMe) {
       localStorage.setItem('siloka_auth_token', generatedToken);
@@ -288,8 +550,108 @@ export default function App() {
       showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
       return;
     }
+    // STRICT BUSINESS RULE: Naskah permohonan TTE DILARANG KERAS didisposisikan
+    if (isLetterSignatureRequest(letter)) {
+      showToast('ATURAN KETAT: Naskah Permohonan Tanda Tangan (TTE) DILARANG didisposisikan.', 'warning');
+      return;
+    }
     setDisposisiTargetLetter(letter);
     setIsDisposisiOpen(true);
+  };
+
+  // Feature 6: Review & Approval Workflow (Setujui Naskah)
+  const handleApproveLetter = (letterId, note) => {
+    let approvedNomor = '';
+    const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+
+    setLetters((prev) =>
+      prev.map((l) => {
+        if (l.id === letterId) {
+          approvedNomor = l.nomorSurat;
+          return {
+            ...l,
+            status: 'Disetujui',
+            statusTimestamp: 'Disetujui Pimpinan',
+            riwayatParaf: [
+              ...(l.riwayatParaf || []),
+              {
+                nama: currentUser.nama_lengkap || currentUser.name,
+                jabatan: currentUser.roleLabel || 'Pejabat Penandatangan',
+                waktu: timestamp,
+                catatan: note || 'Naskah dinas telah diverifikasi dan disetujui untuk diterbitkan / ditandatangani.'
+              }
+            ]
+          };
+        }
+        return l;
+      })
+    );
+
+    recordAuditLog({
+      action: 'LETTER_APPROVED',
+      details: `Persetujuan naskah dinas ${approvedNomor || letterId} oleh ${currentUser.nama_lengkap || currentUser.name} (${currentUser.roleLabel})`
+    });
+
+    ProcessMiningLogger.getInstance().recordEvent(
+      letterId,
+      'APPROVAL_GRANTED',
+      currentUser,
+      {
+        status: 'Disetujui',
+        catatan: note || 'Disetujui pimpinan',
+        slaHours: 12
+      }
+    );
+
+    showToast('Naskah dinas berhasil disetujui!', 'success');
+  };
+
+  // Feature 6: Review & Approval Workflow (Tolak / Minta Revisi Naskah)
+  const handleRejectLetter = (letterId, note) => {
+    let rejectedNomor = '';
+    const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+
+    setLetters((prev) =>
+      prev.map((l) => {
+        if (l.id === letterId) {
+          rejectedNomor = l.nomorSurat;
+          return {
+            ...l,
+            status: 'Ditolak',
+            statusTimestamp: 'Dikembalikan untuk Revisi',
+            riwayatParaf: [
+              ...(l.riwayatParaf || []),
+              {
+                nama: currentUser.nama_lengkap || currentUser.name,
+                jabatan: currentUser.roleLabel || 'Pejabat Penandatangan',
+                waktu: timestamp,
+                catatan: `[CATATAN REVISI / PENOLAKAN]: ${note}`
+              }
+            ]
+          };
+        }
+        return l;
+      })
+    );
+
+    recordAuditLog({
+      action: 'LETTER_REJECTED',
+      details: `Penolakan/permintaan revisi naskah ${rejectedNomor || letterId} oleh ${currentUser.nama_lengkap || currentUser.name}. Alasan: ${note}`,
+      severity: 'WARNING'
+    });
+
+    ProcessMiningLogger.getInstance().recordEvent(
+      letterId,
+      'LETTER_REVISION_REQUESTED',
+      currentUser,
+      {
+        status: 'Ditolak',
+        revisionNote: note,
+        slaHours: 24
+      }
+    );
+
+    showToast('Catatan revisi berhasil dikirim ke pengusul naskah.', 'info');
   };
 
   const handleSaveDisposisi = (newDisposisi) => {
@@ -334,17 +696,26 @@ export default function App() {
   };
 
   const handleSaveNewLetter = (newLetter) => {
+    const activeCreatorId = String(currentUser?.id_user || currentUser?.id || 'usr-02');
+    const activeCreatorName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Pengguna SILOKA';
+    const activeCreatorNip = currentUser?.nip_nik || currentUser?.nip || '-';
+    const activeCreatorEmail = currentUser?.email || '';
+
     const letterWithAudit = {
       ...newLetter,
       unit_kerja_id: newLetter.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
-      created_by_user_id: newLetter.created_by_user_id || currentUser?.id || 'usr-02',
+      creator_id: newLetter.creator_id || activeCreatorId,
+      created_by_user_id: newLetter.created_by_user_id || activeCreatorId,
+      creator_nip: newLetter.creator_nip || activeCreatorNip,
+      creator_email: newLetter.creator_email || activeCreatorEmail,
+      creator_name: newLetter.creator_name || activeCreatorName,
       created_at: newLetter.created_at || new Date().toISOString()
     };
     setLetters((prev) => [letterWithAudit, ...prev]);
 
     recordAuditLog({
       action: 'LETTER_REGISTERED',
-      details: `Registrasi surat dinas baru: ${letterWithAudit.nomorSurat} (${letterWithAudit.perihal.slice(0, 50)}...) oleh ${currentUser.nama_lengkap || currentUser.name} [Unit: ${currentUnit.singkatan}]`
+      details: `Registrasi surat dinas baru: ${letterWithAudit.nomorSurat} (${letterWithAudit.perihal.slice(0, 50)}...) oleh ${activeCreatorName} [Unit: ${currentUnit.singkatan}]`
     });
 
     // Injeksi Asinkron Process Mining: Registrasi Surat Masuk vs Pengajuan Draf Surat
@@ -368,22 +739,56 @@ export default function App() {
     showToast(`Surat nomor ${letterWithAudit.nomorSurat} berhasil didaftarkan ke SILOKA!`, 'success');
   };
 
-  // Step 1 of TTE: Check permissions and prompt passphrase modal
+  // Step 1 of TTE: Check permissions (including Strict Personal Isolation for Dosen Tanpa Jabatan) and prompt passphrase modal
   const handleInitiateTte = (letterId) => {
-    if (currentUser?.role !== 'PIMPINAN' && currentUser?.role !== 'PEJABAT') {
+    const target =
+      scopedLetters.find((l) => l.id === letterId) ||
+      letters.find((l) => l.id === letterId);
+
+    if (!target) return;
+
+    // Aturan Khusus Dosen Tanpa Jabatan (Strict Personal Isolation - SK Rektor No. 2803/2023):
+    // Dosen A HANYA boleh membubuhkan TTE pada naskah Mandiri (Nota Dinas, Laporan, Surat Pernyataan, Telaah Staf, Notula, Berita Acara)
+    // yang dibuat oleh dirinya sendiri (creator_id = req.user.id).
+    if (isDosenTanpaJabatan(currentUser)) {
+      if (!isLetterOwnedByUser(target, currentUser)) {
+        recordAuditLog({
+          action: 'SKKAAD_ISOLATION_VIOLATION_BLOCKED',
+          details: `Blokir Isolasi SKKAAD: ${currentUser.nama_lengkap || currentUser.name} mencoba mengakses/menandatangani draf bukan miliknya (ID: ${letterId})`,
+          severity: 'WARNING'
+        });
+        showToast('Akses Ditolak (Strict Personal Isolation): Anda hanya dapat memeriksa & menandatangani naskah yang dibuat oleh Anda sendiri.', 'error');
+        return;
+      }
+
+      if (!isMandiriPersonalDocument(target)) {
+        showToast(
+          'Naskah Kategori Konsep (Drafting) ini diajukan untuk ditandatangani (TTE) oleh Pimpinan Unit Struktural (Dekan/Rektor/Kajur).',
+          'info'
+        );
+        return;
+      }
+
+      // Pastikan draf personal sudah tercatat di state letters agar statusnya dapat diperbarui saat TTE selesai
+      setLetters((prev) => {
+        if (prev.some((l) => l.id === target.id)) return prev;
+        return [target, ...prev];
+      });
+      setTteTargetLetter(target);
+      return;
+    }
+
+    if (currentUser?.role !== 'PIMPINAN' && currentUser?.role !== 'PEJABAT' && !isSuperAdminUser(currentUser)) {
       recordAuditLog({
         action: 'UNAUTHORIZED_TTE_ATTEMPT',
         details: `Penolakan TTE: Akun ${currentUser.name} (${currentUser.roleLevel}) mencoba menandatangani surat ID ${letterId}`,
         severity: 'WARNING'
       });
-      showToast('Akses Ditolak: Hanya Pejabat / Pimpinan yang berwenang membubuhkan TTE BSrE.', 'warning');
+      showToast('Akses Ditolak: Hanya Pejabat / Pimpinan (atau Dosen Pembuat Naskah Mandiri) yang berwenang membubuhkan TTE BSrE.', 'warning');
       return;
     }
 
-    const target = letters.find((l) => l.id === letterId);
-    if (target) {
-      setTteTargetLetter(target);
-    }
+    setTteTargetLetter(target);
   };
 
   // Step 2 of TTE: Passphrase successfully verified in TtePassphraseModal
@@ -469,7 +874,7 @@ export default function App() {
   // If user is not authenticated, strictly render LoginPage to prevent any null-reference evaluation in children
   if (!currentUser) {
     return (
-      <>
+      <AuthProvider>
         <LoginPage onLoginSuccess={handleLogin} />
         {toast && (
           <Toast
@@ -478,12 +883,12 @@ export default function App() {
             onClose={() => setToast(null)}
           />
         )}
-      </>
+      </AuthProvider>
     );
   }
 
   return (
-    <>
+    <AuthProvider>
       <ProtectedRoute
         isAuthenticated={Boolean(currentUser)}
         fallback={<LoginPage onLoginSuccess={handleLogin} />}
@@ -509,15 +914,56 @@ export default function App() {
             ) {
               setActiveTab('dashboard');
             }
+            if (
+              activeTab === 'settings' &&
+              !isSuperAdminUser(newUser)
+            ) {
+              setActiveTab('dashboard');
+            }
+            if (
+              activeTab === 'brankas-digital' &&
+              !canAccessBrankasDigital(newUser)
+            ) {
+              setActiveTab('dashboard');
+            }
+            if (
+              isSuperAdminUser(newUser) &&
+              ['buku-agenda', 'brankas-keuangan', 'administrasi-kepegawaian'].includes(activeTab)
+            ) {
+              setActiveTab('settings');
+            }
             showToast(`Beralih peran sebagai: ${newUser.roleLabel}`, 'info');
           }}
-        allUsers={usersData}
-        activeTab={activeTab}
+        allUsers={allUsers}
+        activeTab={
+          activeTab === 'brankas-digital' && !canAccessBrankasDigital(currentUser)
+            ? 'dashboard'
+            : isSuperAdminUser(currentUser) &&
+                ['buku-agenda', 'brankas-keuangan', 'administrasi-kepegawaian'].includes(activeTab)
+              ? 'settings'
+              : activeTab
+        }
         setActiveTab={(tab) => {
           if (
             tab === 'audit-log' &&
             !canUserAccessAuditLog(currentUser)
           ) {
+            setActiveTab('dashboard');
+            return;
+          }
+          if (
+            tab === 'settings' &&
+            !isSuperAdminUser(currentUser)
+          ) {
+            showToast('Akses Ditolak: Modul Pengaturan Sistem hanya boleh diakses oleh Super Admin.', 'error');
+            setActiveTab('dashboard');
+            return;
+          }
+          if (
+            tab === 'brankas-digital' &&
+            !canAccessBrankasDigital(currentUser)
+          ) {
+            showToast('Akses Dibatasi: Brankas Digital khusus untuk Pejabat Struktural dan Staf Khusus Arsiparis Pusat/Biro.', 'warning');
             setActiveTab('dashboard');
             return;
           }
@@ -536,14 +982,21 @@ export default function App() {
             showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
             return;
           }
-          setDisposisiTargetLetter(letters[0] || null);
+          const firstDisposable = scopedLetters.find((l) => !isLetterSignatureRequest(l));
+          if (!firstDisposable) {
+            showToast('Tidak ada naskah yang memenuhi syarat untuk disposisi saat ini.', 'info');
+            return;
+          }
+          setDisposisiTargetLetter(firstDisposable);
           setIsDisposisiOpen(true);
         }}
         searchQuery={searchQuery}
         setSearchQuery={setSearchQuery}
+        letters={scopedLetters}
+        onSelectLetter={(letter) => setSelectedLetter(letter)}
       >
         {/* Dashboard View */}
-        {activeTab === 'dashboard' && (
+        {(activeTab === 'dashboard' || (activeTab === 'brankas-digital' && !canAccessBrankasDigital(currentUser))) && (
           <div className="space-y-6">
             {/* Executive Welcome Greeting & Security Tier Banner */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-200">
@@ -604,9 +1057,10 @@ export default function App() {
             <MetricCards
               letters={letters}
               scopedLetters={scopedLetters}
+              currentUser={currentUser}
               currentFilter={metricFilter}
               onSelectFilter={(filter) => {
-                if (filter === 'Brankas') {
+                if (filter === 'Brankas' && canAccessBrankasDigital(currentUser)) {
                   setActiveTab('brankas-digital');
                 } else if (filter === 'Diarsipkan') {
                   setMetricFilter(metricFilter === 'Diarsipkan' ? null : 'Diarsipkan');
@@ -653,6 +1107,7 @@ export default function App() {
         {activeTab === 'paraf-tte' && (
           <ParafTteView
             letters={scopedLetters}
+            currentUser={currentUser}
             onSelectLetter={(letter) => setSelectedLetter(letter)}
             onSignSuccess={handleInitiateTte}
           />
@@ -693,7 +1148,7 @@ export default function App() {
 
         {activeTab === 'retensi-arsip' && <RetensiArsipView />}
 
-        {activeTab === 'brankas-digital' && <BrankasDigitalView />}
+        {activeTab === 'brankas-digital' && canAccessBrankasDigital(currentUser) && <BrankasDigitalView />}
 
         {activeTab === 'audit-log' && canUserAccessAuditLog(currentUser) && (
           <AuditLogView
@@ -702,7 +1157,14 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'settings' && <SettingsView user={currentUser} />}
+        {activeTab === 'settings' && (
+          <SystemSettingsView
+            user={currentUser}
+            allUsers={allUsers}
+            onUpdateUsers={handleUpdateUsers}
+            showToast={showToast}
+          />
+        )}
 
         {/* Modals */}
         <LetterDetailModal
@@ -712,6 +1174,8 @@ export default function App() {
           onOpenDisposisi={handleOpenDisposisiForLetter}
           onSignTte={handleInitiateTte}
           onArchiveLetter={handleArchiveLetter}
+          onApproveLetter={handleApproveLetter}
+          onRejectLetter={handleRejectLetter}
           currentUser={currentUser}
           onLogAction={recordAuditLog}
         />
@@ -729,6 +1193,7 @@ export default function App() {
           onClose={() => setIsQuickRegisterOpen(false)}
           onSaveLetter={handleSaveNewLetter}
           currentUser={currentUser}
+          initialMode="surat-masuk"
         />
 
         <DocumentBuilderModal
@@ -757,6 +1222,6 @@ export default function App() {
         )}
       </MainLayout>
     </ProtectedRoute>
-  </>
+  </AuthProvider>
 );
 }

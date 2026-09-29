@@ -35,7 +35,9 @@ DO $$ BEGIN
         'PEJABAT',           -- Level 1: Pimpinan (Rektor, Dekan, Kepala Biro)
         'STAF_PERSURATAN',   -- Level 2: Pelaksana Administrasi Persuratan Biro/Unit
         'OPERATOR_UNIT',     -- Level 2: Operator Tata Usaha Unit Kerja / Fakultas
-        'PENGAWAS'           -- Level 3: Satuan Pengawas Internal (SPI) / Auditor
+        'PENGAWAS',          -- Level 3: Satuan Pengawas Internal (SPI) / Auditor
+        'DOSEN',             -- Level 2: Tenaga Pendidik / Fungsional Dosen
+        'SUPER_ADMIN'        -- Level 0: Administrator Sistem Terpusat
     );
 EXCEPTION
     WHEN duplicate_object THEN null;
@@ -173,21 +175,23 @@ CREATE INDEX IF NOT EXISTS idx_unit_parent ON master_unit_kerja(parent_kode);
 
 
 -- =============================================================================
--- 4. TABEL MASTER USER (Seluruh Akun Pegawai & Operator Multi-Tenancy)
+-- 4. TABEL MASTER USER KANONIK (Seluruh Akun Pegawai, Dosen, & Pejabat)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS master_user (
-    id VARCHAR(50) PRIMARY KEY,                 -- ID unik (misal: 'usr-01' atau UUID)
-    nip_nik VARCHAR(25) NOT NULL UNIQUE,         -- NIP ASN atau NIK Pegawai
-    nama_lengkap VARCHAR(150) NOT NULL,
-    email VARCHAR(150) NOT NULL UNIQUE,          -- Email kedinasan @unsil.ac.id
-    password_hash VARCHAR(255) NOT NULL,
-    unit_kerja_id VARCHAR(20) NOT NULL,          -- Relasi ke master_unit_kerja.kode_unit
-    role role_user_enum NOT NULL,                -- Tingkat otoritas kedinasan
-    role_level VARCHAR(50) NOT NULL,             -- Level teks (misal: 'Level 1: Pimpinan')
-    role_label VARCHAR(100) NOT NULL,            -- Jabatan fungsional (misal: 'Dekan FKIP')
+    id VARCHAR(50) PRIMARY KEY,                  -- ID unik akun (misal: 'usr-01' atau UUID)
+    nip_nik VARCHAR(25) NOT NULL UNIQUE,          -- NIP ASN (18 digit) atau NIK Pegawai
+    username VARCHAR(50) NOT NULL UNIQUE,        -- Username autentikasi (default: NIP)
+    nama_lengkap VARCHAR(150) NOT NULL,          -- Nama lengkap beserta gelar resmi
+    email VARCHAR(150) NOT NULL UNIQUE,           -- Email kedinasan @unsil.ac.id
+    password_hash VARCHAR(255) NOT NULL,         -- Bcrypt hash password
+    unit_kerja_id VARCHAR(20) NOT NULL,           -- Relasi ke master_unit_kerja.kode_unit
+    role role_user_enum NOT NULL,                 -- PEJABAT, DOSEN, STAF_PERSURATAN, OPERATOR_UNIT, PENGAWAS, SUPER_ADMIN
+    role_level VARCHAR(50) NOT NULL,              -- Level teks (misal: 'Level 1: Pimpinan', 'Level 2: Fungsional Dosen')
+    role_label VARCHAR(150) NOT NULL,             -- Jabatan fungsional / struktural (misal: 'Dekan FKIP', 'Dosen Biasa')
     avatar_url VARCHAR(255) NULL,
-    is_signature_ready BOOLEAN DEFAULT FALSE,    -- Kesiapan sertifikat TTE BSrE
+    is_signature_ready BOOLEAN DEFAULT FALSE,     -- Kesiapan sertifikat TTE BSrE
     is_active BOOLEAN DEFAULT TRUE,
+    must_change_password BOOLEAN DEFAULT FALSE,   -- Kewajiban ganti password saat login pertama
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_user_unit_kerja FOREIGN KEY (unit_kerja_id) 
@@ -199,17 +203,206 @@ CREATE TABLE IF NOT EXISTS master_user (
 CREATE INDEX IF NOT EXISTS idx_user_unit ON master_user(unit_kerja_id);
 CREATE INDEX IF NOT EXISTS idx_user_role ON master_user(role);
 CREATE INDEX IF NOT EXISTS idx_user_nip ON master_user(nip_nik);
+CREATE INDEX IF NOT EXISTS idx_user_username ON master_user(username);
+
+-- =============================================================================
+-- 4B. TABEL STAGING SIMPEG (Impor Data Masif dari SIMPEG & Excel)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS stg_user_simpeg (
+    id SERIAL PRIMARY KEY,
+    nip_nik VARCHAR(25) NOT NULL UNIQUE,
+    nama_lengkap VARCHAR(150) NOT NULL,
+    email VARCHAR(150) NOT NULL UNIQUE,
+    id_unit VARCHAR(20) NOT NULL,
+    id_role VARCHAR(50) NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    must_change_password BOOLEAN DEFAULT TRUE,
+    imported_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    merged_to_master BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_stg_simpeg_nip ON stg_user_simpeg(nip_nik);
+CREATE INDEX IF NOT EXISTS idx_stg_simpeg_unit ON stg_user_simpeg(id_unit);
+
+-- =============================================================================
+-- 4C. VIEW KOMPATIBILITAS: USERS (Menjamin Kompatibilitas Query Modul Lama)
+-- =============================================================================
+CREATE OR REPLACE VIEW users AS
+SELECT 
+    id,
+    nip_nik AS nip,
+    username,
+    nama_lengkap AS nama,
+    nama_lengkap,
+    email,
+    unit_kerja_id AS kode_unit,
+    unit_kerja_id,
+    role_label AS jabatan,
+    (role = 'PEJABAT') AS is_pejabat,
+    password_hash AS password,
+    password_hash,
+    role::text AS role,
+    role_level AS "roleLevel",
+    role_label AS "roleLabel",
+    is_signature_ready AS "signatureReady",
+    is_active,
+    must_change_password,
+    created_at,
+    updated_at
+FROM master_user;
+
+-- INSTEAD OF UPDATE trigger pada VIEW users untuk memetakan update ke master_user
+CREATE OR REPLACE FUNCTION trg_instead_of_users_update()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE master_user
+    SET 
+        unit_kerja_id = COALESCE(NEW.kode_unit, NEW.unit_kerja_id, unit_kerja_id),
+        email = COALESCE(NEW.email, email),
+        role = COALESCE(NEW.role::role_user_enum, role),
+        role_label = COALESCE(NEW.jabatan, role_label),
+        password_hash = COALESCE(NEW.password, NEW.password_hash, password_hash),
+        is_active = COALESCE(NEW.is_active, is_active),
+        updated_at = NOW()
+    WHERE id = OLD.id OR nip_nik = OLD.nip OR username = OLD.username;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_users_update ON users;
+CREATE TRIGGER trg_users_update
+INSTEAD OF UPDATE ON users
+FOR EACH ROW EXECUTE FUNCTION trg_instead_of_users_update();
+
+-- INSTEAD OF INSERT trigger pada VIEW users untuk memetakan insert ke master_user
+CREATE OR REPLACE FUNCTION trg_instead_of_users_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO master_user (
+        id, nip_nik, username, nama_lengkap, email, password_hash,
+        unit_kerja_id, role, role_level, role_label, is_active, must_change_password
+    )
+    VALUES (
+        NEW.id,
+        NEW.nip,
+        COALESCE(NEW.username, NEW.nip),
+        COALESCE(NEW.nama, NEW.nama_lengkap),
+        NEW.email,
+        COALESCE(NEW.password, NEW.password_hash),
+        COALESCE(NEW.kode_unit, NEW.unit_kerja_id),
+        COALESCE(NEW.role::role_user_enum, 'DOSEN'::role_user_enum),
+        CASE 
+            WHEN NEW.role = 'PEJABAT' THEN 'Level 1: Pimpinan'
+            WHEN NEW.role = 'PENGAWAS' THEN 'Level 3: Pengawas'
+            WHEN NEW.role = 'DOSEN' THEN 'Level 2: Fungsional Dosen'
+            ELSE 'Level 2: Pelaksana (Staf)'
+        END,
+        COALESCE(NEW.jabatan, 'Pegawai'),
+        COALESCE(NEW.is_active, TRUE),
+        COALESCE(NEW.must_change_password, TRUE)
+    )
+    ON CONFLICT (nip_nik) DO UPDATE 
+    SET 
+        nama_lengkap = EXCLUDED.nama_lengkap,
+        email = EXCLUDED.email,
+        unit_kerja_id = EXCLUDED.unit_kerja_id,
+        role = EXCLUDED.role,
+        role_label = EXCLUDED.role_label,
+        is_active = EXCLUDED.is_active,
+        updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_users_insert ON users;
+CREATE TRIGGER trg_users_insert
+INSTEAD OF INSERT ON users
+FOR EACH ROW EXECUTE FUNCTION trg_instead_of_users_insert();
 
 
 -- =============================================================================
--- 5. TABEL MASTER KLASIFIKASI ARSIP (Kaidah Tata Naskah Dinas ANRI)
+-- 4D. TABEL MASTER PEJABAT PENANDATANGAN (Automated Hierarchy Routing & TTE)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS master_pejabat (
+    id SERIAL PRIMARY KEY,
+    user_id VARCHAR(50) NULL,                            -- Relasi Foreign Key ke master_user(id)
+    nip VARCHAR(30) NOT NULL UNIQUE,                     -- NIP resmi ASN pejabat penandatangan (18 digit)
+    nama VARCHAR(100) NOT NULL,                          -- Nama pejabat tanpa gelar (misal: 'Dr. Nurul Hiron')
+    gelar VARCHAR(50) NOT NULL,                          -- Gelar akademik/profesi (misal: 'S.T., M.Eng.')
+    nama_gelar VARCHAR(150) NOT NULL,                    -- Nama lengkap beserta gelar resmi
+    jabatan VARCHAR(150) NOT NULL,                       -- Jabatan struktural (misal: 'Dekan Fakultas Teknik')
+    kode_unit VARCHAR(20) NOT NULL,                      -- Relasi ke master_unit_kerja.kode_unit
+    status_plt_plh VARCHAR(10) NOT NULL DEFAULT 'DEFINITIF', -- 'DEFINITIF', 'PLT', 'PLH'
+    is_penandatangan_default BOOLEAN DEFAULT FALSE,      -- TRUE untuk pimpinan utama satuan kerja
+    tanggal_mulai DATE NULL DEFAULT '2024-01-01',        -- Tanggal awal masa jabatan
+    tanggal_selesai DATE NULL,                           -- Tanggal akhir masa jabatan (NULL = masih menjabat)
+    is_active BOOLEAN DEFAULT TRUE,                      -- Status keaktifan menjabat
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_pejabat_unit FOREIGN KEY (kode_unit) 
+        REFERENCES master_unit_kerja (kode_unit) 
+        ON UPDATE CASCADE 
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_pejabat_user FOREIGN KEY (user_id) 
+        REFERENCES master_user (id) 
+        ON UPDATE CASCADE 
+        ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pejabat_unit ON master_pejabat(kode_unit);
+CREATE INDEX IF NOT EXISTS idx_pejabat_nip ON master_pejabat(nip);
+CREATE INDEX IF NOT EXISTS idx_pejabat_user ON master_pejabat(user_id);
+CREATE INDEX IF NOT EXISTS idx_pejabat_active ON master_pejabat(is_active);
+CREATE INDEX IF NOT EXISTS idx_pejabat_status ON master_pejabat(status_plt_plh);
+
+
+-- =============================================================================
+-- 5. TABEL MASTER KLASIFIKASI ARSIP (Hierarkis 3 Level ANRI & UNSIL)
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS master_klasifikasi_arsip (
-    kode VARCHAR(10) PRIMARY KEY,                -- 'KU', 'PL', 'KR', 'PP', 'KP', 'HM'
-    nama_klasifikasi VARCHAR(100) NOT NULL,
-    keterangan TEXT NULL,
-    is_active BOOLEAN DEFAULT TRUE
+    id SERIAL PRIMARY KEY,
+    kode_klasifikasi VARCHAR(50) NOT NULL UNIQUE,        -- Contoh: 'PP', 'PP.00', 'PP.00.03'
+    nama_klasifikasi VARCHAR(150) NOT NULL,              -- Label kategori
+    keterangan_klasifikasi TEXT NOT NULL,                -- Rincian substansi urusan
+    parent_id INT NULL,                                  -- Relasi hierarki ke id induk (Self-Referencing)
+    level SMALLINT NOT NULL DEFAULT 1,                   -- 1: Pokok, 2: Sub-Klasifikasi, 3: Sub-sub Klasifikasi
+    kode VARCHAR(10) NULL,                               -- Rujukan singkatan (misal: 'PP', 'KU')
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_klasifikasi_parent FOREIGN KEY (parent_id) 
+        REFERENCES master_klasifikasi_arsip (id) 
+        ON UPDATE CASCADE 
+        ON DELETE RESTRICT
 );
+
+CREATE INDEX IF NOT EXISTS idx_klasifikasi_kode ON master_klasifikasi_arsip(kode_klasifikasi);
+CREATE INDEX IF NOT EXISTS idx_klasifikasi_parent ON master_klasifikasi_arsip(parent_id);
+CREATE INDEX IF NOT EXISTS idx_klasifikasi_level ON master_klasifikasi_arsip(level);
+
+
+-- =============================================================================
+-- 5B. TABEL TRANSAKSI SURAT KELUAR (Manajemen Nomor Surat Otomatis & Concurrency)
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS trx_surat_keluar (
+    id_surat SERIAL PRIMARY KEY,
+    nomor_urut INT NOT NULL,                             -- Nomor urut berurutan per tahun (misal: 1, 2, 3)
+    nomor_surat_lengkap VARCHAR(150) NOT NULL UNIQUE,   -- [nomor_urut]/[unit]/[keamanan]/[klasifikasi]/[tahun]
+    tingkat_keamanan VARCHAR(10) NOT NULL,               -- 'B' (Biasa), 'R' (Rahasia), 'SR' (Sangat Rahasia)
+    kode_klasifikasi VARCHAR(50) NOT NULL,               -- Kode klasifikasi arsip (misal: 'PP.00.03')
+    perihal TEXT NOT NULL,
+    tujuan VARCHAR(255) NOT NULL,
+    tahun INT NOT NULL,                                  -- Tahun anggaran berjalan (misal: 2026)
+    unit_kerja_id VARCHAR(20) NOT NULL DEFAULT 'UN58',   -- Kode unit kerja penerbit (misal: 'UN58.10')
+    created_by_user_id VARCHAR(50) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_tahun_nomor_urut UNIQUE (tahun, nomor_urut)
+);
+
+CREATE INDEX IF NOT EXISTS idx_surat_keluar_tahun_nomor ON trx_surat_keluar(tahun, nomor_urut);
+CREATE INDEX IF NOT EXISTS idx_surat_keluar_unit ON trx_surat_keluar(unit_kerja_id);
 
 
 -- =============================================================================
@@ -225,7 +418,7 @@ CREATE TABLE IF NOT EXISTS naskah_dinas (
     kategori kategori_surat_enum NOT NULL DEFAULT 'Surat Keluar',
     sifat sifat_surat_enum NOT NULL DEFAULT 'Biasa',
     kategori_keamanan kategori_keamanan_enum NOT NULL DEFAULT 'Biasa/Terbuka',
-    kode_klasifikasi VARCHAR(10) NOT NULL,
+    kode_klasifikasi VARCHAR(50) NOT NULL,
     sub_klasifikasi VARCHAR(50) NOT NULL,        -- Misal: 'KU.01.00'
     asal_pengirim VARCHAR(150) NOT NULL,
     tujuan_penerima VARCHAR(150) NOT NULL,
@@ -270,7 +463,7 @@ CREATE TABLE IF NOT EXISTS naskah_dinas (
         ON UPDATE CASCADE 
         ON DELETE SET NULL,
     CONSTRAINT fk_surat_klasifikasi FOREIGN KEY (kode_klasifikasi) 
-        REFERENCES master_klasifikasi_arsip (kode) 
+        REFERENCES master_klasifikasi_arsip (kode_klasifikasi) 
         ON UPDATE CASCADE 
         ON DELETE RESTRICT
 );
@@ -372,6 +565,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON log_audit_keamanan(timestamp D
 -- =============================================================================
 CREATE TABLE IF NOT EXISTS jadwal_retensi_arsip (
     id SERIAL PRIMARY KEY,
+    klasifikasi_id INT NULL,                     -- Relasi Foreign Key ke master_klasifikasi_arsip(id)
     kode_seri VARCHAR(50) NOT NULL UNIQUE,       -- Misal: 'KU.02.01', 'PP.02.00', 'KU.02.01.h'
     nama_seri VARCHAR(150) NOT NULL,
     retensi_aktif_tahun INT NOT NULL,            -- Jumlah tahun aktif
@@ -380,8 +574,14 @@ CREATE TABLE IF NOT EXISTS jadwal_retensi_arsip (
     is_safeguard_locked BOOLEAN DEFAULT FALSE,   -- TRUE jika berkas permanen (tidak boleh dihapus staf)
     jumlah_berkas INT DEFAULT 0,
     keterangan TEXT NULL,
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_jra_klasifikasi FOREIGN KEY (klasifikasi_id)
+        REFERENCES master_klasifikasi_arsip (id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_jra_klasifikasi ON jadwal_retensi_arsip(klasifikasi_id);
 
 
 -- =============================================================================
@@ -425,6 +625,11 @@ FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 DROP TRIGGER IF EXISTS set_timestamp_master_user ON master_user;
 CREATE TRIGGER set_timestamp_master_user
 BEFORE UPDATE ON master_user
+FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
+
+DROP TRIGGER IF EXISTS set_timestamp_master_pejabat ON master_pejabat;
+CREATE TRIGGER set_timestamp_master_pejabat
+BEFORE UPDATE ON master_pejabat
 FOR EACH ROW EXECUTE FUNCTION trigger_set_timestamp();
 
 DROP TRIGGER IF EXISTS set_timestamp_naskah_dinas ON naskah_dinas;
@@ -488,10 +693,8 @@ CREATE TABLE IF NOT EXISTS trx_process_log (
     created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
 );
 
--- Indeks performa query penambangan proses (Process Discovery, Conformance Checking, Performance Analysis)
 CREATE INDEX IF NOT EXISTS idx_process_log_case_id ON trx_process_log(case_id);
 CREATE INDEX IF NOT EXISTS idx_process_log_activity ON trx_process_log(activity_name);
 CREATE INDEX IF NOT EXISTS idx_process_log_timestamp ON trx_process_log(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_process_log_resource_group ON trx_process_log(resource_group);
 CREATE INDEX IF NOT EXISTS idx_process_log_metadata_gin ON trx_process_log USING gin(metadata);
-

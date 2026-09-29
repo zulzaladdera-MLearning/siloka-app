@@ -1,15 +1,29 @@
 import React from 'react';
 import { ShieldCheck, CheckCircle2, QrCode } from 'lucide-react';
+import { determineKopSurat } from '../../utils/kopSuratHelper';
 
 /**
- * Kop Surat Resmi Universitas Siliwangi (Kemendikbudristek)
- * Digunakan untuk Surat Edaran, Surat Keputusan, dan Naskah Dinas Resmi
+ * Kop Surat Resmi Universitas Siliwangi (Dinamis Sesuai Peraturan Rektor No. 3/2023)
+ * - Format Tingkat Universitas [Pasal 30 (2)]: Rektor / Wakil Rektor / Biro (tanpa nama fakultas/biro di baris ketiga)
+ * - Format Tingkat Unit Kerja [Pasal 31 (1, 2, 6)]: Dekan / Dosen / Operator Fakultas / Lembaga / UPA
+ *   (nama Fakultas/Lembaga/UPA dimunculkan di baris ketiga dengan tulisan paling tebal)
  */
-export const KopSuratUnsil = ({ compact = false }) => {
+export const KopSuratUnsil = ({
+  compact = false,
+  unit = null,
+  kodeUnit = null,
+  currentUser = null
+}) => {
+  const kopConfig = determineKopSurat(unit || kodeUnit || currentUser);
+
   return (
-    <div className={`mb-3 pb-0 text-black font-serif ${compact ? 'scale-95 origin-top' : ''}`}>
+    <div
+      data-kop-naskah-dinas="true"
+      data-kop-border-distance="4.5cm"
+      className={`kop-surat-unsil mb-[1.25em] pb-0 text-black font-serif ${compact ? 'scale-95 origin-top' : ''}`}
+    >
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* Logo UNSIL Resmi (Sesuai Ukuran Proporsional di Gambar Acuan) */}
+        {/* Logo UNSIL Resmi */}
         <div className="w-20 h-20 sm:w-[94px] sm:h-[94px] shrink-0 flex items-center justify-center select-none protected-asset">
           <img
             src="/unsil-logo.png"
@@ -20,31 +34,67 @@ export const KopSuratUnsil = ({ compact = false }) => {
           />
         </div>
 
-        {/* Header Text Terpusat Persis Gambar Acuan */}
-        <div className="flex-1 text-center font-serif leading-tight pr-2 sm:pr-4">
-          <p className="text-[12.5px] sm:text-[14px] font-bold tracking-normal uppercase text-black leading-snug">
-            KEMENTERIAN PENDIDIKAN, KEBUDAYAAN,
+        {/* Header Teks Dinamis Sesuai Peraturan Rektor UNSIL No. 3/2023 (Pasal 43–48 & Bab II):
+            - Baris Kementerian: Times New Roman ukuran 16 (Kapital)
+            - Baris Nama Universitas / Unit Kerja: Times New Roman ukuran 14 (Kapital, Bold)
+            - Baris Alamat & Kontak: Times New Roman ukuran 12 */}
+        <div className="flex-1 text-center font-serif leading-tight pr-2 sm:pr-4 text-black">
+          <p className="kop-baris-kementerian uppercase text-black leading-snug">
+            {kopConfig.kementerianText}
           </p>
-          <p className="text-[12.5px] sm:text-[14px] font-bold tracking-normal uppercase text-black leading-snug">
-            RISET, DAN TEKNOLOGI
+          <h2 className="kop-baris-universitas font-bold uppercase text-black mt-0.5 leading-snug">
+            {kopConfig.universitasText}
+          </h2>
+
+          {/* Baris Ketiga: Hanya untuk Tingkat Unit Kerja (Fakultas / Lembaga / UPA) dengan TULISAN TEBAL 14pt [Pasal 31 (6)] */}
+          {kopConfig.isTingkatUnitKerja && kopConfig.namaUnitBarisTiga && (
+            <h1 className="kop-baris-unit font-bold uppercase text-black mt-0.5 leading-snug">
+              {kopConfig.namaUnitBarisTiga}
+            </h1>
+          )}
+
+          <p className="kop-baris-alamat text-black font-normal mt-1 leading-tight">
+            {kopConfig.alamatText}
           </p>
-          <h1 className="text-[14px] sm:text-[16px] font-bold tracking-normal uppercase text-black mt-0.5 leading-snug">
-            UNIVERSITAS SILIWANGI
-          </h1>
-          <p className="text-[10px] sm:text-[11px] text-black font-normal mt-1 leading-tight">
-            Jalan Siliwangi Nomor 24 Kota Tasikmalaya Kode Pos 46115
+          <p className="kop-baris-alamat text-black font-normal mt-0.5 leading-tight">
+            {kopConfig.kontakText}
           </p>
-          <p className="text-[10px] sm:text-[11px] text-black font-normal mt-0.5 leading-tight">
-            Telepon (0265) 330634, 333092 Faksimil (0265) 325812
-          </p>
-          <p className="text-[10px] sm:text-[11px] text-black font-normal mt-0.5 leading-tight">
-            Laman: www.unsil.ac.id Posel: info@unsil.ac.id
+          <p className="kop-baris-alamat text-black font-normal mt-0.5 leading-tight">
+            {kopConfig.webText}
           </p>
         </div>
       </div>
 
-      {/* Garis Pembatas Tebal Tunggal Khas Kop Resmi (Persis Gambar Acuan) */}
-      <div className="mt-2.5 border-b-[2.5px] border-black w-full" />
+      {/* Garis Pembatas Ganda Kop Resmi (Berjarak 4,5 cm dari tepi atas kertas) */}
+      <div>
+        <div className="mt-2 border-b-[2.5px] border-black w-full" />
+        <div className="mt-0.5 border-b-[0.8px] border-black w-full" />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * Komponen Nomor Halaman Naskah Dinas Resmi (Pasal 46 / Bab II):
+ * - Ditulis dengan angka Arab simetris di tengah atas kertas menggunakan tanda hubung, contoh: "- 2 -"
+ * - Halaman pertama yang menggunakan Kop Surat tidak diberi nomor halaman.
+ */
+export const NomorHalamanNaskahDinas = ({ pageNumber = 2 }) => (
+  <div data-nomor-halaman="true" className="nomor-halaman-resmi text-center text-black select-none">
+    - {pageNumber} -
+  </div>
+);
+
+/**
+ * Komponen Kata Penyambung Halaman Naskah Dinas Resmi (Bab II):
+ * - Jika naskah lebih dari satu halaman, kata pertama di halaman berikutnya dituliskan
+ *   di sudut kanan bawah halaman sebelumnya diikuti 3 titik (contoh: "Peserta...")
+ */
+export const KataPenyambungNaskahDinas = ({ word = 'Peserta' }) => {
+  const cleanWord = String(word || 'Peserta').replace(/\.+$/, '');
+  return (
+    <div data-kata-penyambung="true" className="kata-penyambung-resmi text-right text-black select-none">
+      {cleanWord}...
     </div>
   );
 };
@@ -52,6 +102,7 @@ export const KopSuratUnsil = ({ compact = false }) => {
 /**
  * 1. FORMAT PROSEDUR OPERASIONAL STANDAR (POS / SOP)
  * Berdasarkan Gambar 1 (Bagian Identitas) & Gambar 2 (Bagian Diagram Alir / Flowchart)
+ * Kategori: Naskah Dinas Arahan (F4 210x330mm • Bookman Old Style 12pt)
  */
 export const PosTemplateView = ({ data }) => {
   const {
@@ -119,12 +170,17 @@ export const PosTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-900 font-sans p-6 sm:p-8 max-w-4xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-      <div className="mb-4">
-        <h2 className="text-center font-bold text-sm sm:text-base uppercase tracking-wider text-slate-900 mb-1">
+    <div
+      data-pasal47="true"
+      data-has-kop="false"
+      data-naskah-category="ARAHAN"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop bg-white text-black font-serif p-6 sm:p-8 max-w-4xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+      <div className="naskah-judul-block mb-6">
+        <h2 className="text-center font-bold text-sm sm:text-base uppercase tracking-wider text-black mb-1">
           PROSEDUR OPERASIONAL STANDAR (POS)
         </h2>
-        <p className="text-center text-xs text-slate-600 font-medium">
+        <p className="text-center text-xs text-black font-medium">
           Standar Pelayanan Operasional Biro Perencanaan, Keuangan, dan Umum - Universitas Siliwangi
         </p>
       </div>
@@ -332,22 +388,27 @@ export const SuratEdaranTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      data-naskah-category="ARAHAN"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
       {/* Kop Surat Resmi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Surat Edaran */}
-      <div className="text-center my-6">
-        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+      {/* Judul Surat Edaran (Jarak antarbaris judul 1 spasi, jarak antara judul dan isi 2 spasi) */}
+      <div className="naskah-judul-block text-center my-6">
+        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-black">
           SURAT EDARAN
         </h2>
-        <p className="font-mono text-xs font-bold tracking-wider text-slate-900 mt-1">
+        <p className="text-xs font-bold tracking-wider text-black mt-1">
           NOMOR {nomorSurat} TAHUN {tahun}
         </p>
-        <p className="font-bold text-xs uppercase tracking-wider text-slate-900 mt-2">
+        <p className="font-bold text-xs uppercase tracking-wider text-black mt-1">
           TENTANG
         </p>
-        <p className="font-bold text-xs uppercase tracking-normal text-slate-950 max-w-xl mx-auto mt-1 leading-snug">
+        <p className="font-bold text-xs uppercase tracking-normal text-black max-w-xl mx-auto mt-1 leading-tight">
           {tentang}
         </p>
       </div>
@@ -375,7 +436,7 @@ export const SuratEdaranTemplateView = ({ data }) => {
       </div>
 
       {/* Penutup & Tanda Tangan */}
-      <div className="flex justify-end mt-12 font-sans">
+      <div className="flex justify-end mt-5 font-sans">
         <div className="w-72 text-left">
           <p className="text-xs text-slate-800 mb-1">{tempatTanggal}</p>
           <p className="font-bold text-xs text-slate-900">{namaJabatan}</p>
@@ -440,7 +501,7 @@ export const KeputusanTemplateView = ({ data }) => {
     namaRektor = 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
     nipRektor = '196708161996031001',
     tteVerified = true,
-    hasLampiran = true,
+    hasLampiran = false,
     lampiranRows = [
       { no: 1, nama: 'Dr. Nana Sujana, Drs., M.Si.', nip: '196808301989031004', jabatan: 'Kepala Biro Umum dan Keuangan', peranTim: 'Penanggung Jawab Tim' },
       { no: 2, nama: 'Budi Santoso, S.E., M.Ak.', nip: '198203202008121002', jabatan: 'Koordinator Keuangan & BMN', peranTim: 'Ketua Pelaksana' },
@@ -451,32 +512,37 @@ export const KeputusanTemplateView = ({ data }) => {
 
   return (
     <div className="space-y-12 max-w-3xl mx-auto">
-      {/* LEMBAR UTAMA KEPUTUSAN (Sesuai Gambar 4) */}
-      <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
+      {/* LEMBAR UTAMA KEPUTUSAN (Sesuai Gambar 4 - Naskah Dinas Arahan: F4 & Bookman Old Style 12pt) */}
+      <div
+        data-pasal47="true"
+        data-has-kop="true"
+        data-naskah-category="ARAHAN"
+        className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      >
         {/* Visual Badge for Screen Preview */}
         <div className="print:hidden mb-4 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
           <span className="font-semibold text-slate-700">Lembar 1: Naskah Utama Keputusan Rektor</span>
-          <span className="bg-emerald-50 text-emerald-800 font-mono px-2 py-0.5 rounded border border-emerald-200 text-[10px]">Halaman 1 {hasLampiran ? '/ 2' : ''}</span>
+          <span className="bg-emerald-50 text-emerald-800 font-mono px-2 py-0.5 rounded border border-emerald-200 text-[10px]">Halaman 1 {hasLampiran ? '/ 2 (Tanpa Nomor Halaman karena Berkop)' : ''}</span>
         </div>
 
         {/* Kop Surat */}
-        <KopSuratUnsil />
+        <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-        {/* Judul Keputusan */}
-        <div className="text-center my-3">
-          <p className="font-bold text-xs tracking-wider uppercase text-slate-950">
+        {/* Judul Keputusan (Jarak antarbaris judul 1 spasi, jarak antara judul dan isi 2 spasi) */}
+        <div className="naskah-judul-block text-center my-3">
+          <p className="font-bold text-xs tracking-wider uppercase text-black">
             KEPUTUSAN REKTOR UNIVERSITAS SILIWANGI
           </p>
-          <p className="font-mono text-xs font-bold tracking-wide text-slate-900 mt-0.5">
+          <p className="text-xs font-bold tracking-wide text-black mt-0.5">
             NOMOR {nomorSk}
           </p>
-          <p className="font-bold text-[11px] uppercase tracking-wider text-slate-900 mt-1.5">
+          <p className="font-bold text-[11px] uppercase tracking-wider text-black mt-1">
             TENTANG
           </p>
-          <p className="font-bold text-xs uppercase tracking-normal text-slate-950 max-w-lg mx-auto mt-0.5 leading-snug">
+          <p className="font-bold text-xs uppercase tracking-normal text-black max-w-lg mx-auto mt-0.5 leading-tight">
             {tentang}
           </p>
-          <p className="font-bold text-xs uppercase tracking-wider text-slate-950 mt-3">
+          <p className="font-bold text-xs uppercase tracking-wider text-black mt-2">
             {pejabatPenetap}
           </p>
         </div>
@@ -513,7 +579,7 @@ export const KeputusanTemplateView = ({ data }) => {
 
         {/* Diktum Memutuskan */}
         <div className="text-center my-2">
-          <p className="font-bold text-xs uppercase tracking-widest text-slate-950">
+          <p className="font-bold text-xs uppercase tracking-widest text-black">
             MEMUTUSKAN:
           </p>
         </div>
@@ -521,7 +587,7 @@ export const KeputusanTemplateView = ({ data }) => {
         <div className="space-y-1.5 font-serif text-[11px] leading-snug text-justify mb-4">
           <div className="flex items-start gap-3">
             <span className="w-20 shrink-0 font-bold">Menetapkan :</span>
-            <p className="flex-1 font-bold uppercase text-slate-950">{menetapkan}</p>
+            <p className="flex-1 font-bold uppercase text-black">{menetapkan}</p>
           </div>
 
           {diktum.map((d, idx) => (
@@ -533,10 +599,10 @@ export const KeputusanTemplateView = ({ data }) => {
         </div>
 
         {/* Pengesahan Rektor */}
-        <div className="flex justify-end mt-4 font-sans">
+        <div className="flex justify-end mt-4 font-serif">
           <div className="w-64 text-left">
-            <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
-            <p className="font-bold text-xs text-slate-900">{namaJabatan}</p>
+            <p className="text-[11px] text-black mb-0.5">{tempatTanggal}</p>
+            <p className="font-bold text-xs text-black">{namaJabatan}</p>
 
             {/* Area TTE */}
             <div className="my-1.5 min-h-[48px] flex flex-col justify-center">
@@ -557,15 +623,26 @@ export const KeputusanTemplateView = ({ data }) => {
               )}
             </div>
 
-            <p className="font-bold text-xs text-slate-950">{namaRektor}</p>
-            <p className="text-[10.5px] text-slate-800 font-serif">NIP. {nipRektor}</p>
+            <p className="font-bold text-xs text-black">{namaRektor}</p>
+            <p className="text-[10.5px] text-black font-serif">NIP. {nipRektor}</p>
           </div>
         </div>
+
+        {/* Kata Penyambung ke Halaman Berikutnya (Sudut Kanan Bawah diikuti 3 titik) */}
+        {hasLampiran && <KataPenyambungNaskahDinas word="LAMPIRAN" />}
       </div>
 
-      {/* LEMBAR LAMPIRAN KEPUTUSAN REKTOR (Sesuai Gambar 5) */}
+      {/* LEMBAR LAMPIRAN KEPUTUSAN REKTOR (Sesuai Gambar 5 - Tanpa Kepala Naskah Dinas / Pasal 47: Tepi Atas >= 2 cm & Nomor Halaman - 2 -) */}
       {hasLampiran && (
-        <div className="a4-sheet page-break break-before-page bg-white text-slate-950 font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none print:mt-0">
+        <div
+          data-pasal47="true"
+          data-has-kop="false"
+          data-naskah-category="ARAHAN"
+          className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop page-break break-before-page bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none print:mt-0"
+        >
+          {/* Nomor Halaman Simetris di Tengah Atas Kertas (- 2 -) */}
+          <NomorHalamanNaskahDinas pageNumber={2} />
+
           {/* Visual Divider & Badge for Screen Preview */}
           <div className="print:hidden mb-4 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans">
             <span className="font-semibold text-slate-700">Lembar 2: Lampiran Keputusan Rektor</span>
@@ -680,12 +757,16 @@ export const SuratPerintahTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
       {/* Kop Surat Resmi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Surat Perintah */}
-      <div className="text-center my-3">
+      {/* Judul Surat Perintah (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center my-3">
         <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
           SURAT PERINTAH
         </h2>
@@ -759,7 +840,7 @@ export const SuratPerintahTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Pengesahan Kanan Bawah */}
-      <div className="flex justify-end mt-12 sm:mt-14 font-serif">
+      <div className="flex justify-end mt-5 sm:mt-6 font-serif">
         <div className="w-72 sm:w-80 text-left">
           <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
           <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
@@ -815,11 +896,15 @@ export const SuratTugasLembaranTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-      <KopSuratUnsil />
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Surat Tugas */}
-      <div className="text-center my-4">
+      {/* Judul Surat Tugas (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center my-4">
         <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
           SURAT TUGAS
         </h2>
@@ -871,7 +956,7 @@ export const SuratTugasLembaranTemplateView = ({ data }) => {
       </div>
 
       {/* Pengesahan Kanan Bawah */}
-      <div className="flex justify-end mt-12 sm:mt-14 font-serif">
+      <div className="flex justify-end mt-5 sm:mt-6 font-serif">
         <div className="w-72 sm:w-80 text-left">
           <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
           <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
@@ -945,11 +1030,15 @@ export const SuratTugasKolomTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-      <KopSuratUnsil />
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Surat Tugas Kolom */}
-      <div className="text-center my-3">
+      {/* Judul Surat Tugas Kolom (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center my-3">
         <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
           SURAT TUGAS
         </h2>
@@ -1003,7 +1092,7 @@ export const SuratTugasKolomTemplateView = ({ data }) => {
       </div>
 
       {/* Pengesahan Kanan Bawah */}
-      <div className="flex justify-end mt-12 sm:mt-14 font-serif">
+      <div className="flex justify-end mt-5 sm:mt-6 font-serif">
         <div className="w-72 sm:w-80 text-left">
           <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
           <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
@@ -1063,11 +1152,15 @@ export const NotaDinasTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-      <KopSuratUnsil />
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Nota Dinas */}
-      <div className="text-center my-3">
+      {/* Judul Nota Dinas (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center my-3">
         <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
           NOTA DINAS
         </h2>
@@ -1117,7 +1210,7 @@ export const NotaDinasTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan & Tembusan */}
-      <div className="mt-12 sm:mt-14 font-serif">
+      <div className="mt-5 sm:mt-6 font-serif">
         {/* Baris Kanan: Tanggal, Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
         <div className="flex justify-end">
           <div className="w-72 sm:w-80 text-left">
@@ -1206,8 +1299,12 @@ export const SuratDinasTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-      <KopSuratUnsil />
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Baris Nomor, Lampiran, Hal di kiri dan Tempat & Tanggal di kanan (Sesuai Gambar 5) */}
       <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight">
@@ -1262,7 +1359,7 @@ export const SuratDinasTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan & Tembusan (Sesuai Standar Resmi Gambar 2 & 5) */}
-      <div className="mt-12 sm:mt-14 font-serif">
+      <div className="mt-5 sm:mt-6 font-serif">
         {/* Baris Kanan: Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
         <div className="flex justify-end">
           <div className="w-72 sm:w-80 text-left">
@@ -1348,7 +1445,7 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
       'Ketua Satuan Pengawas Internal (SPI)'
     ],
     tteVerified = true,
-    hasLampiran = true,
+    hasLampiran = false,
     lampiranDaftarYth = [
       'Dekan Fakultas Keguruan dan Ilmu Pendidikan',
       'Dekan Fakultas Ekonomi dan Bisnis',
@@ -1364,8 +1461,12 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
 
   return (
     <div className="space-y-0">
-      <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
-        <KopSuratUnsil />
+      <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
+        <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
         {/* Baris Nomor, Lampiran, Hal di kiri dan Tempat & Tanggal di kanan (Sesuai Gambar 1) */}
         <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight">
@@ -1433,7 +1534,7 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
         </div>
 
         {/* Blok Tanda Tangan & Tembusan */}
-        <div className="mt-12 sm:mt-14 font-serif">
+        <div className="mt-5 sm:mt-6 font-serif">
           {/* Baris Kanan: Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
           <div className="flex justify-end">
             <div className="w-72 sm:w-80 text-left">
@@ -1489,6 +1590,9 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
             </div>
           )}
         </div>
+
+        {/* Kata Penyambung ke Halaman Berikutnya (Sudut Kanan Bawah diikuti 3 titik) */}
+        {hasLampiran && <KataPenyambungNaskahDinas word="Lampiran" />}
       </div>
 
       {/* Lembar Lampiran (Halaman 2) jika hasLampiran aktif */}
@@ -1529,10 +1633,14 @@ export const LampiranSuratUndanganTemplateView = ({ data, isMultiPageSubsheet = 
 
   return (
     <div
-      className={`a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none ${
+      data-pasal47="true"
+      data-has-kop="false"
+      className={`a4-sheet pasal47-without-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none ${
         isMultiPageSubsheet ? 'page-break break-before-page mt-8 print:mt-0' : ''
       }`}
     >
+      {/* Nomor Halaman Simetris di Tengah Atas Kertas (- 2 -) */}
+      <NomorHalamanNaskahDinas pageNumber={2} />
       {/* Visual Divider saat mode pratinjau layar */}
       {isMultiPageSubsheet && (
         <div className="print:hidden mb-6 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans">
@@ -1595,7 +1703,11 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-6 sm:p-10 max-w-2xl mx-auto shadow-lg border-2 border-slate-900 rounded-sm text-xs leading-relaxed print:p-8 print:shadow-none print:border-2 print:border-black">
+    <div
+      data-pasal47="true"
+      data-has-kop="false"
+      className="a4-sheet pasal47-without-kop bg-white text-slate-950 font-serif p-6 sm:p-10 max-w-2xl mx-auto shadow-lg border-2 border-slate-900 rounded-sm text-xs leading-relaxed print:p-8 print:shadow-none print:border-2 print:border-black"
+    >
       {/* Bingkai Ganda Elegan Khas Kartu Undangan Resmi (Sesuai Gambar 3) */}
       <div className="border border-slate-400 p-6 sm:p-10 text-center flex flex-col justify-between min-h-[580px]">
         {/* Bagian Atas: Logo UNSIL Terpusat */}
@@ -1751,7 +1863,11 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="a4-sheet bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+    >
       {/* Header: Dua Lambang di Kiri dan Kanan (Ukuran Terkunci Sesuai Template) */}
       <div className="flex items-center justify-between gap-4 mb-4">
         {/* Lambang Pihak I (Kiri) */}
@@ -1795,8 +1911,8 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
         </div>
       </div>
 
-      {/* Judul Naskah Nota Kesepahaman Terpusat (Sesuai Gambar Acuan) */}
-      <div className="text-center font-serif text-slate-950 space-y-1 my-5">
+      {/* Judul Naskah Nota Kesepahaman Terpusat (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 space-y-1 my-5">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           NOTA KESEPAHAMAN
         </h1>
@@ -2031,7 +2147,11 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Header Dua Lambang */}
       <div className="flex items-start justify-between gap-4 mb-6">
         <div className="w-28 h-20 flex items-center justify-center text-center shrink-0">
@@ -2073,8 +2193,8 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
         </div>
       </div>
 
-      {/* Judul Perjanjian Kerja Sama Dalam Negeri Terpusat */}
-      <div className="text-center font-serif text-slate-950 space-y-1 my-5">
+      {/* Judul Perjanjian Kerja Sama Dalam Negeri Terpusat (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 space-y-1 my-5">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           PERJANJIAN KERJA SAMA DALAM NEGERI
         </h1>
@@ -2234,12 +2354,16 @@ export const SuratKuasaTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Kuasa */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Surat Kuasa (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           SURAT KUASA
         </h1>
@@ -2410,12 +2534,16 @@ export const BeritaAcaraTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Berita Acara */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Berita Acara (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           BERITA ACARA
         </h1>
@@ -2557,12 +2685,16 @@ export const SuratKeteranganTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Keterangan */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Surat Keterangan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           SURAT KETERANGAN
         </h1>
@@ -2711,12 +2843,16 @@ export const SuratPernyataanTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Pernyataan */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Surat Pernyataan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           SURAT PERNYATAAN
         </h1>
@@ -2853,12 +2989,16 @@ export const SuratPengantarTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Pengantar */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Surat Pengantar (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           SURAT PENGANTAR
         </h1>
@@ -3003,12 +3143,16 @@ export const PengumumanTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Pengumuman */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul & Nomor Pengumuman (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           PENGUMUMAN
         </h1>
@@ -3115,12 +3259,16 @@ export const NotulaTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Notula */}
-      <div className="text-center font-serif text-slate-950 my-6">
+      {/* Judul Notula (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           NOTULA
         </h1>
@@ -3280,12 +3428,16 @@ export const LaporanTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+    >
       {/* Kop Surat Resmi Universitas Siliwangi */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Laporan */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Judul Laporan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           LAPORAN
         </h1>
@@ -3413,12 +3565,16 @@ export const TelaahStafTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal">
+    <div
+      data-pasal47="true"
+      data-has-kop={showKopSurat ? 'true' : 'false'}
+      className={`a4-sheet ${showKopSurat ? 'pasal47-with-kop' : 'pasal47-without-kop'} p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal`}
+    >
       {/* Kop Surat Opsional */}
-      {showKopSurat && <KopSuratUnsil />}
+      {showKopSurat && <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />}
 
-      {/* Header Judul Sesuai Template Acuan */}
-      <div className="text-center font-serif text-slate-950 my-6 space-y-1">
+      {/* Header Judul Sesuai Template Acuan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
+      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           TELAAH STAF
         </h1>
@@ -3676,11 +3832,15 @@ export const DisposisiRektorTemplateView = ({ data }) => {
   const colKananInstruksi = DAFTAR_INSTRUKSI_REKTOR.slice(12, 24);
 
   return (
-    <div className="p-4 sm:p-8 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-tight">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-4 sm:p-8 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-tight"
+    >
       {/* Outer Border Box Persis Gambar Acuan */}
       <div className="border-[1.5px] border-black">
         {/* Kop Surat Resmi UNSIL di Bagian Atas */}
-        <div className="p-3 pb-2 border-b-[2px] border-black">
+        <div data-kop-naskah-dinas="true" className="kop-surat-unsil p-3 pb-2 border-b-[2px] border-black">
           <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] shrink-0 flex items-center justify-center select-none">
               <img
@@ -3962,9 +4122,13 @@ export const PenggunaanTteTemplateView = ({ data }) => {
   } = data || {};
 
   return (
-    <div className="p-6 sm:p-12 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs">
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-12 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs"
+    >
       {/* Kop Surat Resmi UNSIL */}
-      <KopSuratUnsil />
+      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Baris Metadata & Titimangsa Tanggal */}
       <div className="flex flex-col sm:flex-row justify-between items-start text-xs font-serif mt-5 mb-6 gap-2">
@@ -4086,30 +4250,90 @@ export const PenggunaanTteTemplateView = ({ data }) => {
 
 /**
  * 23 Standar Format Tata Naskah Dinas Resmi Universitas Siliwangi
- * Berdasarkan Pedoman Tata Naskah Dinas & Kearsipan UNSIL
+ * Berdasarkan Peraturan Rektor UNSIL Nomor 3 Tahun 2023 (Pasal 43–48 & Lampiran Bab II)
  */
-export const DOCUMENT_TEMPLATES = [
-  { id: 'pos', name: '1. POS/SOP', label: 'Prosedur Operasional Standar' },
-  { id: 'se', name: '2. Surat Edaran', label: 'Surat Edaran' },
-  { id: 'sk', name: '3. Keputusan Rektor', label: 'Keputusan Rektor' },
-  { id: 'sp', name: '4. Surat Perintah', label: 'Surat Perintah' },
-  { id: 'st_lembar', name: '5. ST (Lembar)', label: 'Surat Tugas (Format Lembar)' },
-  { id: 'st_kolom', name: '6. ST (Kolom)', label: 'Surat Tugas (Format Kolom)' },
-  { id: 'nd', name: '7. Nota Dinas', label: 'Nota Dinas' },
-  { id: 'sd', name: '8. Surat Dinas', label: 'Surat Dinas' },
-  { id: 'undangan_lembar', name: '9. Undangan (Lembar)', label: 'Surat Undangan (Format Lembar)' },
-  { id: 'undangan_kartu', name: '10. Undangan (Kartu)', label: 'Surat Undangan (Format Kartu)' },
-  { id: 'mou', name: '11. Nota Kesepahaman', label: 'Nota Kesepahaman (MoU)' },
-  { id: 'pks', name: '12. PKS Dalam Negeri', label: 'Perjanjian Kerja Sama (PKS)' },
-  { id: 'skua', name: '13. Surat Kuasa', label: 'Surat Kuasa' },
-  { id: 'ba', name: '14. Berita Acara', label: 'Berita Acara' },
-  { id: 'sket', name: '15. Surat Keterangan', label: 'Surat Keterangan' },
-  { id: 'sper', name: '16. Surat Pernyataan', label: 'Surat Pernyataan' },
-  { id: 'speng', name: '17. Surat Pengantar', label: 'Surat Pengantar' },
-  { id: 'peng', name: '18. Pengumuman', label: 'Pengumuman' },
-  { id: 'notula', name: '19. Notula', label: 'Notula Rapat' },
-  { id: 'lap', name: '20. Laporan', label: 'Laporan Dinas' },
-  { id: 'ts', name: '21. Telaah Staf', label: 'Telaah Staf' },
-  { id: 'disp_rektor', name: '22. Disposisi Rektor', label: 'Lembar Disposisi Rektor' },
-  { id: 'tte_doc', name: '23. Penggunaan TTE', label: 'Naskah Tanda Tangan Elektronik' }
+const RAW_DOCUMENT_TEMPLATES = [
+  // Naskah Dinas Arahan: F4 (210 x 330 mm) • Bookman Old Style 12pt
+  { id: 'pos', name: '1. POS/SOP', label: 'Prosedur Operasional Standar', kode_jenis_naskah: 'POS', kategoriNaskah: 'ARAHAN', hasKopSurat: false },
+  { id: 'se', name: '2. Surat Edaran', label: 'Surat Edaran', kode_jenis_naskah: 'SURAT_EDARAN', kategoriNaskah: 'ARAHAN', hasKopSurat: true },
+  { id: 'sk', name: '3. Keputusan Rektor', label: 'Keputusan Rektor', kode_jenis_naskah: 'KEPUTUSAN', kategoriNaskah: 'ARAHAN', isUniversityLevel: true, hasKopSurat: true },
+
+  // Naskah Dinas Khusus: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
+  { id: 'sp', name: '4. Surat Perintah', label: 'Surat Perintah', kode_jenis_naskah: 'SURAT_PERINTAH', kategoriNaskah: 'KHUSUS', isUniversityLevel: true, hasKopSurat: true },
+  { id: 'st_lembar', name: '5. ST (Lembar)', label: 'Surat Tugas (Format Lembar)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'st_kolom', name: '6. ST (Kolom)', label: 'Surat Tugas (Format Kolom)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+
+  // Naskah Dinas Korespondensi: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
+  { id: 'nd', name: '7. Nota Dinas', label: 'Nota Dinas', kode_jenis_naskah: 'NOTA_DINAS', kategoriNaskah: 'KORESPONDENSI', hasKopSurat: true },
+  { id: 'sd', name: '8. Surat Dinas', label: 'Surat Dinas', kode_jenis_naskah: 'SURAT_DINAS', kategoriNaskah: 'KORESPONDENSI', hasKopSurat: true },
+  { id: 'undangan_lembar', name: '9. Undangan (Lembar)', label: 'Surat Undangan (Format Lembar)', kode_jenis_naskah: 'SURAT_UNDANGAN', kategoriNaskah: 'KORESPONDENSI', hasKopSurat: true },
+  { id: 'undangan_kartu', name: '10. Undangan (Kartu)', label: 'Surat Undangan (Format Kartu)', kode_jenis_naskah: 'SURAT_UNDANGAN', kategoriNaskah: 'KORESPONDENSI', hasKopSurat: false },
+
+  // Naskah Dinas Khusus: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
+  { id: 'mou', name: '11. Nota Kesepahaman', label: 'Nota Kesepahaman (MoU)', kode_jenis_naskah: 'MOU', kategoriNaskah: 'KHUSUS', isUniversityLevel: true, hasKopSurat: true },
+  { id: 'pks', name: '12. PKS Dalam Negeri', label: 'Perjanjian Kerja Sama (PKS)', kode_jenis_naskah: 'PKS_DN', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'skua', name: '13. Surat Kuasa', label: 'Surat Kuasa', kode_jenis_naskah: 'SURAT_KUASA', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'ba', name: '14. Berita Acara', label: 'Berita Acara', kode_jenis_naskah: 'BERITA_ACARA', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'sket', name: '15. Surat Keterangan', label: 'Surat Keterangan', kode_jenis_naskah: 'SURAT_KETERANGAN', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'sper', name: '16. Surat Pernyataan', label: 'Surat Pernyataan', kode_jenis_naskah: 'SURAT_PERNYATAAN', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'speng', name: '17. Surat Pengantar', label: 'Surat Pengantar', kode_jenis_naskah: 'SURAT_PENGANTAR', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'peng', name: '18. Pengumuman', label: 'Pengumuman', kode_jenis_naskah: 'PENGUMUMAN', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+
+  // Naskah Dinas Lainnya: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
+  { id: 'notula', name: '19. Notula', label: 'Notula Rapat', kode_jenis_naskah: 'NOTULA', kategoriNaskah: 'LAINNYA', hasKopSurat: true },
+  { id: 'lap', name: '20. Laporan', label: 'Laporan Dinas', kode_jenis_naskah: 'LAPORAN', kategoriNaskah: 'LAINNYA', hasKopSurat: true },
+  { id: 'ts', name: '21. Telaah Staf', label: 'Telaah Staf', kode_jenis_naskah: 'TELAAH_STAF', kategoriNaskah: 'LAINNYA', hasKopSurat: false },
+  { id: 'disp_rektor', name: '22. Disposisi Rektor', label: 'Lembar Disposisi Rektor', kode_jenis_naskah: 'DISPOSISI_REKTOR', kategoriNaskah: 'LAINNYA', isUniversityLevel: true, hasKopSurat: true },
+  { id: 'tte_doc', name: '23. Penggunaan TTE', label: 'Naskah Tanda Tangan Elektronik', kode_jenis_naskah: 'PENGGUNAAN_TTE', kategoriNaskah: 'LAINNYA', hasKopSurat: true }
 ];
+
+export const DOCUMENT_TEMPLATES = RAW_DOCUMENT_TEMPLATES.map((tpl) => {
+  const isArahan = tpl.kategoriNaskah === 'ARAHAN';
+  return {
+    ...tpl,
+    paperSize: isArahan ? 'F4' : 'A4',
+    paperDimensions: isArahan ? '210 × 330 mm' : '210 × 297 mm',
+    gramaturKertas: 'HVS minimal 70 gram (≥ 70 gram/m²)',
+    fontFamily: isArahan ? 'Bookman Old Style' : 'Times New Roman / Arial',
+    fontSizePt: 12,
+    kopFontSpec: {
+      kementerian: 'Times New Roman 16pt (Kapital)',
+      universitasUnit: 'Times New Roman 14pt (Kapital, Bold)',
+      alamatKontak: 'Times New Roman 12pt',
+      jarakGarisPenutupDariAtas: '4,5 cm'
+    },
+    spasiSpec: {
+      antaraJudulDanIsi: '2 spasi',
+      judulLebihDariSatuBaris: '1 spasi'
+    },
+    penomoranDanTinta: {
+      formatNomorHalaman: '- 2 -',
+      halamanPertamaBerkopTanpaNomor: true,
+      kataPenyambung: 'Sudut kanan bawah diikuti 3 titik (contoh: Peserta...)',
+      warnaTintaTeks: 'Hitam',
+      warnaTintaParafTtd: 'Biru atau Hitam'
+    },
+    pasal47: {
+      pasal: 'Pasal 47',
+      ruangTepiAtas: tpl.hasKopSurat
+        ? 'Paling sedikit 1 (satu) spasi di bawah Kepala Naskah Dinas (Garis penutup kop 4,5 cm dari tepi atas)'
+        : 'Paling sedikit 2 cm (dua sentimeter) tanpa Kepala Naskah Dinas',
+      ruangTepiAtasCss: tpl.hasKopSurat ? '1.5cm (+ 1 spasi di bawah Kop)' : '2cm',
+      ruangTepiBawah: '1,5 cm',
+      ruangTepiBawahCss: '1.5cm',
+      ruangTepiKiri: '1,5 cm',
+      ruangTepiKiriCss: '1.5cm',
+      ruangTepiKanan: '1,5 cm',
+      ruangTepiKananCss: '1.5cm'
+    },
+    tataNaskahSpecs: {
+      gramatur: 'HVS minimal 70 gram',
+      warnaTinta: 'Hitam',
+      jarakJudulKeIsi: '2 spasi',
+      jarakBarisJudul: '1 spasi',
+      fontFamily: isArahan ? 'Bookman Old Style' : 'Times New Roman / Arial',
+      fontSizePt: 12,
+      paperSize: isArahan ? 'F4' : 'A4'
+    }
+  };
+});

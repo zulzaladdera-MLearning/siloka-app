@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import unitKerjaList from '../../data/unitKerja.json';
+import { canLetterBeDisposed } from '../../utils/letterActionPolicy';
 
 export const ActivityTable = ({
   letters,
@@ -45,7 +46,7 @@ export const ActivityTable = ({
     setTimeout(() => setCopiedId(null), 1500);
   };
 
-  // Filtered dataset
+  // Filtered dataset dengan fitur Pencarian Multi-Parameter Arsip Digital (Feature 5)
   const filteredLetters = useMemo(() => {
     return letters.filter((letter) => {
       // External filter from metric card click if set
@@ -67,15 +68,36 @@ export const ActivityTable = ({
         return false;
       }
 
-      // Global search query
+      // Global multi-parameter search query (Nomor, Nomor Asal, Tanggal, Pengirim, Penerima, Perihal, Klasifikasi, Ringkasan, Kategori, Status)
       if (searchQuery && searchQuery.trim() !== '') {
         const query = searchQuery.toLowerCase().trim();
-        const matchesNo = letter.nomorSurat.toLowerCase().includes(query);
-        const matchesPerihal = letter.perihal.toLowerCase().includes(query);
-        const matchesPengirim = letter.pengirim.toLowerCase().includes(query);
-        const matchesTujuan = letter.tujuan.toLowerCase().includes(query);
-        const matchesKlasifikasi = letter.kodeKlasifikasi?.toLowerCase().includes(query);
-        return matchesNo || matchesPerihal || matchesPengirim || matchesTujuan || matchesKlasifikasi;
+        const matchesNo = letter.nomorSurat?.toLowerCase().includes(query);
+        const matchesNoAsal =
+          letter.nomorSuratAsal?.toLowerCase().includes(query) ||
+          letter.nomorAsal?.toLowerCase().includes(query);
+        const matchesTanggal = letter.tanggal?.toLowerCase().includes(query);
+        const matchesPerihal = letter.perihal?.toLowerCase().includes(query);
+        const matchesPengirim = letter.pengirim?.toLowerCase().includes(query);
+        const matchesTujuan = letter.tujuan?.toLowerCase().includes(query);
+        const matchesKlasifikasi =
+          letter.kodeKlasifikasi?.toLowerCase().includes(query) ||
+          letter.subKlasifikasi?.toLowerCase().includes(query);
+        const matchesRingkasan = letter.ringkasan?.toLowerCase().includes(query);
+        const matchesKategori = letter.kategori?.toLowerCase().includes(query);
+        const matchesStatus = letter.status?.toLowerCase().includes(query);
+
+        return Boolean(
+          matchesNo ||
+          matchesNoAsal ||
+          matchesTanggal ||
+          matchesPerihal ||
+          matchesPengirim ||
+          matchesTujuan ||
+          matchesKlasifikasi ||
+          matchesRingkasan ||
+          matchesKategori ||
+          matchesStatus
+        );
       }
 
       return true;
@@ -434,13 +456,16 @@ export const ActivityTable = ({
                         <Eye className="w-4 h-4" />
                       </button>
 
-                      <button
-                        onClick={() => onOpenDisposisi(letter)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                        title="Disposisi Surat Ini"
-                      >
-                        <SendHorizontal className="w-4 h-4" />
-                      </button>
+                      {/* STRICT BUSINESS RULE: Tombol Disposisi DILARANG KERAS muncul untuk surat Permohonan TTD / Pengawas */}
+                      {canLetterBeDisposed(letter, currentUser) && (
+                        <button
+                          onClick={() => onOpenDisposisi(letter)}
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
+                          title="Disposisi Surat Ini"
+                        >
+                          <SendHorizontal className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

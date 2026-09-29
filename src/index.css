@@ -9,28 +9,171 @@
   }
 }
 
-/* Tipografi Naskah Dinas Resmi: 100% Times New Roman dengan Angka Rata Tegak (Lining Numbers) */
+/* ============================================================================
+ * STANDAR TATA NASKAH DINAS UNIVERSITAS SILIWANGI
+ * Berdasarkan Peraturan Rektor UNSIL Nomor 3 Tahun 2023 (Pasal 43–48 & Bab II)
+ *
+ * 1. Naskah Dinas Arahan (Peraturan, Keputusan, POS/SOP, Surat Edaran):
+ *    - Huruf: Bookman Old Style ukuran 12 (12pt)
+ *    - Kertas: F4 (210 x 330 mm), HVS minimal 70 gram
+ * 2. Naskah Dinas Korespondensi, Khusus, dan Lainnya:
+ *    - Huruf: Times New Roman atau Arial ukuran 12 (12pt)
+ *    - Kertas: A4 (210 x 297 mm), HVS minimal 70 gram
+ * 3. Kop / Kepala Naskah Dinas:
+ *    - Baris Kementerian: Times New Roman ukuran 16 (Kapital)
+ *    - Baris Nama Universitas / Unit Kerja: Times New Roman ukuran 14 (Kapital, Bold)
+ *    - Baris Alamat & Kontak: Times New Roman ukuran 12
+ *    - Garis tebal penutup kop berjarak 4,5 cm dari tepi atas kertas
+ * 4. Ketentuan Spasi & Warna Tinta:
+ *    - Antara Judul dan Isi: 2 spasi (2em)
+ *    - Judul lebih dari satu baris: 1 spasi (line-height: 1.15)
+ *    - Warna tinta teks naskah dinas: Hitam (#000000)
+ * ============================================================================ */
+
+/* Default Naskah Dinas Korespondensi, Khusus, dan Lainnya: Times New Roman 12pt & Tinta Hitam */
 .font-serif,
 .font-times,
 .a4-sheet,
 .a4-sheet p,
-.a4-sheet span,
+.a4-sheet span:not(.font-sans):not(.font-mono),
 .a4-sheet td,
 .a4-sheet th,
-.a4-sheet div,
+.a4-sheet div:not(.font-sans):not(.font-mono),
 .a4-sheet li {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
+  color: #000000 !important;
+}
+
+/* Naskah Dinas Arahan (Peraturan, Keputusan, POS/SOP, Surat Edaran): Bookman Old Style 12pt */
+.naskah-arahan,
+.naskah-arahan p,
+.naskah-arahan span:not(.font-sans):not(.font-mono),
+.naskah-arahan td,
+.naskah-arahan th,
+.naskah-arahan div:not(.font-sans):not(.font-mono),
+.naskah-arahan li,
+.f4-document .a4-sheet,
+.f4-document .a4-sheet p,
+.f4-document .a4-sheet span:not(.font-sans):not(.font-mono),
+.f4-document .a4-sheet td,
+.f4-document .a4-sheet th,
+.f4-document .a4-sheet div:not(.font-sans):not(.font-mono),
+.f4-document .a4-sheet li,
+.f4-sheet,
+.f4-sheet p,
+.f4-sheet span:not(.font-sans):not(.font-mono),
+.f4-sheet td,
+.f4-sheet th,
+.f4-sheet div:not(.font-sans):not(.font-mono),
+.f4-sheet li {
+  font-family: "Bookman Old Style", "URW Bookman", "Bookman", Georgia, "Times New Roman", serif !important;
+  color: #000000 !important;
+}
+
+/* Opsi Huruf Arial 12pt untuk Naskah Dinas Korespondensi, Khusus, dan Lainnya */
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan),
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan) p,
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan) span:not(.font-mono),
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan) td,
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan) th,
+[data-font-choice="arial"] .a4-sheet:not(.naskah-arahan) li {
+  font-family: Arial, Helvetica, sans-serif !important;
+  color: #000000 !important;
+}
+
+/* Kop / Kepala Naskah Dinas WAJIB selalu menggunakan Times New Roman (16pt / 14pt Bold / 12pt)
+   sekalipun berada di dalam Naskah Dinas Arahan (Bookman Old Style) */
+.kop-surat-unsil,
+.kop-surat-unsil *,
+[data-kop-naskah-dinas="true"],
+[data-kop-naskah-dinas="true"] * {
+  font-family: "Times New Roman", "Tinos", Times, serif !important;
+  color: #000000 !important;
+}
+
+.kop-surat-unsil {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  margin-bottom: 0.75em !important;
+}
+
+.kop-baris-kementerian {
+  font-family: "Times New Roman", "Tinos", Times, serif !important;
+  font-size: 14pt !important;
+  text-transform: uppercase !important;
+  font-weight: 400 !important;
+  line-height: 1.12 !important;
+  color: #000000 !important;
+}
+
+.kop-baris-universitas,
+.kop-baris-unit {
+  font-family: "Times New Roman", "Tinos", Times, serif !important;
+  font-size: 13pt !important;
+  font-weight: 700 !important;
+  text-transform: uppercase !important;
+  line-height: 1.12 !important;
+  color: #000000 !important;
+}
+
+.kop-baris-alamat {
+  font-family: "Times New Roman", "Tinos", Times, serif !important;
+  font-size: 10.5pt !important;
+  font-weight: 400 !important;
+  line-height: 1.12 !important;
+  color: #000000 !important;
+}
+
+/* Ketentuan Spasi Judul Naskah Dinas:
+ * - Judul lebih dari satu baris: jarak antarbaris 1 spasi (line-height: 1.15)
+ * - Antara Judul dan Isi: proporsional agar muat 1 lembar A4
+ */
+.naskah-judul-block {
+  line-height: 1.15 !important;
+  margin-top: 0.5em !important;
+  margin-bottom: 0.85em !important;
+}
+
+.naskah-judul-block h1,
+.naskah-judul-block h2,
+.naskah-judul-block p {
+  line-height: 1.15 !important;
+}
+
+/* Nomor Halaman Simetris (- 2 -) & Kata Penyambung (Peserta...) */
+.nomor-halaman-resmi {
+  text-align: center !important;
+  font-size: 11.5pt !important;
+  font-weight: 400 !important;
+  margin-bottom: 0.75em !important;
+  color: #000000 !important;
+}
+
+.kata-penyambung-resmi {
+  text-align: right !important;
+  font-size: 11.5pt !important;
+  font-weight: 400 !important;
+  margin-top: 0.75em !important;
+  color: #000000 !important;
 }
 
 /* Pastikan nomor NIP, tanggal, dan nomor surat menggunakan angka lining rata baseline standar resmi */
 .font-serif,
 .font-times,
-.a4-sheet {
-  font-variant-numeric: lining-nums tabular-nums normal !important;
+.a4-sheet,
+.f4-sheet {
+  font-variant-numeric: lining-nums tabular-nums !important;
   font-feature-settings: "lnum" 1, "tnum" 1 !important;
 }
 
-/* Custom sleek scrollbars */
+/* Custom sleek scrollbars (Cross-browser: WebKit, Blink, and Firefox) */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -51,10 +194,6 @@
 /* Global Image & Asset Protection (Anti-Save / Anti-Drag / Anti-Copy) */
 img, .protected-asset {
   -webkit-user-drag: none;
-  -khtml-user-drag: none;
-  -moz-user-drag: none;
-  -o-user-drag: none;
-  user-drag: none;
   user-select: none;
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -69,26 +208,48 @@ img, .protected-asset {
   background-position: 0 0, 20px 20px;
 }
 
+/* Pengaturan Ruang Tepi (Margin) Naskah Dinas Sesuai Pasal 47 Peraturan Rektor UNSIL No. 3/2023 */
+.a4-sheet,
+.f4-sheet {
+  padding-top: 1.2cm;
+  padding-bottom: 1.2cm;
+  padding-left: 1.5cm;
+  padding-right: 1.5cm;
+  box-sizing: border-box;
+  font-size: 11.5pt;
+  line-height: 1.35;
+}
+
+.a4-sheet[data-has-kop="false"],
+.f4-sheet[data-has-kop="false"],
+.pasal47-without-kop {
+  padding-top: 1.5cm;
+  padding-bottom: 1.2cm;
+  padding-left: 1.5cm;
+  padding-right: 1.5cm;
+}
+
 /* Print container hidden on screen */
 #siloka-print-root {
   display: none;
 }
 
-/* Print styling for Official A4 Documents */
+/* Print styling for Official A4 and F4 Documents (Single-Page A4 Enforcement) */
 @media print {
   /* 1. Hide the entire React SPA interface so it leaves 0px blank gap */
   #root {
     display: none !important;
   }
 
-  /* 2. Setup clean white A4 canvas */
+  /* 2. Setup clean white canvas without min-height overflow */
   html, body {
     background: #ffffff !important;
-    color: #020617 !important;
+    color: #000000 !important;
     margin: 0 !important;
     padding: 0 !important;
     width: 100% !important;
     height: auto !important;
+    min-height: 0 !important;
     overflow: visible !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
@@ -98,6 +259,8 @@ img, .protected-asset {
   #siloka-print-root {
     display: block !important;
     width: 100% !important;
+    min-height: 0 !important;
+    height: auto !important;
     margin: 0 !important;
     padding: 0 !important;
     background: #ffffff !important;
@@ -108,7 +271,7 @@ img, .protected-asset {
     visibility: visible !important;
   }
 
-  /* 4. Multi-page pagination rules (for SK & Lampiran 2-page print) */
+  /* 4. Multi-page pagination rules (only break when explicit .page-break / .break-before-page exists) */
   .page-break,
   .break-before-page,
   [data-page-break="true"] {
@@ -121,23 +284,71 @@ img, .protected-asset {
     padding: 0 !important;
   }
 
-  .a4-sheet {
+  /* 5. Prevent any single .a4-sheet or .f4-sheet from splitting into 2 pages! */
+  .a4-sheet,
+  .f4-sheet {
     box-shadow: none !important;
     border: none !important;
     margin: 0 auto !important;
     padding: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    page-break-inside: auto;
+    min-height: 0 !important;
+    height: auto !important;
+    font-size: 11pt !important;
+    line-height: 1.3 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid-page !important;
+  }
+
+  /* Compact excessive vertical margins inside .a4-sheet during print so 1 page stays 1 page */
+  .a4-sheet .mt-12,
+  .a4-sheet .mt-14,
+  .a4-sheet .sm\:mt-14,
+  .f4-sheet .mt-12,
+  .f4-sheet .mt-14,
+  .f4-sheet .sm\:mt-14 {
+    margin-top: 1rem !important;
+  }
+
+  .a4-sheet .my-6,
+  .a4-sheet .my-5,
+  .a4-sheet .my-4,
+  .f4-sheet .my-6,
+  .f4-sheet .my-5,
+  .f4-sheet .my-4 {
+    margin-top: 0.45rem !important;
+    margin-bottom: 0.45rem !important;
+  }
+
+  .a4-sheet .mb-8,
+  .a4-sheet .mb-6,
+  .f4-sheet .mb-8,
+  .f4-sheet .mb-6 {
+    margin-bottom: 0.5rem !important;
+  }
+
+  .kop-surat-unsil,
+  [data-kop-naskah-dinas="true"] {
+    min-height: 0 !important;
+    margin-bottom: 0.6em !important;
+  }
+
+  .naskah-judul-block {
+    margin-top: 0.35em !important;
+    margin-bottom: 0.65em !important;
   }
 
   /* Table formatting for clean printing */
   table {
     page-break-inside: auto;
+    break-inside: auto;
   }
   tr {
     page-break-inside: avoid;
+    break-inside: avoid;
     page-break-after: auto;
+    break-after: auto;
   }
 
   .print\:hidden {
@@ -145,8 +356,30 @@ img, .protected-asset {
   }
 
   @page {
-    size: A4 portrait;
-    margin: 8mm 12mm 8mm 12mm;
+    size: 210mm 297mm portrait;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  @page :first {
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  @page a4-page {
+    size: 210mm 297mm portrait;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  @page f4-page {
+    size: 210mm 330mm portrait;
+    margin: 12mm 15mm 12mm 15mm;
+  }
+
+  .a4-sheet {
+    page: a4-page;
+  }
+
+  .f4-sheet {
+    page: f4-page;
   }
 }
 
