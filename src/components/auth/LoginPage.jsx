@@ -73,14 +73,26 @@ export const LoginPage = ({ onLoginSuccess }) => {
         const isActive = u.is_active !== false && u.is_aktif !== false && u.status_aktif !== false;
         return isMatch && isActive;
       });
+
+      if (matched) return matched;
+
+      // Fallback alias jika pengguna mengetik alias 'superadmin'
+      if (rawInput === 'superadmin' || rawInput === 'superadmin@unsil.ac.id') {
+        const superAdmin = localUsers.find((u) => isSuperAdminUser(u));
+        if (superAdmin) return superAdmin;
+      }
+
+      return null;
     };
 
     // Helper untuk memverifikasi password akun lokal
     const verifyLocalPassword = (userObj) => {
       if (!userObj) return false;
+      const expectedPassword = userObj.raw_password || userObj.password;
+      if (expectedPassword) {
+        return password === expectedPassword;
+      }
       if (password === 'Siloka2026!') return true;
-      if (userObj.raw_password && password === userObj.raw_password) return true;
-      if (userObj.password && password === userObj.password) return true;
       return false;
     };
 
@@ -367,13 +379,13 @@ export const LoginPage = ({ onLoginSuccess }) => {
               <button
                 type="button"
                 onClick={() => {
-                  setUsername('superadmin@unsil.ac.id');
+                  setUsername('dedegunawan@unsil.ac.id');
                   setPassword('Siloka2026!');
                 }}
                 className="p-1.5 rounded bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 text-left border border-unsil-gold-500/50 transition truncate col-span-2 shadow-xs"
-                title="Super Admin SILOKA (Akses Penuh Pengaturan Sistem)"
+                title="Super Administrator SILOKA (Dede Gunawan, S.Kom., M.Kom.)"
               >
-                <span className="font-bold text-unsil-gold-400">★ Super Admin:</span> superadmin@unsil.ac.id (Pengaturan Sistem)
+                <span className="font-bold text-unsil-gold-400">★ Super Admin:</span> Dede Gunawan (dedegunawan@unsil.ac.id)
               </button>
               <button
                 type="button"
@@ -426,7 +438,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
                   setPassword('Siloka2026!');
                 }}
                 className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Kepala UPA TIK (Pejabat & Process Mining)"
+                title="Kepala UPA TIK (Pejabat & Otoritas Sistem)"
               >
                 <span className="font-semibold text-indigo-300">Kepala TIK:</span> Alam R.
               </button>
@@ -437,7 +449,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
                   setPassword('Siloka2026!');
                 }}
                 className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Staf Admin UPA TIK (Process Mining)"
+                title="Staf Pengelola Sistem UPA TIK"
               >
                 <span className="font-semibold text-indigo-300">Staf TIK:</span> Gilang R.
               </button>

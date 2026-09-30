@@ -7,6 +7,7 @@
 
 import { getPejabatByUnit } from '../utils/pejabatHelper.js';
 import { JRA_MASTER_ITEMS } from '../config/jraMasterCatalog.js';
+import seedLetters from '../data/letters.json';
 import {
   getRektoratOfficialSopProfile,
   getAuthorizedTemplates,
@@ -22,6 +23,88 @@ const API_BASE =
 const FALLBACK_KLASIFIKASI = JRA_MASTER_ITEMS;
 
 let localSequenceCounter = 1;
+
+const _lastAssignedPerUnitYear = new Map();
+
+export const resetSequenceSession = () => _lastAssignedPerUnitYear.clear();
+
+export const incrementSequenceSession = (unitCode, year, assignedSeq) => {
+  const key = `${(unitCode || '').toUpperCase()}_${year || new Date().getFullYear()}`;
+  const currentMax = _lastAssignedPerUnitYear.get(key) || 0;
+  const nextVal = typeof assignedSeq === 'number' && assignedSeq > 0 ? assignedSeq : currentMax + 1;
+  if (nextVal > currentMax) {
+    _lastAssignedPerUnitYear.set(key, nextVal);
+  }
+};
+
+/**
+ * Menghitung nomor urut persuratan berikutnya secara dinamis berdasarkan unit kerja dan tahun kalender aktif
+ * Sesuai ketentuan Pasal 39 Peraturan Rektor No. 3/2023 (Penomoran berkesinambungan tanpa ganda)
+ * 
+ * @param {string} unitCode - Kode unit kerja penerbit (misal: 'UN58.32' atau 'UN58.10')
+ * @param {number} [year] - Tahun kalender (default: tahun berjalan)
+ * @param {Array} [existingLetters] - Daftar surat yang sudah tersimpan
+ * @returns {number} Nomor urut berikutnya (max + 1)
+ */
+export const getNextSequenceForUnit = (unitCode, year = new Date().getFullYear(), existingLetters = []) => {
+  let list = Array.isArray(existingLetters) && existingLetters.length > 0 ? existingLetters : [];
+  if (list.length === 0) {
+    if (typeof localStorage !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('siloka_letters_data');
+        if (stored) {
+          list = JSON.parse(stored);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    if (!list || list.length === 0) {
+      list = seedLetters || [];
+    }
+  }
+
+  let maxSeq = 0;
+  const targetUnit = (unitCode || '').trim().toUpperCase();
+  const targetYear = Number(year) || new Date().getFullYear();
+
+  for (const l of list) {
+    if (!l) continue;
+    const letterNum = String(l.nomorSurat || l.nomor_surat || '');
+    const numUnitMatch = letterNum.match(/\/(UN58(?:\.[A-Za-z0-9]+)?)\//i);
+    const lUnit = (
+      l.unit_kerja_id ||
+      (l.templateData && l.templateData.unit_kerja_id) ||
+      (numUnitMatch ? numUnitMatch[1] : '')
+    ).trim().toUpperCase();
+
+    if (targetUnit && lUnit && lUnit !== targetUnit) {
+      continue;
+    }
+
+    const lYear = Number(l.tahun) || (l.tanggal ? new Date(l.tanggal).getFullYear() : null);
+    const isSameYear = lYear === targetYear || letterNum.endsWith(`/${targetYear}`);
+    if (!isSameYear && letterNum && !letterNum.includes(`/${targetYear}`)) {
+      continue;
+    }
+
+    if (typeof l.nomor_urut === 'number' && !isNaN(l.nomor_urut)) {
+      if (l.nomor_urut > maxSeq) maxSeq = l.nomor_urut;
+    }
+
+    const match = letterNum.match(/^0*([1-9]\d*)\//);
+    if (match) {
+      const val = parseInt(match[1], 10);
+      if (!isNaN(val) && val > maxSeq) maxSeq = val;
+    }
+  }
+
+  const sessionKey = `${targetUnit}_${targetYear}`;
+  const lastAssigned = _lastAssignedPerUnitYear.get(sessionKey) || 0;
+  const effectiveMax = Math.max(maxSeq, lastAssigned);
+
+  return effectiveMax + 1;
+};
 
 /**
  * Fetch daftar klasifikasi arsip aktif dari Backend API
@@ -89,7 +172,7 @@ export const saveOutgoingLetter = async (payload, currentUser = null) => {
   // Fallback simulator mandiri (jika backend tidak aktif saat demonstrasi klien)
   const currentYear = payload.tahun || new Date().getFullYear();
   const unitCode = currentUser?.unit_kerja_id || payload.unit_kerja_id || 'UN58.10';
-  const seq = localSequenceCounter++;
+  const seq = getNextSequenceForUnit(unitCode, currentYear);
   const nomorLengkap = `${seq}/${unitCode}/${payload.tingkat_keamanan || 'B'}/${payload.kode_klasifikasi || 'PP.00.03'}/${currentYear}`;
 
   return {

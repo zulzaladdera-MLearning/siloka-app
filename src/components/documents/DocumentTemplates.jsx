@@ -174,7 +174,7 @@ export const PosTemplateView = ({ data }) => {
       data-pasal47="true"
       data-has-kop="false"
       data-naskah-category="ARAHAN"
-      className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop bg-white text-black font-serif p-6 sm:p-8 max-w-4xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop bg-white text-black font-serif p-6 sm:p-8 max-w-4xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <div className="naskah-judul-block mb-6">
         <h2 className="text-center font-bold text-sm sm:text-base uppercase tracking-wider text-black mb-1">
@@ -392,7 +392,7 @@ export const SuratEdaranTemplateView = ({ data }) => {
       data-pasal47="true"
       data-has-kop="true"
       data-naskah-category="ARAHAN"
-      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Kop Surat Resmi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -517,7 +517,7 @@ export const KeputusanTemplateView = ({ data }) => {
         data-pasal47="true"
         data-has-kop="true"
         data-naskah-category="ARAHAN"
-        className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+        className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
       >
         {/* Visual Badge for Screen Preview */}
         <div className="print:hidden mb-4 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
@@ -638,7 +638,7 @@ export const KeputusanTemplateView = ({ data }) => {
           data-pasal47="true"
           data-has-kop="false"
           data-naskah-category="ARAHAN"
-          className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop page-break break-before-page bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none print:mt-0"
+          className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop page-break break-before-page bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none print:mt-0"
         >
           {/* Nomor Halaman Simetris di Tengah Atas Kertas (- 2 -) */}
           <NomorHalamanNaskahDinas pageNumber={2} />
@@ -760,7 +760,7 @@ export const SuratPerintahTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Kop Surat Resmi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -899,7 +899,7 @@ export const SuratTugasLembaranTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
@@ -1033,7 +1033,7 @@ export const SuratTugasKolomTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
@@ -1155,7 +1155,7 @@ export const NotaDinasTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
@@ -1302,7 +1302,7 @@ export const SuratDinasTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
@@ -1464,7 +1464,7 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
       <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
         <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
@@ -1635,7 +1635,7 @@ export const LampiranSuratUndanganTemplateView = ({ data, isMultiPageSubsheet = 
     <div
       data-pasal47="true"
       data-has-kop="false"
-      className={`a4-sheet pasal47-without-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none ${
+      className={`a4-sheet pasal47-without-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none ${
         isMultiPageSubsheet ? 'page-break break-before-page mt-8 print:mt-0' : ''
       }`}
     >
@@ -1866,7 +1866,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:p-0 print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Header: Dua Lambang di Kiri dan Kanan (Ukuran Terkunci Sesuai Template) */}
       <div className="flex items-center justify-between gap-4 mb-4">
@@ -2150,7 +2150,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Header Dua Lambang */}
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -2357,7 +2357,7 @@ export const SuratKuasaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -2537,7 +2537,7 @@ export const BeritaAcaraTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -2688,7 +2688,7 @@ export const SuratKeteranganTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -2846,7 +2846,7 @@ export const SuratPernyataanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -2992,7 +2992,7 @@ export const SuratPengantarTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -3146,7 +3146,7 @@ export const PengumumanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -3262,7 +3262,7 @@ export const NotulaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -3431,7 +3431,7 @@ export const LaporanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -3568,7 +3568,7 @@ export const TelaahStafTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop={showKopSurat ? 'true' : 'false'}
-      className={`a4-sheet ${showKopSurat ? 'pasal47-with-kop' : 'pasal47-without-kop'} p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-slate-900 font-serif leading-normal`}
+      className={`a4-sheet ${showKopSurat ? 'pasal47-with-kop' : 'pasal47-without-kop'} p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal`}
     >
       {/* Kop Surat Opsional */}
       {showKopSurat && <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />}
@@ -3835,7 +3835,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-4 sm:p-8 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-tight"
+      className="a4-sheet pasal47-with-kop p-4 sm:p-8 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-tight"
     >
       {/* Outer Border Box Persis Gambar Acuan */}
       <div className="border-[1.5px] border-black">
@@ -4125,7 +4125,7 @@ export const PenggunaanTteTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-12 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:p-0 print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-12 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs"
     >
       {/* Kop Surat Resmi UNSIL */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />

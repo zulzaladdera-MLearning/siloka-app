@@ -18,7 +18,8 @@ import {
 import { isLetterSignatureRequest } from '../../utils/letterActionPolicy';
 import {
   BKU_STRUCTURAL_TEAMS,
-  OFFICIAL_UNSIL_INSTRUCTIONS
+  OFFICIAL_UNSIL_INSTRUCTIONS,
+  DISPOSISI_SLA_DAYS
 } from '../../utils/disposisiStandards';
 
 export { BKU_STRUCTURAL_TEAMS, OFFICIAL_UNSIL_INSTRUCTIONS };
@@ -29,7 +30,8 @@ export const QuickDisposisiModal = ({
   isOpen,
   onClose,
   onSubmitDisposisi,
-  allLetters = []
+  allLetters = [],
+  currentUser = null
 }) => {
   if (!isOpen) return null;
 
@@ -51,15 +53,20 @@ export const QuickDisposisiModal = ({
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
   const unitDropdownRef = useRef(null);
 
+  // Kalkulasi tanggal jatuh tempo berdasarkan SLA Peraturan Rektor No. 3/2023
+  const calculateDueDateBySifat = (sifat) => {
+    const d = new Date();
+    const days = DISPOSISI_SLA_DAYS[sifat] || 2;
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
   // State Instruksi Tindak Lanjut ("Untuk :")
   const [actions, setActions] = useState(['Proses sesuai prosedur']);
   const [sifatInstruksi, setSifatInstruksi] = useState('Segera');
   const [customNote, setCustomNote] = useState('');
-  const [dueDate, setDueDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 3);
-    return d.toISOString().split('T')[0];
-  });
+  // Sifat 'Segera' dihitung 2x24 Jam (2 hari) sesuai Peraturan Rektor No. 3/2023
+  const [dueDate, setDueDate] = useState(() => calculateDueDateBySifat('Segera'));
   const [validationError, setValidationError] = useState('');
 
   // Close dropdown when clicking outside
@@ -326,13 +333,17 @@ export const QuickDisposisiModal = ({
                 </label>
                 <select
                   value={sifatInstruksi}
-                  onChange={(e) => setSifatInstruksi(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setSifatInstruksi(val);
+                    setDueDate(calculateDueDateBySifat(val));
+                  }}
                   className="w-full p-2.5 bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
                 >
-                  <option value="Sangat Segera">Sangat Segera (Maks. 24 Jam)</option>
-                  <option value="Segera">Segera (Maks. 3 Hari Kerja)</option>
-                  <option value="Biasa">Biasa (Maks. 7 Hari Kerja)</option>
-                  <option value="Rahasia">Rahasia Internal</option>
+                  <option value="Sangat Segera">Sangat Segera (Maks. 24 Jam / Hari Ini)</option>
+                  <option value="Segera">Segera (Maks. 2×24 Jam / 2 Hari Kerja — Peraturan Rektor)</option>
+                  <option value="Biasa">Biasa (Maks. 5 Hari Kerja)</option>
+                  <option value="Rahasia">Rahasia Internal (Maks. 3 Hari Kerja)</option>
                 </select>
               </div>
             </div>

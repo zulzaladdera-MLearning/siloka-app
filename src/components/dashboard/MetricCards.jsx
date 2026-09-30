@@ -32,8 +32,11 @@ export const MetricCards = ({
     (l) => l.statusTimestamp?.includes('hari ini') || l.tanggal === '2026-09-10' || l.created_at?.startsWith('2026-09-10')
   ).length;
 
-  // 2. Antrean Paraf & TTE (Diparaf / Dikirim)
-  const antreanList = activeDataset.filter((l) => l.status === 'Diparaf' || l.status === 'Dikirim');
+  // 2. Antrean Paraf & TTE (Naskah Keluar/Draf Internal yang menunggu paraf/TTE)
+  // Surat Masuk dieksklusikan mutlak karena bukan naskah konseptual internal (Pasal 74 Peraturan Rektor No. 3/2023)
+  const antreanList = activeDataset.filter(
+    (l) => l.kategori !== 'Surat Masuk' && (l.status === 'Diparaf' || l.status === 'DRAFT_MENUNGGU_PARAF')
+  );
   const antreanTotal = antreanList.length;
   const urgentCount = antreanList.filter(
     (l) => l.sifat === 'Penting' || l.sifat === 'Sangat Segera' || l.sifat === 'Segera'
@@ -197,7 +200,7 @@ export const MetricCards = ({
                 <Vault className="w-4 h-4 sm:w-5 sm:h-5" />
               </div>
               <span className="inline-flex items-center gap-0.5 sm:gap-1 text-[9px] sm:text-[11px] font-semibold text-emerald-800 bg-emerald-100/70 px-1.5 sm:px-2 py-0.5 rounded-full border border-emerald-300">
-                <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-700" /> AES
+                <ShieldCheck className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-emerald-700" /> Aman
               </span>
             </div>
 

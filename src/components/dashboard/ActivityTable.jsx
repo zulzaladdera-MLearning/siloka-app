@@ -31,14 +31,16 @@ export const ActivityTable = ({
   currentUser,
   selectedUnitFilter,
   setSelectedUnitFilter,
-  isUniversityWideAccess
+  isUniversityWideAccess,
+  fixedKategori = null,
+  tableTitle = null
 }) => {
   const [selectedStatus, setSelectedStatus] = useState('Semua');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [copiedId, setCopiedId] = useState(null);
 
   const categories = ['Semua', 'Surat Masuk', 'Surat Keluar', 'Nota Dinas'];
-  const statuses = ['Semua', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Diarsipkan'];
+  const statuses = ['Semua', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'];
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -49,18 +51,28 @@ export const ActivityTable = ({
   // Filtered dataset dengan fitur Pencarian Multi-Parameter Arsip Digital (Feature 5)
   const filteredLetters = useMemo(() => {
     return letters.filter((letter) => {
+      // Filter kategori tetap jika ditentukan oleh modul (Surat Masuk vs Surat Keluar)
+      if (fixedKategori === 'Surat Masuk') {
+        if (letter.kategori !== 'Surat Masuk') return false;
+      } else if (fixedKategori === 'Surat Keluar') {
+        if (letter.kategori === 'Surat Masuk') return false;
+        if (selectedCategory !== 'Semua' && letter.kategori !== selectedCategory) {
+          return false;
+        }
+      } else {
+        // Internal tab category filter untuk tampilan umum
+        if (selectedCategory !== 'Semua' && letter.kategori !== selectedCategory) {
+          return false;
+        }
+      }
+
       // External filter from metric card click if set
       if (activeFilter && activeFilter !== 'Semua') {
         if (['Surat Masuk', 'Surat Keluar', 'Nota Dinas'].includes(activeFilter)) {
           if (letter.kategori !== activeFilter) return false;
-        } else if (['Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Diarsipkan'].includes(activeFilter)) {
+        } else if (['Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'].includes(activeFilter)) {
           if (letter.status !== activeFilter) return false;
         }
-      }
-
-      // Internal tab category filter
-      if (selectedCategory !== 'Semua' && letter.kategori !== selectedCategory) {
-        return false;
       }
 
       // Internal status dropdown filter
@@ -111,7 +123,7 @@ export const ActivityTable = ({
         <div>
           <div className="flex items-center gap-2">
             <h3 className="text-sm sm:text-base font-bold text-slate-900">
-              Aktivitas Surat Terbaru
+              {tableTitle || 'Aktivitas Surat Terbaru'}
             </h3>
             <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-unsil-green-900">
               {filteredLetters.length} Dokumen
@@ -145,25 +157,30 @@ export const ActivityTable = ({
             </div>
           )}
 
-          {/* Category Pills */}
-          <div className="flex items-center bg-slate-100 p-1 rounded-lg shrink-0">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => {
-                  setSelectedCategory(cat);
-                  if (activeFilter && activeFilter !== cat) setActiveFilter(null);
-                }}
-                className={`px-2.5 sm:px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
-                  selectedCategory === cat
-                    ? 'bg-white text-unsil-green-900 font-bold shadow-xs'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                {cat}
-              </button>
-            ))}
-          </div>
+          {/* Category Pills (Hanya ditampilkan jika bukan kategori tetap Surat Masuk) */}
+          {fixedKategori !== 'Surat Masuk' && (
+            <div className="flex items-center bg-slate-100 p-1 rounded-lg shrink-0">
+              {(fixedKategori === 'Surat Keluar'
+                ? ['Semua', 'Surat Keluar', 'Nota Dinas', 'Surat Tugas']
+                : categories
+              ).map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => {
+                    setSelectedCategory(cat);
+                    if (activeFilter && activeFilter !== cat) setActiveFilter(null);
+                  }}
+                  className={`px-2.5 sm:px-3 py-1 rounded-md text-xs font-medium transition-all whitespace-nowrap ${
+                    selectedCategory === cat
+                      ? 'bg-white text-unsil-green-900 font-bold shadow-xs'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Status Dropdown */}
           <div className="relative shrink-0">
@@ -273,7 +290,7 @@ export const ActivityTable = ({
               {(currentUser?.role === 'STAF' || currentUser?.role === 'STAF_PERSURATAN' || currentUser?.role === 'OPERATOR_UNIT') && (letter.sifat === 'Sangat Rahasia' || letter.sifat === 'Rahasia') ? (
                 <div className="p-1.5 rounded bg-amber-50/90 border border-amber-200 text-amber-900 flex items-center gap-1.5 text-[11px] font-mono">
                   <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                  <span className="truncate">[TERENKRIPSI AES-256 - HANYA PIMPINAN & SPI]</span>
+                  <span className="truncate">[INFORMASI TERTUTUP — KHUSUS PIMPINAN &amp; SPI]</span>
                 </div>
               ) : (
                 <p className="font-semibold text-xs text-slate-900 line-clamp-2 leading-snug">
@@ -412,7 +429,7 @@ export const ActivityTable = ({
                     {(currentUser?.role === 'STAF' || currentUser?.role === 'STAF_PERSURATAN' || currentUser?.role === 'OPERATOR_UNIT') && (letter.sifat === 'Sangat Rahasia' || letter.sifat === 'Rahasia') ? (
                       <div className="p-1.5 rounded bg-amber-50/90 border border-amber-200 text-amber-900 flex items-center gap-1.5 text-[11px] font-mono">
                         <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0" />
-                        <span className="truncate">[TERENKRIPSI AES-256 - HANYA PIMPINAN & SPI]</span>
+                        <span className="truncate">[INFORMASI TERTUTUP — KHUSUS PIMPINAN &amp; SPI]</span>
                       </div>
                     ) : (
                       <p className="font-semibold text-slate-900 line-clamp-1 group-hover:text-unsil-green-800 transition-colors">

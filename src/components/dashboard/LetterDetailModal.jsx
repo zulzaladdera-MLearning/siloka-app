@@ -296,11 +296,11 @@ export const LetterDetailModal = ({
                       `Kategori Sifat: ${letter.sifat} (Keamanan: ${letter.kategoriKeamanan})`
                     ],
                     tempatTanggal: `Tasikmalaya, ${letter.tanggal}`,
-                    namaJabatan: letter.pengirim,
-                    namaPejabat: currentUser?.name || 'Dr. Nana Sujana, Drs., M.Si.',
-                    nip: currentUser?.nip || '196808301989031004',
-                    unitKerja: letter.unit_kerja_id || currentUser?.unit_kerja_id,
-                    unit_kerja_id: letter.unit_kerja_id || currentUser?.unit_kerja_id,
+                    namaJabatan: letter.jabatanPenandatangan || letter.pengirim || letter.templateData?.namaJabatan || 'Kepala Biro Umum dan Keuangan,',
+                    namaPejabat: letter.namaPejabat || letter.namaPenandatangan || letter.templateData?.namaPejabat || 'Dr. Nana Sujana, Drs., M.Si.',
+                    nip: letter.nipPenandatangan || letter.nip || letter.templateData?.nip || '196808301989031004',
+                    unitKerja: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id,
+                    unit_kerja_id: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id,
                     tteVerified: letter.tteVerified
                   }}
                 />
@@ -473,7 +473,7 @@ export const LetterDetailModal = ({
             {isRestrictedForUser ? (
               <div className="mt-1 p-2.5 rounded-lg bg-slate-100 border border-slate-200 font-mono text-xs text-slate-500 flex items-center gap-2">
                 <Lock className="w-4 h-4 text-slate-400" />
-                <span>[INFORMASI PERIHAL DIENKRIPSI AES-256 - HANYA PIMPINAN & SPI]</span>
+                <span>[INFORMASI TERTUTUP — KHUSUS PIMPINAN &amp; SPI]</span>
               </div>
             ) : (
               <h3 className="text-base font-bold text-slate-900 mt-1 leading-snug">
@@ -540,10 +540,10 @@ export const LetterDetailModal = ({
                   </div>
                   <div>
                     <p className="text-xs font-semibold text-slate-900">
-                      {isRestrictedForUser ? 'Berkas_Terenkripsi_AES256.pdf' : letter.lampiran}
+                      {isRestrictedForUser ? 'Berkas_Rahasia_Terlindungi.pdf' : letter.lampiran}
                     </p>
                     <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-2 mt-0.5">
-                      <span>Hash SHA-256 Valid</span>
+                      <span>Keaslian Berkas Terverifikasi Sah</span>
                       {letter.tteVerified ? (
                         <span className="text-emerald-800 font-semibold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3 text-emerald-600" /> TTE BSrE Sah (Cap Fisik Otomatis Dihapus)

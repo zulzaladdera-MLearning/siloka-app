@@ -53,3 +53,17 @@ export const OFFICIAL_UNSIL_INSTRUCTIONS = [
   'Untuk pertimbangan'
 ];
 
+/**
+ * Batas Waktu Penyelesaian Disposisi (SLA) Resmi UNSIL
+ * Sesuai Peraturan Rektor No. 3 Tahun 2023 (Derajat Kecepatan Penyampaian & Tindak Lanjut):
+ * - Sangat Segera: Hari yang sama / seketika (Maks. 24 Jam)
+ * - Segera: Maks. 2x24 Jam (2 Hari Kerja)
+ * - Biasa: Maks. 5 Hari Kerja
+ */
+export const DISPOSISI_SLA_DAYS = {
+  'Sangat Segera': 1,
+  'Segera': 2,
+  'Biasa': 5,
+  'Rahasia': 3
+};
+

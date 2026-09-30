@@ -284,21 +284,40 @@ img, .protected-asset {
     padding: 0 !important;
   }
 
-  /* 5. Prevent any single .a4-sheet or .f4-sheet from splitting into 2 pages! */
+  /* 5. Prevent any single .a4-sheet or .f4-sheet from splitting into 2 pages & enforce Pasal 47 margins via sheet padding */
   .a4-sheet,
-  .f4-sheet {
+  .f4-sheet,
+  #siloka-print-root .a4-sheet,
+  #siloka-print-root .f4-sheet {
     box-shadow: none !important;
     border: none !important;
     margin: 0 auto !important;
-    padding: 0 !important;
-    width: 100% !important;
-    max-width: 100% !important;
+    box-sizing: border-box !important;
+    padding-top: 15mm !important;
+    padding-bottom: 15mm !important;
+    padding-left: 15mm !important;
+    padding-right: 15mm !important;
+    width: 210mm !important;
+    max-width: 210mm !important;
     min-height: 0 !important;
     height: auto !important;
     font-size: 11pt !important;
     line-height: 1.3 !important;
     page-break-inside: avoid !important;
     break-inside: avoid-page !important;
+  }
+
+  /* Ruang tepi tanpa Kop Surat: Atas >= 2 cm (Pasal 47 huruf a) */
+  .a4-sheet[data-has-kop="false"],
+  .f4-sheet[data-has-kop="false"],
+  .pasal47-without-kop,
+  #siloka-print-root .a4-sheet[data-has-kop="false"],
+  #siloka-print-root .f4-sheet[data-has-kop="false"],
+  #siloka-print-root .pasal47-without-kop {
+    padding-top: 20mm !important;
+    padding-bottom: 15mm !important;
+    padding-left: 15mm !important;
+    padding-right: 15mm !important;
   }
 
   /* Compact excessive vertical margins inside .a4-sheet during print so 1 page stays 1 page */
@@ -355,23 +374,25 @@ img, .protected-asset {
     display: none !important;
   }
 
+  /* Hilangkan 100% Header & Footer bawaan browser (Tanggal, Nama File, URL localhost, dan Nomor Halaman 1/1) */
+  /* sesuai standar template naskah dinas resmi di dokumen siloka (Peraturan Rektor UNSIL No. 3/2023) */
   @page {
     size: 210mm 297mm portrait;
-    margin: 12mm 15mm 12mm 15mm;
+    margin: 0 !important;
   }
 
   @page :first {
-    margin: 12mm 15mm 12mm 15mm;
+    margin: 0 !important;
   }
 
   @page a4-page {
     size: 210mm 297mm portrait;
-    margin: 12mm 15mm 12mm 15mm;
+    margin: 0 !important;
   }
 
   @page f4-page {
     size: 210mm 330mm portrait;
-    margin: 12mm 15mm 12mm 15mm;
+    margin: 0 !important;
   }
 
   .a4-sheet {

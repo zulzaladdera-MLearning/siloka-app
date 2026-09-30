@@ -5,7 +5,6 @@
 
 import { Router } from 'express';
 import { requireSuperAdmin } from '../middleware/authMiddleware.js';
-import { syncSimpegPegawai } from '../controllers/simpegController.js';
 import { importUsersFromExcel, downloadTemplateExcel } from '../controllers/excelImportController.js';
 import { mutateUserJob, storeUser } from '../controllers/userMutationController.js';
 import { registerNewStaffUser } from '../controllers/userRegistrationController.js';
@@ -31,11 +30,7 @@ router.get('/verify-access', (req, res) => {
   });
 });
 
-// 2. Tugas 2: Integrasi API SIMPEG (Sinkronisasi Database Pegawai)
-router.post('/simpeg/sync', syncSimpegPegawai);
-router.get('/simpeg/sync', syncSimpegPegawai);
-
-// 3. Tugas 3: Input Massal Impor Excel (.xlsx) & Unduh Format Template
+// 2. Input Massal Impor Excel (.xlsx) & Unduh Format Template
 router.get('/users/template', downloadTemplateExcel);
 router.post('/users/import-excel', importUsersFromExcel);
 

@@ -1,7 +1,7 @@
 /**
  * Server Backend Utama SILOKA (UNSIL)
  * Menyediakan API backend untuk modul administrasi persuratan,
- * integrasi SIMPEG, parsing impor Excel, mutasi user, dan manajemen TTE BSrE.
+ * parsing impor Excel, mutasi user, dan manajemen TTE BSrE.
  */
 
 import app from './app.js';

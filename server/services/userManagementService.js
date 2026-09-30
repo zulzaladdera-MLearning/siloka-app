@@ -1,7 +1,7 @@
 /**
  * Layanan Manajemen Pengguna (SILOKA UNSIL)
  * Menangani dua skenario utama:
- * 1. Pembuatan Akun via Sinkronisasi SIMPEG / Impor Excel (UPSERT dengan proteksi password & flag must_change_password)
+ * 1. Pembuatan Akun via Impor Excel (UPSERT dengan proteksi password & flag must_change_password)
  * 2. Mutasi & Pemetaan Jabatan Pengguna (Query terisolasi tanpa menyentuh password)
  */
 
@@ -49,15 +49,15 @@ export const memoryUserStore = new Map([
   [
     '198501012010121001',
     {
-      id: 'usr-01',
+      id: 'usr-dg-01',
       nip_nik: '198501012010121001',
-      nama_lengkap: 'Administrator Utama SILOKA, S.Kom., M.T.',
-      email: 'superadmin@unsil.ac.id',
-      id_unit: 'UN58.32',
-      unit_kerja_id: 'UN58.32',
+      nama_lengkap: 'Dede Gunawan, S.Kom., M.Kom.',
+      email: 'dedegunawan@unsil.ac.id',
+      id_unit: 'UN58.31',
+      unit_kerja_id: 'UN58.31',
       id_role: 'Super Admin',
       role: 'Super Admin',
-      role_label: 'Super Admin SILOKA UNSIL',
+      role_label: 'Super Administrator SILOKA UNSIL',
       password: '$2a$12$eXistingHashedPasswordSuperAdminSecure2026',
       password_hash: '$2a$12$eXistingHashedPasswordSuperAdminSecure2026',
       is_active: true,
@@ -132,7 +132,7 @@ try {
 
 /**
  * ============================================================================
- * SKENARIO 1: Pembuatan Akun via Sinkronisasi SIMPEG atau Impor Excel
+ * SKENARIO 1: Pembuatan Akun via Impor Excel
  * ============================================================================
  * Melakukan operasi UPSERT ke tabel tm_user / master_user.
  * 

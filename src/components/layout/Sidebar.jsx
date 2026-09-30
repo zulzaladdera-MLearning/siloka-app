@@ -1,37 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   SendHorizontal,
   FileSignature,
-  Mail,
+  Inbox,
+  Send,
   Archive,
   Vault,
   Settings,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
+  ChevronUp,
   ShieldCheck,
-  Activity,
+  Shield,
   ExternalLink,
   HelpCircle,
   LogOut,
   X,
   BookOpen,
   Receipt,
-  Users
+  Users,
+  KeyRound,
+  Mail
 } from 'lucide-react';
 import { canAccessBrankasDigital } from '../../utils/authGuards';
+import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
 
-export const Sidebar = ({
-  activeTab,
-  setActiveTab,
-  isCollapsed = false,
-  setIsCollapsed,
-  onLogout,
+export const buildSidebarMenuItems = ({
   user,
-  unreadCounts = { disposisi: 3, tte: 5, retensi: 14 },
-  className = '',
-  isSidebarOpen = false,
-  toggleSidebar
+  unreadCounts = { disposisi: 3, tte: 5, retensi: 14 }
 }) => {
   // Tugas 1: Otorisasi RBAC Menu Pengaturan Sistem (Hanya untuk Super Admin)
   const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'SUPER_ADMIN';
@@ -56,22 +54,26 @@ export const Sidebar = ({
     ))
   );
 
-  // Akses Log Process Mining: Khusus Super Admin Saja
-  const canAccessAuditLog = isSuperAdmin;
-
-  // Evaluasi Hak Akses Granular Berdasarkan Role Permissions & Tupoksi
-  // Catatan Separation of Duties: Super Admin fokus pada administrasi sistem (RBAC, Mutasi, TTE, Audit Log),
-  // sehingga menu tupoksi operasional staf (Agenda, Keuangan DIPA/SPM, Kepegawaian ASN/PAK) disembunyikan dari Super Admin.
+  // Evaluasi Hak Akses Granular Berdasarkan Role Permissions & Tupoksi (Terintegrasi RBAC Dinamis)
   const userPermissions = Array.isArray(user?.permissions) ? user.permissions : [];
   const hasTupoksiPerm = (perm) => !isSuperAdmin && userPermissions.includes(perm);
 
   const canViewKeuangan = hasTupoksiPerm('keuangan:view');
   const canViewKepegawaian = hasTupoksiPerm('kepegawaian:view');
-  const canAccessAgenda = hasTupoksiPerm('surat:agenda_access');
-  const canManageUsers = isSuperAdmin || userPermissions.includes('admin:manage_users');
-  const canAccessBrankas = canAccessBrankasDigital(user);
+  const canAccessAgenda =
+    hasTupoksiPerm('surat:agenda_access') ||
+    hasUserPermission(user, 'agenda.manage') ||
+    hasUserPermission(user, 'surat_masuk.register');
+  const canManageUsers =
+    isSuperAdmin ||
+    userPermissions.includes('admin:manage_users') ||
+    hasUserPermission(user, 'role.manage') ||
+    hasUserPermission(user, 'admin.access');
+  const canAccessBrankas =
+    canAccessBrankasDigital(user) ||
+    hasUserPermission(user, 'arsip.view_rahasia');
 
-  const menuItems = [
+  return [
     {
       id: 'dashboard',
       label: 'Dashboard',
@@ -83,20 +85,36 @@ export const Sidebar = ({
       label: 'E-Disposisi',
       icon: SendHorizontal,
       badge: unreadCounts.disposisi > 0 ? unreadCounts.disposisi : null,
-      badgeColor: 'bg-unsil-gold-500 text-unsil-green-950 font-bold',
+      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
     },
     {
       id: 'paraf-tte',
       label: 'E-Paraf & TTE',
       icon: FileSignature,
       badge: unreadCounts.tte > 0 ? unreadCounts.tte : null,
-      badgeColor: 'bg-rose-500 text-white font-bold',
+      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
     },
     {
-      id: 'pengendalian-surat',
-      label: 'Pengendalian Surat',
+      id: 'surat',
+      label: 'Surat',
       icon: Mail,
-      badge: null,
+      badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
+      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+      children: [
+        {
+          id: 'surat-masuk',
+          label: 'Surat Masuk',
+          icon: Inbox,
+          badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
+          badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+        },
+        {
+          id: 'surat-keluar',
+          label: 'Surat Keluar',
+          icon: Send,
+          badge: null,
+        },
+      ],
     },
     // Menu Khusus Tupoksi Arsiparis / Agendator (surat:agenda_access)
     ...(canAccessAgenda
@@ -106,7 +124,7 @@ export const Sidebar = ({
             label: 'Buku Agenda Masuk & Ekspedisi',
             icon: BookOpen,
             badge: 'Agenda',
-            badgeColor: 'bg-cyan-900 text-cyan-200 text-[10px] font-bold',
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
           },
         ]
       : []),
@@ -117,8 +135,8 @@ export const Sidebar = ({
             id: 'brankas-keuangan',
             label: 'Brankas Keuangan / Verifikasi SPM',
             icon: Receipt,
-            badge: 'DIPA/SPM',
-            badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px] font-bold',
+            badge: 'DIPA',
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
           },
         ]
       : []),
@@ -129,8 +147,8 @@ export const Sidebar = ({
             id: 'administrasi-kepegawaian',
             label: 'Administrasi Kepegawaian / SKP',
             icon: Users,
-            badge: 'ASN/PAK',
-            badgeColor: 'bg-blue-900 text-blue-200 text-[10px] font-bold',
+            badge: 'ASN',
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
           },
         ]
       : []),
@@ -139,7 +157,7 @@ export const Sidebar = ({
       label: 'Retensi Arsip',
       icon: Archive,
       badge: unreadCounts.retensi > 0 ? unreadCounts.retensi : null,
-      badgeColor: 'bg-amber-100 text-amber-900 font-semibold',
+      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
     },
     // Menu Khusus Brankas Digital: Hanya untuk Pejabat Struktural (Rektor, Dekan, Kepala LPPM/LPMPP, Ketua SPI, dll.) & Staf Khusus Arsiparis Pusat/Biro
     ...(canAccessBrankas
@@ -148,19 +166,7 @@ export const Sidebar = ({
             id: 'brankas-digital',
             label: 'Brankas Digital',
             icon: Vault,
-            badge: 'Enkripsi',
-            badgeColor: 'bg-emerald-800 text-emerald-100 text-[10px]',
-          },
-        ]
-      : []),
-    ...(canAccessAuditLog
-      ? [
-          {
-            id: 'audit-log',
-            label: 'Process Mining Log',
-            icon: Activity,
-            badge: 'XES',
-            badgeColor: 'bg-indigo-900 text-indigo-300 font-mono text-[9px]',
+            badge: null,
           },
         ]
       : []),
@@ -168,15 +174,83 @@ export const Sidebar = ({
     ...(canManageUsers
       ? [
           {
-            id: 'settings',
-            label: 'User Management (Super Admin)',
-            icon: Settings,
-            badge: 'RBAC',
-            badgeColor: 'bg-unsil-gold-500 text-unsil-green-950 font-bold text-[10px]',
+            id: 'manajemen',
+            label: 'Manajemen',
+            icon: Users,
+            badge: 'Admin',
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+            children: [
+              {
+                id: 'settings',
+                label: 'Manajemen User',
+                icon: Users,
+              },
+              {
+                id: 'manajemen-role',
+                label: 'Manajemen Role',
+                icon: Shield,
+              },
+              {
+                id: 'manajemen-permission',
+                label: 'Manajemen Permission',
+                icon: KeyRound,
+              },
+            ],
           },
         ]
       : []),
   ];
+};
+
+export const Sidebar = ({
+  activeTab,
+  setActiveTab,
+  isCollapsed = false,
+  setIsCollapsed,
+  onLogout,
+  user,
+  unreadCounts = { disposisi: 3, tte: 5, retensi: 14 },
+  className = '',
+  isSidebarOpen = false,
+  toggleSidebar
+}) => {
+  // State accordion menu dengan sub-menu (Surat & Manajemen)
+  const [openSubMenus, setOpenSubMenus] = useState({
+    surat: true,
+    manajemen: true,
+  });
+
+  const toggleSubMenu = (menuId) => {
+    setOpenSubMenus((prev) => ({
+      ...prev,
+      [menuId]: prev[menuId] !== undefined ? !prev[menuId] : false,
+    }));
+  };
+
+  // Re-evaluasi menu jika terjadi perubahan hak akses di Manajemen Role / Permission
+  const [, setRbacVersion] = useState(0);
+  useEffect(() => {
+    const onRbacChange = () => setRbacVersion((v) => v + 1);
+    window.addEventListener(RBAC_CHANGE_EVENT, onRbacChange);
+    return () => window.removeEventListener(RBAC_CHANGE_EVENT, onRbacChange);
+  }, []);
+
+  // Auto-expand menu jika sub-menu terkait sedang aktif
+  useEffect(() => {
+    if (activeTab === 'surat-masuk' || activeTab === 'surat-keluar') {
+      setOpenSubMenus((prev) => ({ ...prev, surat: true }));
+    }
+    if (
+      activeTab === 'settings' ||
+      activeTab === 'manajemen-user' ||
+      activeTab === 'manajemen-role' ||
+      activeTab === 'manajemen-permission'
+    ) {
+      setOpenSubMenus((prev) => ({ ...prev, manajemen: true }));
+    }
+  }, [activeTab]);
+
+  const menuItems = buildSidebarMenuItems({ user, unreadCounts });
 
   return (
     <aside
@@ -273,7 +347,128 @@ export const Sidebar = ({
           <nav className="space-y-1">
             {menuItems.map((item) => {
               const Icon = item.icon;
-              const isActive = activeTab === item.id;
+              const hasChildren = Array.isArray(item.children) && item.children.length > 0;
+              const isChildActive =
+                hasChildren &&
+                item.children.some(
+                  (child) =>
+                    activeTab === child.id ||
+                    (child.id === 'settings' && activeTab === 'manajemen-user')
+                );
+              const isActive = activeTab === item.id || isChildActive;
+
+              if (hasChildren) {
+                const isSubMenuOpen = Boolean(openSubMenus[item.id]);
+
+                return (
+                  <div key={item.id} className="space-y-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isCollapsed && setIsCollapsed) {
+                          setIsCollapsed(false);
+                          setOpenSubMenus((prev) => ({ ...prev, [item.id]: true }));
+                        } else {
+                          toggleSubMenu(item.id);
+                        }
+                      }}
+                      title={isCollapsed ? item.label : undefined}
+                      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 relative group cursor-pointer ${
+                        isActive
+                          ? 'bg-unsil-green-900/90 text-white border-l-4 border-unsil-gold-400 pl-2.5'
+                          : 'text-slate-300 hover:text-white hover:bg-unsil-green-900/50'
+                      }`}
+                    >
+                      <Icon
+                        className={`w-5 h-5 shrink-0 transition-transform duration-150 ${
+                          isActive
+                            ? 'text-unsil-gold-400'
+                            : 'text-unsil-green-400/80 group-hover:text-unsil-gold-300 group-hover:scale-105'
+                        }`}
+                      />
+                      {!isCollapsed && (
+                        <span className="truncate flex-1 text-left font-medium">
+                          {item.label}
+                        </span>
+                      )}
+                      {!isCollapsed && item.badge && (
+                        <span
+                          className={`text-[11px] min-w-[20px] h-5 px-1.5 rounded-full shrink-0 flex items-center justify-center font-bold shadow-xs ${
+                            item.badgeColor || 'bg-yellow-400 text-slate-950 font-bold'
+                          } mr-1`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
+                      {!isCollapsed && (
+                        <span className="text-unsil-green-400/80 shrink-0">
+                          {isSubMenuOpen ? (
+                            <ChevronUp className="w-4 h-4" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4" />
+                          )}
+                        </span>
+                      )}
+
+                      {/* Tooltip for collapsed mode */}
+                      {isCollapsed && (
+                        <div className="absolute left-full ml-2 px-2.5 py-1.5 bg-slate-900 text-white text-xs rounded-md shadow-xl whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 border border-slate-700">
+                          {item.label}
+                          {item.badge && ` (${item.badge})`}
+                        </div>
+                      )}
+                    </button>
+
+                    {/* Sub Menu Items */}
+                    {!isCollapsed && isSubMenuOpen && (
+                      <div className="pl-4 pr-1 py-1 space-y-1 ml-3 border-l-2 border-unsil-green-800/60 my-1 animate-in fade-in duration-150">
+                        {item.children.map((child) => {
+                          const ChildIcon = child.icon;
+                          const isSubActive =
+                            activeTab === child.id ||
+                            (child.id === 'settings' && activeTab === 'manajemen-user');
+                          return (
+                            <button
+                              key={child.id}
+                              type="button"
+                              onClick={() => {
+                                setActiveTab(child.id);
+                                if (toggleSidebar && window.innerWidth < 768) {
+                                  toggleSidebar();
+                                }
+                              }}
+                              className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-left ${
+                                isSubActive
+                                  ? 'bg-gradient-to-r from-unsil-green-700 to-unsil-green-600 text-white font-semibold shadow-xs border-l-2 border-unsil-gold-400 pl-2.5'
+                                  : 'text-unsil-green-200/80 hover:text-white hover:bg-unsil-green-900/60'
+                              }`}
+                            >
+                              <ChildIcon
+                                className={`w-4 h-4 shrink-0 ${
+                                  isSubActive
+                                    ? 'text-unsil-gold-400'
+                                    : 'text-unsil-green-400'
+                                }`}
+                              />
+                              <span className="truncate flex-1">{child.label}</span>
+                              {child.badge && (
+                                <span
+                                  className={`text-[10px] min-w-[18px] h-4 px-1.5 rounded-full font-bold flex items-center justify-center shrink-0 ${
+                                    child.badgeColor || 'bg-yellow-400 text-slate-950 font-bold'
+                                  }`}
+                                >
+                                  {child.badge}
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              }
+
               return (
                 <button
                   key={item.id}
@@ -302,9 +497,7 @@ export const Sidebar = ({
                   )}
                   {!isCollapsed && item.badge && (
                     <span
-                      className={`text-[11px] px-2 py-0.5 rounded-full shrink-0 ${
-                        item.badgeColor || 'bg-unsil-green-800 text-unsil-green-200'
-                      }`}
+                      className="text-[11px] min-w-[20px] h-5 px-1.5 rounded-full shrink-0 flex items-center justify-center font-bold shadow-xs bg-yellow-400 text-slate-950"
                     >
                       {item.badge}
                     </span>

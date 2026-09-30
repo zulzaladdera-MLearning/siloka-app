@@ -11,7 +11,8 @@
 import {
   isDosenTanpaJabatan,
   isLetterOwnedByUser,
-  isMandiriPersonalDocument
+  isMandiriPersonalDocument,
+  isSuperAdminUser
 } from './authGuards';
 
 /**
@@ -32,24 +33,46 @@ export const isLetterSignatureRequest = (letter) => {
 
 /**
  * Memeriksa apakah naskah dinas boleh didisposisikan
+ * Sesuai Pasal 55 Peraturan Rektor No. 3/2023:
+ * Disposisi adalah instrumen arahan kedinasan yang dikeluarkan eksklusif oleh Pimpinan (Rektor, Dekan, Kepala Biro/Unit).
+ * Administrator Sistem (Super Admin), Operator, Pengawas, dan Staf tidak berwenang menerbitkan lembar disposisi.
+ * 
  * @param {object} letter 
  * @param {object} currentUser 
  * @returns {boolean}
  */
 export const canLetterBeDisposed = (letter, currentUser) => {
-  if (!letter) return false;
+  if (!letter || !currentUser) return false;
 
-  // 1. Pengawas SPI dan Dosen Tanpa Jabatan tidak berwenang menerbitkan lembar disposisi pimpinan
-  if (currentUser?.role === 'PENGAWAS' || isDosenTanpaJabatan(currentUser)) {
+  // 1. Super Admin, Pengawas SPI, Staf, Operator, dan Dosen Tanpa Jabatan tidak berwenang menerbitkan lembar disposisi pimpinan (Pasal 55)
+  if (
+    isSuperAdminUser(currentUser) ||
+    currentUser?.role === 'PENGAWAS' ||
+    currentUser?.role === 'STAF' ||
+    currentUser?.role === 'OPERATOR' ||
+    currentUser?.role === 'OPERATOR_UNIT' ||
+    isDosenTanpaJabatan(currentUser)
+  ) {
     return false;
   }
 
-  // 2. STRICT RULE: Surat berstatus Permohonan Tanda Tangan (TTD) DILARANG KERAS didisposisikan!
+  // 2. Hanya Pimpinan Unit / Pejabat Struktural yang berwenang menerbitkan disposisi
+  const isPimpinanStruktural =
+    currentUser?.role === 'PEJABAT' ||
+    currentUser?.role === 'PIMPINAN' ||
+    currentUser?.is_pejabat === true ||
+    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'));
+
+  if (!isPimpinanStruktural) {
+    return false;
+  }
+
+  // 3. STRICT RULE: Surat berstatus Permohonan Tanda Tangan (TTD) DILARANG KERAS didisposisikan!
   if (isLetterSignatureRequest(letter)) {
     return false;
   }
 
-  // 3. Naskah yang sudah diarsipkan ke JRA tidak dapat didisposisikan kembali
+  // 4. Naskah yang sudah diarsipkan ke JRA tidak dapat didisposisikan kembali
   if (letter.status === 'Diarsipkan') {
     return false;
   }
@@ -76,16 +99,22 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
     };
   }
 
+  const isSuratMasuk = letter.kategori === 'Surat Masuk' || letter.kategori === 'Inbound';
   const isSigReq = isLetterSignatureRequest(letter);
   const canDispose = canLetterBeDisposed(letter, currentUser);
 
+  // Super Admin adalah Administrator Sistem IT, BUKAN pejabat penandatangan tata usaha negara
+  const isSuperAdmin = isSuperAdminUser(currentUser);
+
   const isPejabatOrPimpinan =
-    currentUser?.role === 'PEJABAT' ||
-    currentUser?.role === 'PIMPINAN' ||
-    currentUser?.is_pejabat === true ||
-    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'));
+    !isSuperAdmin &&
+    (currentUser?.role === 'PEJABAT' ||
+      currentUser?.role === 'PIMPINAN' ||
+      currentUser?.is_pejabat === true ||
+      (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan')));
 
   const isAssignedSigner = Boolean(
+    !isSuperAdmin &&
     letter.signerId &&
     currentUser?.pejabat_id &&
     String(letter.signerId) === String(currentUser.pejabat_id)
@@ -100,35 +129,42 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
     isMandiriPersonalDocument(letter)
   );
 
-  const hasSignerAuthority = isPejabatOrPimpinan || isAssignedSigner || isPersonalMandiriSigner;
+  const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner || isPersonalMandiriSigner) && !isSuperAdmin;
 
-  // Tanda Tangan BSrE: Pejabat berwenang (atau Dosen pada Naskah Mandiri miliknya), surat belum memiliki TTE sah, dan bukan arsip
+  // Tanda Tangan BSrE:
+  // - Pejabat berwenang (atau Dosen pada Naskah Mandiri miliknya)
+  // - Surat Masuk TIDAK BOLEH ditandatangani TTE internal (Pasal 74: Surat masuk hanya alur penerimaan, pencatatan, pengarahan, penyampaian)
+  // - Belum memiliki TTE sah, bukan arsip, dan bukan Draf mentah (harus sudah berstatus Diparaf atau DRAFT_MENUNGGU_PARAF atau Permohonan TTD)
   const canSign = Boolean(
+    !isSuratMasuk &&
     hasSignerAuthority &&
     !letter.tteVerified &&
     letter.status !== 'Diarsipkan' &&
-    (isPersonalMandiriSigner || letter.status !== 'Draft')
+    (isPersonalMandiriSigner || (letter.status !== 'Draft' && letter.status !== 'Didisposisikan'))
   );
 
-  // Approval Naskah: Pejabat menyetujui naskah yang diajukan (status Dikirim atau Diparaf)
+  // Approval Naskah: Pejabat menyetujui naskah yang diajukan (status DRAFT_MENUNGGU_PARAF atau Diparaf atau Dikirim)
+  // Surat Masuk tidak melalui approval konsep
   const canApprove = Boolean(
+    !isSuratMasuk &&
     hasSignerAuthority &&
-    (letter.status === 'Dikirim' || letter.status === 'Diparaf') &&
+    (letter.status === 'Dikirim' || letter.status === 'Diparaf' || letter.status === 'DRAFT_MENUNGGU_PARAF') &&
     letter.status !== 'Disetujui' &&
     letter.status !== 'Diarsipkan'
   );
 
   // Reject / Minta Revisi: Pejabat dapat mengembalikan surat dengan catatan revisi
   const canReject = Boolean(
+    !isSuratMasuk &&
     hasSignerAuthority &&
-    (letter.status === 'Dikirim' || letter.status === 'Diparaf' || isSigReq) &&
+    (letter.status === 'Dikirim' || letter.status === 'Diparaf' || letter.status === 'DRAFT_MENUNGGU_PARAF' || isSigReq) &&
     letter.status !== 'Diarsipkan' &&
     letter.status !== 'Ditolak'
   );
 
-  // Arsip Digital JRA: Staf atau Pejabat dapat mengarsipkan jika sudah disetujui
+  // Arsip Digital JRA: Staf atau Pejabat dapat mengarsipkan jika sudah disetujui (atau Surat Masuk yang sudah selesai ditindaklanjuti)
   const canArchive = Boolean(
-    letter.status === 'Disetujui' &&
+    (letter.status === 'Disetujui' || (isSuratMasuk && letter.status === 'Didisposisikan')) &&
     letter.status !== 'Diarsipkan'
   );
 

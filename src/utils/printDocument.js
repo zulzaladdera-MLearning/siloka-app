@@ -62,12 +62,14 @@ export const applyPrintPageStyle = (paperSize = 'A4', hasKop = true) => {
 
   styleEl.innerHTML = `
     @media print {
+      /* Hilangkan 100% Header & Footer bawaan browser (Tanggal, Nama Dokumen, URL localhost, dan Nomor Halaman 1/1) */
+      /* sesuai standar template naskah dinas resmi di dokumen siloka (Peraturan Rektor UNSIL No. 3/2023) */
       @page {
         size: ${sizeInfo.cssPageSize};
-        margin: 12mm 15mm 12mm 15mm;
+        margin: 0 !important;
       }
       @page :first {
-        margin: 12mm 15mm 12mm 15mm;
+        margin: 0 !important;
       }
       html, body {
         width: 100% !important;
@@ -76,6 +78,8 @@ export const applyPrintPageStyle = (paperSize = 'A4', hasKop = true) => {
         margin: 0 !important;
         padding: 0 !important;
         overflow: visible !important;
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
       }
       #siloka-print-root {
         width: 100% !important;
@@ -86,16 +90,32 @@ export const applyPrintPageStyle = (paperSize = 'A4', hasKop = true) => {
         padding: 0 !important;
         overflow: visible !important;
       }
+      /* Terapkan ruang tepi resmi Pasal 47 melalui padding lembar */
       #siloka-print-root .a4-sheet,
       #siloka-print-root .f4-sheet {
+        box-sizing: border-box !important;
+        width: 210mm !important;
+        max-width: 210mm !important;
         min-height: 0 !important;
         height: auto !important;
         margin: 0 auto !important;
-        padding: 0 !important;
+        padding-top: 15mm !important;
+        padding-bottom: 15mm !important;
+        padding-left: 15mm !important;
+        padding-right: 15mm !important;
         box-shadow: none !important;
         border: none !important;
         page-break-inside: avoid !important;
         break-inside: avoid-page !important;
+      }
+      /* Ruang tepi tanpa Kop Surat: Atas >= 2 cm (Pasal 47 huruf a) */
+      #siloka-print-root .a4-sheet[data-has-kop="false"],
+      #siloka-print-root .f4-sheet[data-has-kop="false"],
+      #siloka-print-root .pasal47-without-kop {
+        padding-top: 20mm !important;
+        padding-bottom: 15mm !important;
+        padding-left: 15mm !important;
+        padding-right: 15mm !important;
       }
       #siloka-print-root .kop-surat-unsil,
       #siloka-print-root [data-kop-naskah-dinas="true"] {
@@ -113,8 +133,9 @@ export const applyPrintPageStyle = (paperSize = 'A4', hasKop = true) => {
 export const fitSheetsToSinglePagePrint = (containerEl, paperSize = 'A4') => {
   if (!containerEl || typeof window === 'undefined') return;
 
-  // Tinggi area cetak bersih 1 lembar (A4: 297mm - 24mm margin = 273mm ≈ 965px aman; F4: 330mm - 24mm = 306mm ≈ 1090px aman)
-  const targetMaxHeightPx = paperSize === 'F4' ? 1085 : 955;
+  // Tinggi fisik 1 lembar bersih: A4 = 297mm ≈ 1122px; F4 = 330mm ≈ 1247px
+  // Berikan batas aman (A4: 1070px, F4: 1195px)
+  const targetMaxHeightPx = paperSize === 'F4' ? 1195 : 1070;
   const sheets = containerEl.querySelectorAll('.a4-sheet, .f4-sheet');
 
   sheets.forEach((sheet) => {

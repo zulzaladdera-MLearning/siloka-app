@@ -28,6 +28,9 @@ export const TtePassphraseModal = ({
   const [attemptsLeft, setAttemptsLeft] = useState(3);
   const [isProcessing, setIsProcessing] = useState(false);
 
+  const targetSignerName = letter.namaPenandatangan || letter.namaPejabat || letter.templateData?.namaPejabat || user?.name || 'Pejabat Penandatangan';
+  const targetSignerNip = letter.nipPenandatangan || letter.nip || letter.templateData?.nip || user?.nip || '-';
+
   // Demo valid passphrase: "UNSIL-TTE-2026" or "123456"
   const handleVerify = (e) => {
     e.preventDefault();
@@ -52,8 +55,8 @@ export const TtePassphraseModal = ({
         onConfirmSignature({
           letterId: letter.id,
           certSerial: 'BSrE-UNSIL-2026-994120',
-          signerName: user.name,
-          signerNip: user.nip,
+          signerName: targetSignerName,
+          signerNip: targetSignerNip,
           timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB'
         });
         onClose();
@@ -118,16 +121,17 @@ export const TtePassphraseModal = ({
 
             <div className="grid grid-cols-2 gap-2 pt-1 text-[11px] text-slate-500">
               <div>
-                <span className="block text-slate-400">Penandatangan:</span>
-                <span className="font-semibold text-slate-800">{user.name}</span>
+                <span className="block text-slate-400">Penandatangan Sah:</span>
+                <span className="font-semibold text-slate-800">{targetSignerName}</span>
+                <span className="block text-[10px] font-mono text-slate-500">NIP. {targetSignerNip}</span>
               </div>
               <div>
                 <span className="block text-slate-400">Penerbit Sertifikat:</span>
                 <span className="font-semibold text-emerald-800">BSrE - BSSN RI</span>
               </div>
               <div>
-                <span className="block text-slate-400">Algoritma Kripto:</span>
-                <span className="font-mono text-slate-700">RSA-4096 / SHA-256</span>
+                <span className="block text-slate-400">Standar Pengamanan:</span>
+                <span className="font-semibold text-slate-800">Sertifikat Digital Sah BSrE</span>
               </div>
               <div>
                 <span className="block text-slate-400">Keluaran Regulasi:</span>

@@ -166,7 +166,7 @@ export const Navbar = ({
     // 1. Antrean TTE / Approval untuk Pejabat & Pimpinan
     if (isPejabat) {
       letters.forEach((l) => {
-        if (!l.tteVerified && (l.status === 'Diparaf' || l.status === 'Dikirim' || l.tujuan_aksi === 'TTD')) {
+        if (l.kategori !== 'Surat Masuk' && !l.tteVerified && (l.status === 'Diparaf' || l.status === 'DRAFT_MENUNGGU_PARAF' || l.tujuan_aksi === 'TTD')) {
           list.push({
             id: `tte-${l.id}`,
             letter: l,
@@ -521,7 +521,7 @@ export const Navbar = ({
               {onSwitchUser && (
                 <div className="p-2 border-b border-slate-100">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1 px-1">
-                    Beralih Akun (Uji Otorisasi RBAC)
+                    Beralih Akun Pengguna
                   </p>
                   <div className="max-h-36 overflow-y-auto space-y-1">
                     {allUsers.slice(0, 6).map((u) => (

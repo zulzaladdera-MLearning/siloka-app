@@ -67,7 +67,6 @@ import {
 } from './DocumentTemplates';
 import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
 import { determineKopSurat } from '../../utils/kopSuratHelper';
-import { FormatBarSelector } from './FormatBarSelector';
 import {
   getAuthorizedTemplates,
   getDefaultTemplateForUser,
@@ -79,12 +78,69 @@ import {
 import { getPejabatByUnit } from '../../utils/pejabatHelper';
 import SmartKlasifikasiNumberingPanel from './SmartKlasifikasiNumberingPanel';
 
+// Daftar 9 Unit Penerima & Tembusan (3 Kolom Sesuai Gambar 1)
+const DISTRIBUSI_GRID_UNITS = [
+  // Kolom 1 (Index 0), Kolom 2 (Index 1), Kolom 3 (Index 2)
+  { id: 'sekretariat_rektor', label: 'Sekretariat Rektor' },
+  { id: 'bku', label: 'BKU' },
+  { id: 'fkip', label: 'FKIP' },
+  // Baris 2
+  { id: 'jurusan', label: 'Jurusan' },
+  { id: 'lppm', label: 'LPPM' },
+  { id: 'upa_tik', label: 'UPA TIK' },
+  // Baris 3
+  { id: 'senat', label: 'Senat' },
+  { id: 'spi', label: 'SPI' },
+  { id: 'dewan_pengawas', label: 'Dewan Pengawas' }
+];
+
 export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUser }) => {
   if (!isOpen) return null;
 
   const currentYear = new Date().getFullYear();
-  const [selectedTemplate, setSelectedTemplate] = useState(() => getDefaultTemplateForUser(currentUser));
+  const [selectedTemplate, setSelectedTemplate] = useState(() => {
+    const isSdAllowed = isTemplateAllowedForUser('sd', currentUser);
+    return isSdAllowed ? 'sd' : getDefaultTemplateForUser(currentUser);
+  });
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'form' | 'preview'
+
+  // State Penerima dan Distribusi (Gambar 1 & Gambar 2)
+  const [distribusiData, setDistribusiData] = useState({
+    unitPenerima: [],
+    masukSebagai: 'Disposisi',
+    tembusanUnit: [],
+    sivitasAkademika: {
+      dosen: false,
+      tendik: false,
+      mahasiswa: false
+    },
+    umumPosel: '',
+    jugaDikirimFisik: false
+  });
+
+  const toggleDistribusiUnitPenerima = (unitLabel) => {
+    setDistribusiData((prev) => {
+      const exists = prev.unitPenerima.includes(unitLabel);
+      return {
+        ...prev,
+        unitPenerima: exists
+          ? prev.unitPenerima.filter((u) => u !== unitLabel)
+          : [...prev.unitPenerima, unitLabel]
+      };
+    });
+  };
+
+  const toggleDistribusiTembusanUnit = (unitLabel) => {
+    setDistribusiData((prev) => {
+      const exists = prev.tembusanUnit.includes(unitLabel);
+      return {
+        ...prev,
+        tembusanUnit: exists
+          ? prev.tembusanUnit.filter((u) => u !== unitLabel)
+          : [...prev.tembusanUnit, unitLabel]
+      };
+    });
+  };
   const [smartNumberingMeta, setSmartNumberingMeta] = useState({
     nomorSuratAkhir: '',
     kodeKlasifikasi: 'KP.05.00',
@@ -107,6 +163,76 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
   const rektoratSopProfile = useMemo(() => {
     return getRektoratOfficialSopProfile(currentUser);
   }, [currentUser]);
+
+  // Daftar opsi jenis naskah sesuai Permendikbudristek No. 2/2024 & Peraturan Rektor No. 3/2023 (Gambar 1)
+  const authorizedTemplatesList = useMemo(() => {
+    return getAuthorizedTemplates(currentUser, { includeConditional: true });
+  }, [currentUser]);
+
+  const authorizedTemplateIdSet = useMemo(() => {
+    return new Set(authorizedTemplatesList.map((t) => t.id));
+  }, [authorizedTemplatesList]);
+
+  const jenisNaskahOptions = useMemo(() => {
+    const order = [
+      'sd',
+      'nd',
+      'st_lembar',
+      'st_kolom',
+      'undangan_lembar',
+      'undangan_kartu',
+      'speng',
+      'sket',
+      'sper',
+      'skua',
+      'ba',
+      'peng',
+      'notula',
+      'lap',
+      'ts',
+      'mou',
+      'pks',
+      'pos',
+      'sk',
+      'se',
+      'sp',
+      'disp_rektor',
+      'tte_doc'
+    ];
+
+    const labels = {
+      sd: 'Surat Dinas · Korespondensi biasa',
+      nd: 'Nota Dinas · Internal unit',
+      st_lembar: 'Surat Tugas (Format Lembar)',
+      st_kolom: 'Surat Tugas (Format Kolom)',
+      undangan_lembar: 'Surat Undangan (Format Lembar)',
+      undangan_kartu: 'Surat Undangan (Format Kartu)',
+      speng: 'Surat Pengantar',
+      sket: 'Surat Keterangan',
+      sper: 'Surat Pernyataan',
+      skua: 'Surat Kuasa',
+      ba: 'Berita Acara',
+      peng: 'Pengumuman',
+      notula: 'Notula Rapat',
+      lap: 'Laporan',
+      ts: 'Telaah Staf',
+      mou: 'Nota Kesepahaman (MoU)',
+      pks: 'Perjanjian Kerja Sama (PKS)',
+      pos: 'Prosedur Operasional Standar (POS/SOP)',
+      sk: 'Surat Keputusan (SK) [Khusus Rektor]',
+      se: 'Surat Edaran [Khusus Rektor]',
+      sp: 'Surat Perintah [Khusus Rektor]',
+      disp_rektor: 'Disposisi Rektor [Khusus Rektor]',
+      tte_doc: 'Lembar Pengesahan TTE'
+    };
+
+    return order
+      .filter((id) => authorizedTemplateIdSet.has(id))
+      .map((id) => ({
+        id,
+        label: labels[id] || id
+      }));
+  }, [authorizedTemplateIdSet]);
 
   // Deteksi akun Dosen Biasa (Tanpa Jabatan Struktural / Tugas Tambahan) — 8 Template Utama + 2 Template Kondisional
   const isLecturerWithoutStructuralPosition = useMemo(() => {
@@ -156,10 +282,6 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
       lecturerLeaderOptions[0]
     );
   }, [lecturerLeaderOptions, selectedLecturerLeaderId]);
-
-  const authorizedTemplatesList = useMemo(() => {
-    return getAuthorizedTemplates(currentUser);
-  }, [currentUser]);
 
   // Deteksi otomatis ukuran kertas PDF resmi (F4 untuk Arahan, A4 untuk Korespondensi/Lainnya)
   const currentPaperInfo = useMemo(() => {
@@ -2352,7 +2474,15 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
         jraMetadata: smartNumberingMeta.jraMetadata || null,
         unit_kerja_id: finalLetterObject.unit_kerja_id || smartNumberingMeta.kodeUnit || currentUser?.unit_kerja_id || 'UN58.6',
         created_by_user_id: finalLetterObject.created_by_user_id || currentUser?.id || 'usr-02',
-        created_at: finalLetterObject.created_at || new Date().toISOString()
+        created_at: finalLetterObject.created_at || new Date().toISOString(),
+        distribusi: {
+          unitPenerima: distribusiData.unitPenerima,
+          masukSebagai: distribusiData.masukSebagai,
+          tembusanUnit: distribusiData.tembusanUnit,
+          sivitasAkademika: distribusiData.sivitasAkademika,
+          poselLuar: distribusiData.umumPosel,
+          dikirimFisik: distribusiData.jugaDikirimFisik
+        }
       };
       onSaveLetter(enrichedLetter);
     }
@@ -2458,13 +2588,6 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
           </div>
         </div>
 
-        {/* Template Selector Bar (Filtered & Sequentially Numbered by Role) */}
-        <FormatBarSelector
-          selectedTemplate={selectedTemplate}
-          onSelectTemplate={setSelectedTemplate}
-          currentUser={currentUser}
-        />
-
         {/* Main Split Content Area */}
         <div className="flex-1 flex overflow-hidden">
           {/* LEFT: FORM CONTROLS (Hidden if preview only) */}
@@ -2474,6 +2597,38 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                 viewMode === 'split' ? 'w-full lg:w-1/2' : 'w-full'
               } p-6 overflow-y-auto border-r border-slate-200 space-y-6 text-xs text-slate-700`}
             >
+              {/* =============================================================
+                  BAGIAN 1: PENGATURAN NASKAH (SESUAI GAMBAR 1)
+                  ============================================================= */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 space-y-3 shadow-xs">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-unsil-green-950 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>
+                  1. PENGATURAN NASKAH
+                </h3>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-900 block">
+                    Jenis naskah <span className="text-red-500">*</span>
+                  </label>
+                  <div className="relative">
+                    <select
+                      value={selectedTemplate}
+                      onChange={(e) => setSelectedTemplate(e.target.value)}
+                      className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2.5 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
+                    >
+                      {jenisNaskahOptions.map((opt) => (
+                        <option key={opt.id} value={opt.id}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Jenis naskah yang hanya boleh ditandatangani Rektor (seperti Keputusan, Instruksi, dsb.) hanya tampil jika unit Anda adalah Rektor atau memiliki wewenang delegasi.
+                  </p>
+                </div>
+              </div>
+
               {/* BANNER KHUSUS KATEGORI AKSES / FUNGSI DOSEN BIASA (TANPA JABATAN STRUKTURAL / TUGAS TAMBAHAN) */}
               {isLecturerWithoutStructuralPosition && currentLecturerSopMeta && (
                 <div
@@ -7297,6 +7452,159 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
                   </div>
                 </div>
               )}
+
+              {/* =============================================================
+                  BAGIAN PENERIMA DAN DISTRIBUSI (SELARAS DENGAN TEMA SISTEM)
+                  ============================================================= */}
+              <div className="bg-white rounded-xl border border-slate-200 p-4 sm:p-5 space-y-4 shadow-xs text-slate-800">
+                <div>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-unsil-green-950 flex items-center gap-2">
+                    <Send className="w-3.5 h-3.5 text-unsil-green-800" />
+                    Penerima dan Distribusi
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Setelah ditandatangani, sistem meregistrasi dan mengirim naskah otomatis ke penerima di bawah. TU hanya menangani kiriman fisik dan naskah Rahasia.
+                  </p>
+                </div>
+
+                {/* Unit penerima */}
+                <fieldset className="border border-slate-200 rounded-lg p-3 pt-1.5 bg-slate-50/60">
+                  <legend className="text-xs text-slate-700 px-1.5 font-semibold">Unit penerima</legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2.5 gap-x-4 pt-1">
+                    {DISTRIBUSI_GRID_UNITS.map((unit) => {
+                      const isChecked = distribusiData.unitPenerima.includes(unit.label);
+                      return (
+                        <label
+                          key={`penerima-${unit.id}`}
+                          className="flex items-center gap-2.5 text-xs text-slate-700 hover:text-slate-900 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleDistribusiUnitPenerima(unit.label)}
+                            className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                          />
+                          <span>{unit.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {/* Masuk di unit penerima sebagai */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-800 block">
+                    Masuk di unit penerima sebagai
+                  </label>
+                  <select
+                    value={distribusiData.masukSebagai}
+                    onChange={(e) => setDistribusiData({ ...distribusiData, masukSebagai: e.target.value })}
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
+                  >
+                    <option value="Disposisi">Disposisi</option>
+                    <option value="Koordinasi">Koordinasi</option>
+                    <option value="Arahan">Arahan</option>
+                  </select>
+                </div>
+
+                {/* Tembusan ke unit */}
+                <fieldset className="border border-slate-200 rounded-lg p-3 pt-1.5 bg-slate-50/60">
+                  <legend className="text-xs text-slate-700 px-1.5 font-semibold">Tembusan ke unit</legend>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-y-2.5 gap-x-4 pt-1">
+                    {DISTRIBUSI_GRID_UNITS.map((unit) => {
+                      const isChecked = distribusiData.tembusanUnit.includes(unit.label);
+                      return (
+                        <label
+                          key={`tembusan-${unit.id}`}
+                          className="flex items-center gap-2.5 text-xs text-slate-700 hover:text-slate-900 cursor-pointer select-none"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => toggleDistribusiTembusanUnit(unit.label)}
+                            className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                          />
+                          <span>{unit.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+
+                {/* Sivitas akademika */}
+                <fieldset className="border border-slate-200 rounded-lg p-3 pt-1.5 bg-slate-50/60">
+                  <legend className="text-xs text-slate-700 px-1.5 font-semibold">Sivitas akademika</legend>
+                  <div className="flex items-center gap-6 pt-1">
+                    <label className="flex items-center gap-2 text-xs text-slate-700 hover:text-slate-900 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={distribusiData.sivitasAkademika.dosen}
+                        onChange={(e) =>
+                          setDistribusiData({
+                            ...distribusiData,
+                            sivitasAkademika: { ...distribusiData.sivitasAkademika, dosen: e.target.checked }
+                          })
+                        }
+                        className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                      />
+                      <span>Dosen</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700 hover:text-slate-900 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={distribusiData.sivitasAkademika.tendik}
+                        onChange={(e) =>
+                          setDistribusiData({
+                            ...distribusiData,
+                            sivitasAkademika: { ...distribusiData.sivitasAkademika, tendik: e.target.checked }
+                          })
+                        }
+                        className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                      />
+                      <span>Tendik</span>
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700 hover:text-slate-900 cursor-pointer select-none">
+                      <input
+                        type="checkbox"
+                        checked={distribusiData.sivitasAkademika.mahasiswa}
+                        onChange={(e) =>
+                          setDistribusiData({
+                            ...distribusiData,
+                            sivitasAkademika: { ...distribusiData.sivitasAkademika, mahasiswa: e.target.checked }
+                          })
+                        }
+                        className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                      />
+                      <span>Mahasiswa</span>
+                    </label>
+                  </div>
+                </fieldset>
+
+                {/* Umum (posel) */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-800 block">Umum (posel)</label>
+                  <input
+                    type="text"
+                    value={distribusiData.umumPosel}
+                    onChange={(e) => setDistribusiData({ ...distribusiData, umumPosel: e.target.value })}
+                    placeholder="Pisahkan dengan koma"
+                    className="w-full bg-white border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+                  />
+                </div>
+
+                {/* Juga dikirim fisik */}
+                <div className="pt-1">
+                  <label className="flex items-center gap-2.5 text-xs font-medium text-slate-700 hover:text-slate-900 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={distribusiData.jugaDikirimFisik}
+                      onChange={(e) => setDistribusiData({ ...distribusiData, jugaDikirimFisik: e.target.checked })}
+                      className="w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                    />
+                    <span>Juga dikirim fisik</span>
+                  </label>
+                </div>
+              </div>
 
             </div>
           )}

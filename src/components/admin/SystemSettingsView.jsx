@@ -1,1726 +1,1296 @@
-import React, { useState, useMemo, useRef } from 'react';
-import ExcelJS from 'exceljs';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
-  Settings,
-  ShieldCheck,
-  RefreshCw,
-  FileSpreadsheet,
-  Users,
-  KeyRound,
-  Building2,
-  CheckCircle2,
-  AlertTriangle,
-  Download,
-  Upload,
+  RotateCw,
+  Plus,
   Search,
-  Eye,
-  EyeOff,
-  Lock,
-  ArrowRight,
-  UserCheck,
-  FileCheck,
-  ExternalLink,
-  ShieldAlert,
-  HelpCircle,
+  SlidersHorizontal,
   X,
+  Check,
+  Building2,
+  Mail,
+  Shield,
+  UserCheck,
+  CheckCircle2,
   Sparkles,
   UserPlus,
-  Copy,
-  Check,
-  Key
+  Trash2,
+  ShieldCheck,
+  Lock,
+  Layers,
+  KeyRound,
+  Eye,
+  EyeOff,
+  User,
+  IdCard,
+  Briefcase
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
-import {
-  triggerSimpegSync,
-  validateExcelFileClient,
-  importUsersExcel,
-  mutateUserJobAssignment,
-  createUser,
-  configureTteCredentials,
-  downloadExcelTemplate
-} from '../../services/adminService';
-import UserRegistrationModal from './UserRegistrationModal';
-import { UnitMutationManager } from './UnitMutationManager';
 import { isSuperAdminUser } from '../../utils/authGuards';
+import {
+  getRolesCatalog,
+  resolveUserRoleSlug,
+  getUserEffectivePermissions,
+  getPermissionLabel,
+  RBAC_CHANGE_EVENT
+} from '../../utils/rbacSyncService';
 
+/**
+ * Helper untuk menentukan warna inisial avatar pengguna
+ */
+const getAvatarColor = (name = '') => {
+  const colors = [
+    { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-200' },
+    { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-200' },
+    { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-200' },
+    { bg: 'bg-amber-100', text: 'text-amber-800', border: 'border-amber-200' },
+    { bg: 'bg-teal-100', text: 'text-teal-700', border: 'border-teal-200' },
+    { bg: 'bg-rose-100', text: 'text-rose-700', border: 'border-rose-200' },
+    { bg: 'bg-indigo-100', text: 'text-indigo-700', border: 'border-indigo-200' },
+    { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-200' },
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % colors.length;
+  return colors[index];
+};
+
+/**
+ * Helper untuk mengambil 2 huruf inisial dari nama
+ */
+const getInitials = (name = '') => {
+  if (!name) return 'U';
+  // Bersihkan gelar umum di awal nama
+  const cleanName = name
+    .replace(/^(Prof\.|Dr\.|Drs\.|Ir\.|H\.|Hj\.)\s*/gi, '')
+    .trim();
+  const parts = cleanName.split(/\s+/).filter(Boolean);
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+};
+
+/**
+ * Resolusi Peran Aktual (Role) yang diemban oleh Pengguna
+ * Sesuai instruksi: "tapi role lokalnya ganti oleh role yang diemban oleh user tersebut"
+ */
+export const resolveDisplayRole = (u) => {
+  if (!u) return 'Pengguna';
+
+  // 1. Super Administrator
+  if (
+    u.role === 'Super Admin' ||
+    u.role === 'SUPER_ADMIN' ||
+    u.id_role === 1 ||
+    u.is_super_admin ||
+    (u.roleLabel && u.roleLabel.toLowerCase().includes('super admin')) ||
+    (u.email && u.email.toLowerCase().includes('superadmin'))
+  ) {
+    return 'Super Administrator';
+  }
+
+  // 2. Rektor & Wakil Rektor
+  if (u.id === 'usr-01' || (u.jabatan && u.jabatan.toLowerCase().includes('rektor universitas'))) {
+    return 'Rektor Universitas Siliwangi';
+  }
+  if (u.jabatan && u.jabatan.toLowerCase().includes('wakil rektor')) {
+    return u.jabatan;
+  }
+
+  // 3. Pejabat Struktural & Dekan
+  if (u.jabatan && u.jabatan.trim() && !u.jabatan.toLowerCase().includes('dosen biasa') && !u.jabatan.toLowerCase().includes('asisten ahli') && !u.jabatan.toLowerCase().includes('lektor')) {
+    return u.jabatan;
+  }
+
+  // 4. Role label yang bersih
+  if (u.roleLabel && u.roleLabel.trim()) {
+    const clean = u.roleLabel
+      .replace(/\s*\(Tanpa Jabatan Struktural\)/gi, '')
+      .replace(/\s*SILOKA UNSIL/gi, '')
+      .trim();
+    if (clean) return clean;
+  }
+
+  // 5. Normalisasi Kode Role
+  const roleCode = String(u.role || '').toUpperCase();
+  if (roleCode === 'DOSEN' || roleCode === 'DOSEN_NON_JABATAN') {
+    return 'Dosen';
+  }
+  if (roleCode === 'PEJABAT') {
+    return u.jabatan || 'Pejabat Struktural';
+  }
+  if (roleCode === 'OPERATOR_UNIT') {
+    return 'Operator Tata Usaha';
+  }
+  if (roleCode === 'STAF_PERSURATAN') {
+    return 'Staf Persuratan & Kearsipan';
+  }
+  if (roleCode === 'PENGAWAS') {
+    return 'Pengawas SPI';
+  }
+
+  return u.role || 'Staf Pegawai';
+};
+
+/**
+ * Resolusi Nama Unit Kerja Resmi
+ */
+const resolveDisplayUnit = (u) => {
+  if (u?.unit && u.unit.trim()) {
+    return u.unit;
+  }
+  if (u?.unit_kerja_id) {
+    const found = unitKerjaList.find(
+      (item) => item.kode_unit === u.unit_kerja_id || item.id === u.unit_kerja_id
+    );
+    if (found) return found.nama_unit;
+  }
+  return 'Universitas Siliwangi';
+};
+
+/**
+ * Komponen Utama: Manajemen User
+ * Menggantikan seluruh isi menu pengaturan lama sesuai instruksi pengguna.
+ */
 export const SystemSettingsView = ({
   user,
   allUsers = [],
   onUpdateUsers,
+  onDeleteUser,
   showToast = () => {}
 }) => {
-  // Otorisasi ketat di tingkat komponen
+  // Verifikasi Otorisasi Super Admin
   const isSuperAdmin = isSuperAdminUser(user);
 
-  // Sub-tab navigasi: 'simpeg', 'excel', 'mutasi', 'tte', 'satker'
-  const [activeTab, setActiveTab] = useState('simpeg');
+  // Katalog Role Aktif (Tersinkronisasi dengan Manajemen Role & Permission)
+  const [rolesCatalog, setRolesCatalog] = useState(() => getRolesCatalog());
 
-  // State: Sinkronisasi SIMPEG
-  const [isSyncingSimpeg, setIsSyncingSimpeg] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState('16 Sep 2026, 08:30 WIB');
-  const [simpegResults, setSimpegResults] = useState([]);
-  const [simpegStats, setSimpegStats] = useState({ total: 32, updated: 28, inserted: 4 });
+  useEffect(() => {
+    const handleRbacUpdate = () => {
+      setRolesCatalog(getRolesCatalog());
+    };
+    window.addEventListener(RBAC_CHANGE_EVENT, handleRbacUpdate);
+    return () => window.removeEventListener(RBAC_CHANGE_EVENT, handleRbacUpdate);
+  }, []);
 
-  // State: Impor Excel .xlsx
-  const fileInputRef = useRef(null);
-  const [excelFile, setExcelFile] = useState(null);
-  const [excelError, setExcelError] = useState('');
-  const [isUploadingExcel, setIsUploadingExcel] = useState(false);
-  const [excelImportResult, setExcelImportResult] = useState(null);
-  const [excelPreviewRows, setExcelPreviewRows] = useState([
-    {
-      nip: '198802102014041001',
-      nama: 'Budi Santoso, S.Kom., M.Cs.',
-      email: 'budi.santoso@unsil.ac.id',
-      unit_kerja: 'UN58.13',
-      jabatan: 'Dosen Informatika FT',
-      role: 'OPERATOR_UNIT',
-      status: 'Valid'
-    },
-    {
-      nip: '199105152019032002',
-      nama: 'Lina Marlina, S.Pd., M.Hum.',
-      email: 'lina.marlina@unsil.ac.id',
-      unit_kerja: 'UN58.33',
-      jabatan: 'Pengelola Layanan Bahasa',
-      role: 'OPERATOR_UNIT',
-      status: 'Valid'
-    },
-    {
-      nip: '199403222020121004',
-      nama: 'Reza Fauzi, S.T.',
-      email: 'reza.fauzi@unsil.ac.id',
-      unit_kerja: 'UN58.32',
-      jabatan: 'Staf Server UPA TIK',
-      role: 'OPERATOR_UNIT',
-      status: 'Valid'
-    }
-  ]);
+  // Filter & Search State
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
 
-  // State: Pemetaan User & Mutasi
-  const [userSearch, setUserSearch] = useState('');
-  const [filterUnit, setFilterUnit] = useState('ALL');
-  const [filterRole, setFilterRole] = useState('ALL');
-  const [selectedUserForMutation, setSelectedUserForMutation] = useState(null);
-  const [isMutating, setIsMutating] = useState(false);
-  const [mutationSuccessData, setMutationSuccessData] = useState(null);
-  const [mutationForm, setMutationForm] = useState({
-    unit_kerja_id: 'UN58.6',
-    role: 'OPERATOR_UNIT',
-    role_label: '',
-    email: '',
-    password_baru: '',
-    is_auto_generate: false
-  });
+  // State Modal
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedUserForDetail, setSelectedUserForDetail] = useState(null);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
+  const [isSyncingSSO, setIsSyncingSSO] = useState(false);
 
-  // State: Modul Tambah User (Super Admin)
-  const [isAddUserModalOpen, setIsAddUserOpen] = useState(false);
-  const [isCreatingUser, setIsCreatingUser] = useState(false);
-  const [addUserSuccessData, setAddUserSuccessData] = useState(null);
-  const [isCopied, setIsCopied] = useState(false);
-  const [newUserForm, setNewUserForm] = useState({
-    nama: '',
+  // State Visibility Kata Sandi
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showEditPassword, setShowEditPassword] = useState(false);
+
+  // State Edit User Form
+  const [editFormData, setEditFormData] = useState({
+    name: '',
     nip: '',
     email: '',
-    kode_unit: 'UN58.13',
-    jabatan: 'Dosen Biasa / Tanpa Jabatan'
+    unit: '',
+    unit_kerja_id: '',
+    jabatan: '',
+    role_slug: 'drafter',
+    role: '',
+    password: 'Siloka2026!',
+    signatureReady: true,
+    is_active: true
   });
 
-  // State: Konfigurasi Sertifikat TTE BSrE
-  const [selectedPejabatId, setSelectedPejabatId] = useState('usr-01');
-  const [nikBssn, setNikBssn] = useState('3278011608670001');
-  const [ttePassphrase, setTtePassphrase] = useState('UNSIL-TTE-2026');
-  const [showPassphrase, setShowPassphrase] = useState(false);
-  const [certFileName, setCertFileName] = useState('sertifikat_tte_rektor.p12');
-  const [isSavingTte, setIsSavingTte] = useState(false);
-  const [tteSaveSuccess, setTteSaveSuccess] = useState(false);
+  // State Tambah User Form
+  const [newUserData, setNewUserData] = useState({
+    name: '',
+    nip: '',
+    email: '',
+    unit_kerja_id: 'UN58.13',
+    role_slug: 'drafter',
+    role: 'DOSEN',
+    jabatan: 'Dosen',
+    password: 'Siloka2026!'
+  });
 
-  // Filter daftar pengguna
+  // Role Display Badge Styling Helper
+  const getRoleBadgeStyle = (displayRole = '') => {
+    const lower = displayRole.toLowerCase();
+    if (lower.includes('super admin')) {
+      return 'bg-purple-50 text-purple-700 border-purple-200';
+    }
+    if (lower.includes('rektor') || lower.includes('dekan') || lower.includes('kepala biro')) {
+      return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+    }
+    if (lower.includes('dosen')) {
+      return 'bg-blue-50 text-blue-700 border-blue-200';
+    }
+    if (lower.includes('operator') || lower.includes('staf') || lower.includes('pranata')) {
+      return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+    return 'bg-amber-50 text-amber-800 border-amber-200';
+  };
+
+  // Filter Data Pengguna (Sekaligus Membersihkan Artefak Dummy "Administrator Utama SILOKA")
   const filteredUsers = useMemo(() => {
-    return allUsers.filter((u) => {
-      const q = userSearch.toLowerCase();
-      const matchSearch =
-        (u.nama_lengkap && u.nama_lengkap.toLowerCase().includes(q)) ||
-        (u.name && u.name.toLowerCase().includes(q)) ||
-        (u.nip && u.nip.includes(q)) ||
-        (u.nip_nik && u.nip_nik.includes(q)) ||
-        (u.email && u.email.toLowerCase().includes(q));
+    return allUsers
+      .filter(
+        (u) =>
+          u.id !== 'usr-admin-01' &&
+          u.id !== 'usr-00' &&
+          !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+      )
+      .filter((u) => {
+        const q = searchQuery.toLowerCase().trim();
+        const name = (u.nama_lengkap || u.name || '').toLowerCase();
+        const nip = (u.nip || u.nip_nik || '').toLowerCase();
+        const email = (u.email || u.username || '').toLowerCase();
+        const unit = resolveDisplayUnit(u).toLowerCase();
+        const role = resolveDisplayRole(u).toLowerCase();
+        const userSlug = resolveUserRoleSlug(u);
 
-      const matchUnit = filterUnit === 'ALL' || u.unit_kerja_id === filterUnit;
-      const matchRole =
-        filterRole === 'ALL' ||
-        u.role === filterRole ||
-        (filterRole === 'DOSEN' && (u.role === 'DOSEN' || u.role === 'Dosen'));
+        const matchesSearch =
+          !q ||
+          name.includes(q) ||
+          nip.includes(q) ||
+          email.includes(q) ||
+          unit.includes(q) ||
+          role.includes(q) ||
+          userSlug.includes(q);
 
-      return matchSearch && matchUnit && matchRole;
+        if (!matchesSearch) return false;
+
+        if (selectedRoleFilter === 'ALL') return true;
+        if (selectedRoleFilter === 'SUPER_ADMIN' || selectedRoleFilter === 'super_admin') {
+          return userSlug === 'super_admin';
+        }
+        if (selectedRoleFilter === 'PIMPINAN' || selectedRoleFilter === 'pimpinan') {
+          return userSlug === 'pimpinan';
+        }
+        if (selectedRoleFilter === 'VERIFIKATOR' || selectedRoleFilter === 'verifikator') {
+          return userSlug === 'verifikator';
+        }
+        if (selectedRoleFilter === 'OPERATOR' || selectedRoleFilter === 'admin_tu') {
+          return userSlug === 'admin_tu';
+        }
+        if (selectedRoleFilter === 'DOSEN' || selectedRoleFilter === 'drafter') {
+          return userSlug === 'drafter';
+        }
+        if (selectedRoleFilter === 'auditor_spi') {
+          return userSlug === 'auditor_spi';
+        }
+        return userSlug === selectedRoleFilter;
+      });
+  }, [allUsers, searchQuery, selectedRoleFilter]);
+
+  // Handler: Buka Modal Detail / Atur Role
+  const handleOpenDetailModal = (targetUser) => {
+    setSelectedUserForDetail(targetUser);
+    const userRoleSlug = targetUser.role_slug || resolveUserRoleSlug(targetUser);
+    const currentPassword = targetUser.raw_password || targetUser.password || 'Siloka2026!';
+    setEditFormData({
+      name: targetUser.nama_lengkap || targetUser.name || '',
+      nip: targetUser.nip || targetUser.nip_nik || '',
+      email: targetUser.email || targetUser.username || '',
+      unit: resolveDisplayUnit(targetUser),
+      unit_kerja_id: targetUser.unit_kerja_id || 'UN58.13',
+      jabatan: resolveDisplayRole(targetUser),
+      role_slug: userRoleSlug,
+      role: targetUser.role || 'DOSEN',
+      password: currentPassword,
+      signatureReady: targetUser.signatureReady !== false,
+      is_active: true
     });
-  }, [allUsers, userSearch, filterUnit, filterRole]);
-
-  // Daftar pejabat/penandatangan surat (PEJABAT / PIMPINAN)
-  const pejabatList = useMemo(() => {
-    return allUsers.filter((u) => u.role === 'PEJABAT' || u.roleLevel?.includes('Pimpinan'));
-  }, [allUsers]);
-
-  // Jika bukan Super Admin, tampilkan halaman 403 Forbidden
-  if (!isSuperAdmin) {
-    return (
-      <div className="p-8 max-w-4xl mx-auto text-center space-y-6 bg-white rounded-2xl border border-rose-200 shadow-sm my-8">
-        <div className="w-16 h-16 bg-rose-100 text-rose-600 rounded-2xl flex items-center justify-center mx-auto ring-8 ring-rose-50">
-          <ShieldAlert className="w-8 h-8" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-bold text-slate-900">403 Forbidden: Akses Dibatasi</h2>
-          <p className="text-slate-600 max-w-md mx-auto text-sm leading-relaxed">
-            Modul <strong>Pengaturan Sistem</strong> menggunakan otorisasi Role-Based Access Control (RBAC)
-            dan hanya boleh diakses oleh akun dengan role <strong>Super Admin</strong>.
-          </p>
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-mono text-slate-700 mt-2">
-            <span>Peran Anda saat ini:</span>
-            <span className="font-bold text-rose-700">{user?.role || 'Pengguna Reguler'}</span>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // 1. Handler Sinkronisasi SIMPEG (Tugas 2)
-  const handleSyncSimpeg = async () => {
-    setIsSyncingSimpeg(true);
-    try {
-      const res = await triggerSimpegSync(user);
-      if (res && res.success) {
-        setSimpegResults(res.data || []);
-        setSimpegStats({
-          total: res.stats?.totalFetched || res.data?.length || 0,
-          updated: res.stats?.updatedCount || 0,
-          inserted: res.stats?.insertedCount || 0
-        });
-        setLastSyncTime(new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB');
-        showToast('Sinkronisasi SIMPEG Berhasil! Data kepegawaian telah disinkronkan ke tm_user.', 'success');
-      } else {
-        showToast('Sinkronisasi SIMPEG gagal: ' + (res?.message || 'Koneksi terputus'), 'error');
-      }
-    } catch (err) {
-      showToast('Terjadi kesalahan saat memproses data SIMPEG: ' + err.message, 'error');
-    } finally {
-      setIsSyncingSimpeg(false);
-    }
+    setShowEditPassword(false);
+    setIsDetailModalOpen(true);
   };
 
-  // 2. Handler Validasi & Upload File Excel .xlsx (Tugas 3)
-  const handleExcelFileSelect = async (e) => {
-    const file = e.target.files?.[0];
-    setExcelError('');
-    setExcelImportResult(null);
-
-    if (!file) return;
-
-    // VALIDASI FORMAT KETAT DI SISI KLIEN: HANYA MENERIMA .xlsx
-    const validation = validateExcelFileClient(file);
-    if (!validation.valid) {
-      setExcelError(validation.error);
-      setExcelFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      showToast(validation.error, 'error');
-      return;
-    }
-
-    setExcelFile(file);
-
-    // KUNCI: Parsing isi file Excel terkini langsung dari buffer memory browser
-    try {
-      const arrayBuffer = await file.arrayBuffer();
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(arrayBuffer);
-      const worksheet = workbook.worksheets[0];
-
-      if (worksheet) {
-        const dynamicRows = [];
-        let headerMap = {};
-
-        worksheet.eachRow((row, rowNumber) => {
-          if (rowNumber === 1) {
-            row.eachCell((cell, colNumber) => {
-              const key = String(cell.text || cell.value || '').trim().toLowerCase();
-              headerMap[colNumber] = key;
-            });
-          } else {
-            const rowData = {
-              nip: '',
-              nama: '',
-              email: '',
-              unit_kerja: '',
-              jabatan: 'Pegawai',
-              role: 'OPERATOR_UNIT',
-              status: 'Valid'
-            };
-
-            row.eachCell((cell, colNumber) => {
-              const colName = headerMap[colNumber] || '';
-              const val = cell.text ? cell.text.trim() : String(cell.value || '').trim();
-
-              if (colName.includes('nip')) rowData.nip = val;
-              else if (colName.includes('nama')) rowData.nama = val;
-              else if (colName.includes('email')) rowData.email = val;
-              else if (colName.includes('unit')) rowData.unit_kerja = val;
-              else if (colName.includes('jabatan')) rowData.jabatan = val;
-              else if (colName.includes('role')) rowData.role = val;
-            });
-
-            if (rowData.nip || rowData.nama) {
-              dynamicRows.push(rowData);
-            }
-          }
-        });
-
-        if (dynamicRows.length > 0) {
-          setExcelPreviewRows(dynamicRows);
-          showToast(`Berkas '${file.name}' dimuat (${dynamicRows.length} baris data berhasil dibaca).`, 'info');
-          return;
-        }
-      }
-      showToast(`Berkas '${file.name}' valid. Siap diproses untuk impor massal.`, 'info');
-    } catch (parseErr) {
-      console.warn('Gagal mem-parsing pratinjau lokal Excel:', parseErr);
-      showToast(`Berkas '${file.name}' siap diunggah ke backend.`, 'info');
-    }
-  };
-
-  const handleResetExcelUpload = () => {
-    setExcelFile(null);
-    setExcelError('');
-    setExcelImportResult(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    showToast('Pilihan berkas berhasil dibersihkan.', 'info');
-  };
-
-  const handleProcessExcelUpload = async () => {
-    if (!excelFile) {
-      setExcelError('Harap pilih berkas .xlsx terlebih dahulu.');
-      return;
-    }
-
-    setIsUploadingExcel(true);
-    setExcelError('');
-
-    try {
-      const result = await importUsersExcel(excelFile, excelPreviewRows, user);
-      if (result && result.success) {
-        setExcelImportResult(result);
-        showToast(`Impor Massal Berhasil! ${result.summary.validCount} pegawai ditambahkan/diperbarui.`, 'success');
-
-        // Jika ada handler update user ke parent
-        if (onUpdateUsers && result.data?.length > 0) {
-          onUpdateUsers(result.data);
-        }
-
-        // KUNCI FRONTEND: Bersihkan state file dan reset elemen input HTML
-        setExcelFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
-      } else {
-        setExcelError(result?.message || 'Gagal memproses berkas Excel.');
-        showToast('Impor berkas Excel gagal.', 'error');
-      }
-    } catch (err) {
-      setExcelError(err.message);
-      showToast('Error impor berkas: ' + err.message, 'error');
-    } finally {
-      setIsUploadingExcel(false);
-    }
-  };
-
-  // Handler Download Template Excel
-  const handleDownloadTemplate = async () => {
-    try {
-      showToast('Menyiapkan template Excel (.xlsx)...', 'info');
-      await downloadExcelTemplate();
-      showToast('Template Excel (.xlsx) berhasil diunduh.', 'success');
-    } catch (err) {
-      showToast('Gagal mengunduh template: ' + err.message, 'error');
-    }
-  };
-
-  // 3. Handler Buka Modal Mutasi Pegawai (Tugas 4)
-  const handleOpenMutation = (targetUser) => {
-    setSelectedUserForMutation(targetUser);
-    setMutationForm({
-      unit_kerja_id: targetUser.unit_kerja_id || targetUser.id_unit || targetUser.kode_unit || 'UN58.6',
-      role: targetUser.role || targetUser.id_role || 'OPERATOR_UNIT',
-      role_label: targetUser.roleLabel || targetUser.role_label || targetUser.jabatan || '',
-      email: targetUser.email || `${targetUser.nip || targetUser.nip_nik || 'pegawai'}@unsil.ac.id`,
-      password_baru: '',
-      is_auto_generate: false
-    });
-  };
-
-  const handleToggleAutoGenPassword = (e) => {
-    const isChecked = e.target.checked;
-    if (isChecked) {
-      const random4 = Math.floor(1000 + Math.random() * 9000);
-      const generated = `Unsil${random4}`;
-      setMutationForm((prev) => ({
-        ...prev,
-        is_auto_generate: true,
-        password_baru: generated
-      }));
-    } else {
-      setMutationForm((prev) => ({
-        ...prev,
-        is_auto_generate: false,
-        password_baru: ''
-      }));
-    }
-  };
-
-  const handleSaveMutation = async (e) => {
+  // Handler: Simpan Perubahan Role & Pengguna (Sinkron ke Hak Akses & Matriks)
+  const handleSaveUserDetail = (e) => {
     e.preventDefault();
-    if (!selectedUserForMutation) return;
+    if (!selectedUserForDetail) return;
 
-    setIsMutating(true);
-    try {
-      const employeeName = selectedUserForMutation.nama_lengkap || selectedUserForMutation.nama || selectedUserForMutation.name;
-      const targetUserId = selectedUserForMutation.id || selectedUserForMutation.nip || selectedUserForMutation.nip_nik;
+    const cleanPassword = (editFormData.password || '').trim();
+    if (!cleanPassword || cleanPassword.length < 6) {
+      showToast('Kata sandi akun pengguna harus diisi minimal 6 karakter.', 'error');
+      return;
+    }
 
-      const payload = {
-        ...mutationForm,
-        nama: employeeName,
-        nama_lengkap: employeeName
-      };
+    const unitObj = unitKerjaList.find(
+      (item) => item.kode_unit === editFormData.unit_kerja_id || item.id === editFormData.unit_kerja_id
+    );
 
-      const res = await mutateUserJobAssignment(targetUserId, payload, user);
-      if (res && res.success) {
-        // Cari nama unit
-        const targetUnitObj = unitKerjaList.find((u) => u.kode_unit === mutationForm.unit_kerja_id);
-        const unitName = targetUnitObj ? `${targetUnitObj.nama_unit} (${targetUnitObj.singkatan})` : mutationForm.unit_kerja_id;
-        const activeEmail = mutationForm.email;
-        const pwdStatus = mutationForm.password_baru && mutationForm.password_baru.trim() !== ''
-          ? mutationForm.password_baru.trim()
-          : 'Tidak Berubah';
+    const selectedRole = rolesCatalog.find(
+      (r) => (r.slug || r.id) === editFormData.role_slug
+    ) || rolesCatalog[0];
 
-        // Update list lokal
-        if (onUpdateUsers) {
-          onUpdateUsers([
-            {
-              ...selectedUserForMutation,
-              unit_kerja_id: mutationForm.unit_kerja_id,
-              kode_unit: mutationForm.unit_kerja_id,
-              unit: unitName,
-              email: activeEmail,
-              role: mutationForm.role,
-              roleLabel: mutationForm.role_label || selectedUserForMutation.roleLabel
-            }
-          ]);
-        }
+    const isSuper = selectedRole.slug === 'super_admin';
+    const isPimpinan = selectedRole.slug === 'pimpinan';
+    const mappedRole = isSuper
+      ? 'Super Admin'
+      : isPimpinan
+      ? 'PEJABAT'
+      : selectedRole.slug === 'verifikator'
+      ? 'VERIFIKATOR'
+      : selectedRole.slug === 'admin_tu'
+      ? 'OPERATOR_UNIT'
+      : selectedRole.slug === 'auditor_spi'
+      ? 'PENGAWAS'
+      : 'DOSEN';
 
-        const flashMsg = `Mutasi Berhasil! Pegawai ${employeeName} telah dipindahkan ke ${unitName}. Email Aktif: ${activeEmail}. Password Baru: ${pwdStatus}`;
+    const updatedUser = {
+      ...selectedUserForDetail,
+      nama_lengkap: editFormData.name.trim(),
+      name: editFormData.name.trim(),
+      nip: editFormData.nip.trim(),
+      nip_nik: editFormData.nip.trim(),
+      email: editFormData.email.trim(),
+      username: editFormData.email.trim(),
+      unit_kerja_id: editFormData.unit_kerja_id,
+      unit: unitObj ? unitObj.nama_unit : editFormData.unit,
+      role_slug: selectedRole.slug,
+      role: mappedRole,
+      roleLabel: editFormData.jabatan || selectedRole.name,
+      jabatan: editFormData.jabatan || selectedRole.name,
+      permissions: selectedRole.keySlugs || [],
+      is_pejabat:
+        isPimpinan ||
+        editFormData.jabatan.toLowerCase().includes('rektor') ||
+        editFormData.jabatan.toLowerCase().includes('dekan') ||
+        editFormData.jabatan.toLowerCase().includes('kepala biro'),
+      is_super_admin: isSuper,
+      signatureReady: editFormData.signatureReady,
+      password: cleanPassword,
+      raw_password: cleanPassword
+    };
 
-        setMutationSuccessData({
-          flashMessage: flashMsg,
-          nama: employeeName,
-          unit: unitName,
-          email: activeEmail,
-          passwordStatus: pwdStatus,
-          passwordChanged: pwdStatus !== 'Tidak Berubah'
-        });
+    if (onUpdateUsers) {
+      onUpdateUsers([updatedUser]);
+    }
 
-        showToast(flashMsg, 'success');
-        setSelectedUserForMutation(null);
-      } else {
-        showToast('Gagal memproses mutasi: ' + (res?.message || 'Unknown error'), 'error');
+    setIsDetailModalOpen(false);
+    showToast(
+      `Peran dan data pengguna ${editFormData.name} berhasil diperbarui.`,
+      'success'
+    );
+  };
+
+  // Handler: Hapus Pengguna dari Sistem
+  const handleDeleteUser = (targetUser) => {
+    if (!targetUser) return;
+    const name = targetUser.nama_lengkap || targetUser.name || 'Pengguna';
+    if (
+      window.confirm(
+        `Apakah Anda yakin ingin menghapus akun pengguna "${name}" dari pangkalan data sistem? Tindakan ini tidak dapat dibatalkan.`
+      )
+    ) {
+      if (onDeleteUser) {
+        onDeleteUser(targetUser.id);
       }
-    } catch (err) {
-      showToast('Kesalahan saat memproses mutasi: ' + err.message, 'error');
-    } finally {
-      setIsMutating(false);
+      setIsDetailModalOpen(false);
+      showToast(`Pengguna ${name} berhasil dihapus dari sistem.`, 'info');
     }
   };
 
-  // 3B. Handler Modul Tambah User (Super Admin)
-  const handleOpenAddUser = () => {
-    setNewUserForm({
-      nama: '',
+  // Handler: Tambah User Manual
+  const handleCreateUserManual = (e) => {
+    e.preventDefault();
+    if (!newUserData.name.trim() || !newUserData.email.trim()) {
+      showToast('Mohon lengkapi nama dan email pengguna.', 'error');
+      return;
+    }
+
+    if (!newUserData.password || newUserData.password.trim().length < 6) {
+      showToast('Kata sandi akun pengguna baru harus diisi minimal 6 karakter.', 'error');
+      return;
+    }
+
+    const cleanEmail = newUserData.email.trim().toLowerCase();
+
+    // Validasi pencegahan duplikasi email
+    const isEmailExist = allUsers.some(
+      (u) => (u.email && u.email.toLowerCase() === cleanEmail) || (u.username && u.username.toLowerCase() === cleanEmail)
+    );
+    if (isEmailExist) {
+      showToast(`Email [${cleanEmail}] sudah terdaftar di sistem. Mohon gunakan email unik lain.`, 'error');
+      return;
+    }
+
+    const unitObj = unitKerjaList.find(
+      (item) => item.kode_unit === newUserData.unit_kerja_id
+    );
+
+    const selectedRole = rolesCatalog.find(
+      (r) => (r.slug || r.id) === (newUserData.role_slug || newUserData.role)
+    ) || rolesCatalog.find((r) => r.slug === 'drafter') || rolesCatalog[0];
+
+    const isSuper = selectedRole.slug === 'super_admin';
+    const isPimpinan = selectedRole.slug === 'pimpinan';
+    const mappedRole = isSuper
+      ? 'Super Admin'
+      : isPimpinan
+      ? 'PEJABAT'
+      : selectedRole.slug === 'verifikator'
+      ? 'VERIFIKATOR'
+      : selectedRole.slug === 'admin_tu'
+      ? 'OPERATOR_UNIT'
+      : selectedRole.slug === 'auditor_spi'
+      ? 'PENGAWAS'
+      : 'DOSEN';
+
+    const roleLabelText = isSuper
+      ? 'Super Administrator SILOKA UNSIL'
+      : newUserData.jabatan || selectedRole.name;
+
+    const newUser = {
+      id: `usr-custom-${Date.now()}`,
+      nama_lengkap: newUserData.name.trim(),
+      name: newUserData.name.trim(),
+      nip: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+      nip_nik: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+      email: cleanEmail,
+      username: cleanEmail,
+      password: newUserData.password.trim(),
+      raw_password: newUserData.password.trim(),
+      unit_kerja_id: newUserData.unit_kerja_id,
+      unit: unitObj
+        ? unitObj.nama_unit
+        : isSuper
+        ? 'Unit Penunjang Akademik Teknologi Informasi dan Komunikasi'
+        : 'Fakultas Teknik',
+      role_slug: selectedRole.slug,
+      role: mappedRole,
+      roleLevel: isSuper
+        ? 'Level 0: Administrator Sistem'
+        : isPimpinan
+        ? 'Level 1: Pimpinan'
+        : selectedRole.slug === 'verifikator'
+        ? 'Level 2: Verifikator'
+        : 'Level 3: Dosen/Staf',
+      roleLabel: roleLabelText,
+      jabatan: newUserData.jabatan || (isSuper ? 'Super Administrator' : selectedRole.name),
+      permissions: selectedRole.keySlugs || [],
+      is_pejabat: isPimpinan || (newUserData.jabatan && newUserData.jabatan.toLowerCase().includes('dekan')),
+      is_super_admin: isSuper,
+      signatureReady: true,
+      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+    };
+
+    if (onUpdateUsers) {
+      onUpdateUsers([newUser]);
+    }
+
+    setIsAddUserModalOpen(false);
+    setNewUserData({
+      name: '',
       nip: '',
       email: '',
-      kode_unit: 'UN58.13',
-      jabatan: 'Dosen Biasa / Tanpa Jabatan'
+      unit_kerja_id: 'UN58.13',
+      role_slug: 'drafter',
+      role: 'DOSEN',
+      jabatan: 'Dosen',
+      password: 'Siloka2026!'
     });
-    setIsAddUserOpen(true);
+    setShowNewPassword(false);
+    showToast(`Pengguna baru [${newUser.name}] berhasil ditambahkan dengan role ${selectedRole.name}.`, 'success');
   };
 
-  const handleNipChange = (e) => {
-    const val = e.target.value.replace(/\D/g, '');
-    setNewUserForm((prev) => ({
-      ...prev,
-      nip: val,
-      email: (!prev.email || prev.email.includes('@unsil.ac.id')) && val ? `${val}@unsil.ac.id` : prev.email
-    }));
-  };
-
-  const handleSubmitNewUser = async (e) => {
-    e.preventDefault();
-    if (!newUserForm.nama.trim()) {
-      showToast('Nama lengkap dan gelar wajib diisi.', 'warning');
-      return;
-    }
-    if (!newUserForm.nip || newUserForm.nip.length < 5) {
-      showToast('NIP / NIK minimal 5 digit angka.', 'warning');
-      return;
-    }
-    if (!newUserForm.kode_unit) {
-      showToast('Satuan kerja wajib dipilih.', 'warning');
-      return;
-    }
-
-    setIsCreatingUser(true);
-    try {
-      const res = await createUser(newUserForm, user);
-      if (res && res.success) {
-        const createdUser = res.data;
-        const flashMsg = res.flashMessage || res.message;
-
-        // Simpan data untuk Flash Message dan dialog detail
-        setAddUserSuccessData({
-          user: createdUser,
-          flashMessage: flashMsg,
-          rawPassword: createdUser.raw_password,
-          username: createdUser.username || createdUser.nip,
-          nama: createdUser.nama_lengkap || createdUser.nama || createdUser.name,
-          unit: createdUser.unit || createdUser.kode_unit,
-          jabatan: createdUser.jabatan,
-          is_pejabat: createdUser.is_pejabat
-        });
-
-        // Mutasikan state master users ke komponen induk
-        if (onUpdateUsers) {
-          onUpdateUsers([createdUser]);
-        }
-
-        showToast(flashMsg, 'success');
-        setIsAddUserOpen(false);
-      } else {
-        showToast('Gagal membuat user baru: ' + (res?.message || 'Error tidak diketahui'), 'error');
-      }
-    } catch (err) {
-      showToast('Terjadi kesalahan saat memproses pembuatan user: ' + err.message, 'error');
-    } finally {
-      setIsCreatingUser(false);
-    }
-  };
-
-  const handleCopyCredentials = (textToCopy) => {
-    navigator.clipboard.writeText(textToCopy);
-    setIsCopied(true);
-    showToast('Detail kredensial akun berhasil disalin ke clipboard!', 'info');
-    setTimeout(() => setIsCopied(false), 3000);
-  };
-
-  // 4. Handler Konfigurasi Sertifikat BSrE TTE (Tugas 5)
-  const handleSaveTteConfig = async (e) => {
-    e.preventDefault();
-
-    if (!nikBssn || !/^\d{16}$/.test(nikBssn)) {
-      showToast('NIK BSSN harus berupa 16 digit angka.', 'warning');
-      return;
-    }
-
-    if (!ttePassphrase || ttePassphrase.length < 6) {
-      showToast('Passphrase TTE minimal harus 6 karakter.', 'warning');
-      return;
-    }
-
-    setIsSavingTte(true);
-    try {
-      const res = await configureTteCredentials(
-        {
-          user_id: selectedPejabatId,
-          nik: nikBssn,
-          passphrase: ttePassphrase,
-          cert_file_name: certFileName
-        },
-        user
+  // Handler: Simulasi Sinkronisasi SSO
+  const handleSyncSSO = () => {
+    setIsSyncingSSO(true);
+    setTimeout(() => {
+      setIsSyncingSSO(false);
+      showToast(
+        `Sinkronisasi SSO berhasil: ${allUsers.length} akun pengguna aktif tersinkronisasi dengan pangkalan data SSO UNSIL.`,
+        'success'
       );
-
-      if (res && res.success) {
-        setTteSaveSuccess(true);
-        showToast('Kredensial BSrE TTE berhasil dienkripsi (AES-256) dan disimpan di penyimpanan privat.', 'success');
-        setTimeout(() => setTteSaveSuccess(false), 5000);
-      }
-    } catch (err) {
-      showToast('Gagal mengonfigurasi sertifikat TTE: ' + err.message, 'error');
-    } finally {
-      setIsSavingTte(false);
-    }
+    }, 600);
   };
 
   return (
-    <div className="space-y-6 max-w-7xl pb-12">
-      {/* Header Banner Modul Pengaturan Sistem */}
-      <div className="bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-slate-900 p-6 rounded-2xl border border-unsil-green-800/40 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4 relative overflow-hidden">
-        <div className="absolute -right-12 -top-12 w-64 h-64 bg-unsil-gold-500/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 space-y-1">
-          <div className="flex items-center gap-2">
-            <span className="px-2.5 py-0.5 rounded bg-unsil-gold-400 text-unsil-green-950 font-bold text-[11px] uppercase tracking-wider">
-              RBAC: Super Admin Only
-            </span>
-            <span className="text-unsil-green-300 text-xs flex items-center gap-1 font-mono">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-              Tingkat Keamanan 1 (Biro BKU / UPA TIK)
-            </span>
-          </div>
-          <h2 className="text-xl font-black tracking-tight text-white flex items-center gap-2.5">
-            <Settings className="w-6 h-6 text-unsil-gold-400" />
-            Pengaturan Sistem & Administrasi SILOKA
-          </h2>
-          <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
-            Pusat kendali Role-Based Access Control, sinkronisasi otomatis basis data kepegawaian SIMPEG,
-            impor massal naskah dinas/pegawai via Excel .xlsx, pemetaan satker & mutasi, serta brankas kriptografi TTE BSrE.
+    <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
+      {/* =========================================================================
+          HEADER HALAMAN (SESUAI GAMBAR 1)
+          ========================================================================= */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Manajemen User
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">
+            Kelola data pengguna, hak akses peran lokal, dan sinkronisasi profil SSO Universitas Siliwangi.
           </p>
         </div>
 
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="bg-unsil-green-900/60 backdrop-blur border border-unsil-green-700/50 p-3 rounded-xl flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg bg-emerald-500/20 text-emerald-300 flex items-center justify-center border border-emerald-500/30">
-              <KeyRound className="w-5 h-5" />
-            </div>
-            <div>
-              <p className="text-[11px] text-slate-300 font-medium">Administrator Sesi</p>
-              <p className="text-xs font-bold text-white truncate max-w-[170px]">{user?.nama_lengkap || user?.name}</p>
-              <p className="text-[10px] text-unsil-gold-300 font-mono">ID: {user?.id || 'usr-admin-01'}</p>
-            </div>
-          </div>
+        <div className="flex items-center gap-2.5 shrink-0">
+          {/* Tombol Sync SSO */}
+          <button
+            type="button"
+            onClick={handleSyncSSO}
+            disabled={isSyncingSSO}
+            className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
+            title="Sinkronisasi Data Pengguna dengan Single Sign-On (SSO) UNSIL"
+          >
+            <RotateCw className={`w-3.5 h-3.5 text-slate-600 ${isSyncingSSO ? 'animate-spin' : ''}`} />
+            <span>Sync SSO</span>
+          </button>
+
+          {/* Tombol Tambah User Manual */}
+          <button
+            type="button"
+            onClick={() => {
+              setNewUserData({
+                name: '',
+                nip: '',
+                email: '',
+                unit_kerja_id: 'UN58.13',
+                role_slug: 'drafter',
+                role: 'DOSEN',
+                jabatan: 'Dosen',
+                password: 'Siloka2026!'
+              });
+              setShowNewPassword(false);
+              setIsAddUserModalOpen(true);
+            }}
+            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            <span>Tambah User Manual</span>
+          </button>
         </div>
       </div>
 
-      {/* Navigasi Sub-Tab 5 Fitur Utama */}
-      <div className="flex items-center gap-2 border-b border-slate-200 pb-1 overflow-x-auto">
-        <button
-          onClick={() => setActiveTab('simpeg')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === 'simpeg'
-              ? 'bg-unsil-green-800 text-white shadow-sm ring-1 ring-unsil-green-700'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <RefreshCw className={`w-4 h-4 ${isSyncingSimpeg ? 'animate-spin text-unsil-gold-400' : ''}`} />
-          <span>1. Sinkronisasi SIMPEG</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('excel')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === 'excel'
-              ? 'bg-unsil-green-800 text-white shadow-sm ring-1 ring-unsil-green-700'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <FileSpreadsheet className="w-4 h-4 text-emerald-400" />
-          <span>2. Impor Massal (.xlsx)</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('mutasi')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === 'mutasi'
-              ? 'bg-unsil-green-800 text-white shadow-sm ring-1 ring-unsil-green-700'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Users className="w-4 h-4 text-sky-400" />
-          <span>3. Tambah User & Mutasi</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('tte')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === 'tte'
-              ? 'bg-unsil-green-800 text-white shadow-sm ring-1 ring-unsil-green-700'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Lock className="w-4 h-4 text-amber-400" />
-          <span>4. Konfigurasi TTE (BSrE)</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('satker')}
-          className={`px-4 py-2.5 rounded-lg text-xs font-bold flex items-center gap-2 whitespace-nowrap transition-all ${
-            activeTab === 'satker'
-              ? 'bg-unsil-green-800 text-white shadow-sm ring-1 ring-unsil-green-700'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-          }`}
-        >
-          <Building2 className="w-4 h-4 text-purple-400" />
-          <span>5. Matriks 21 Satker</span>
-        </button>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* SUB-TAB 1: INTEGRASI API SIMPEG (Tugas 2) */}
-      {/* ========================================================================= */}
-      {activeTab === 'simpeg' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <RefreshCw className="w-5 h-5 text-unsil-green-800" />
-                  Integrasi & Sinkronisasi Basis Data SIMPEG UNSIL
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Menghubungkan SILOKA ke API SIMPEG untuk melakukan operasi <em>upsert</em> (insert/update) data
-                  Nama, Gelar, NIP, Jabatan, dan Satker ke tabel <code>tm_user</code>.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  onClick={handleSyncSimpeg}
-                  disabled={isSyncingSimpeg}
-                  className="px-5 py-2.5 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-bold shadow-md shadow-unsil-green-900/20 transition-all flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  <RefreshCw className={`w-4 h-4 ${isSyncingSimpeg ? 'animate-spin' : ''}`} />
-                  <span>{isSyncingSimpeg ? 'Sedang Menarik Data...' : 'Sinkronisasi Data Pegawai'}</span>
-                </button>
-              </div>
-            </div>
-
-            {/* Status Koneksi API & Statistik */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase">Endpoint SIMPEG</p>
-                <p className="text-xs font-mono font-bold text-slate-800 truncate">https://simpeg.unsil.ac.id/api/v1</p>
-                <div className="inline-flex items-center gap-1 text-[10px] text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded font-semibold mt-1">
-                  <CheckCircle2 className="w-3 h-3" /> Terhubung (Bearer Token Active)
-                </div>
-              </div>
-
-              <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-1">
-                <p className="text-[11px] font-semibold text-slate-500 uppercase">Sinkronisasi Terakhir</p>
-                <p className="text-sm font-bold text-slate-900">{lastSyncTime}</p>
-                <p className="text-[10px] text-slate-500">Otomatisasi tiap 24 jam / manual</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-200 space-y-1">
-                <p className="text-[11px] font-semibold text-emerald-800 uppercase">Total Data Terproses</p>
-                <p className="text-xl font-black text-emerald-950">{simpegStats.total} Pegawai</p>
-                <p className="text-[10px] text-emerald-700 font-medium">Tabel: tm_user (PostgreSQL)</p>
-              </div>
-
-              <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-200 space-y-1">
-                <p className="text-[11px] font-semibold text-amber-800 uppercase">Status Operasi Upsert</p>
-                <p className="text-xs font-semibold text-slate-800">
-                  <span className="text-emerald-700 font-bold">{simpegStats.updated} Update</span> •{' '}
-                  <span className="text-sky-700 font-bold">{simpegStats.inserted} Insert Baru</span>
-                </p>
-                <p className="text-[10px] text-slate-500">Konflik NIP diselesaikan otomatis</p>
-              </div>
-            </div>
-
-            {/* Progress Bar ketika proses sedang berlangsung */}
-            {isSyncingSimpeg && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2 animate-pulse">
-                <div className="flex items-center justify-between text-xs font-semibold text-emerald-900">
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin text-emerald-700" />
-                    Menghubungi Endpoint SIMPEG & Memperbarui Tabel tm_user...
-                  </span>
-                  <span>78%</span>
-                </div>
-                <div className="w-full h-2 bg-emerald-200 rounded-full overflow-hidden">
-                  <div className="h-full bg-unsil-green-700 w-3/4 rounded-full transition-all duration-300" />
-                </div>
-              </div>
-            )}
-
-            {/* Tabel Pratinjau Data Sinkronisasi SIMPEG */}
-            <div className="space-y-3 pt-2">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Pratinjau Data Kepegawaian Hasil Sinkronisasi Terbaru
-              </h4>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">NIP Pegawai</th>
-                      <th className="py-2.5 px-3">Nama Lengkap & Gelar</th>
-                      <th className="py-2.5 px-3">Jabatan Fungsional / Struktural</th>
-                      <th className="py-2.5 px-3">Kode Unit</th>
-                      <th className="py-2.5 px-3 text-center">Tindakan Upsert</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {(simpegResults.length > 0
-                      ? simpegResults
-                      : [
-                          {
-                            nip: '196708161996031001',
-                            nama_lengkap: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
-                            jabatan: 'Rektor Universitas Siliwangi',
-                            unit_kerja_id: 'UN58',
-                            sync_action: 'UPDATE'
-                          },
-                          {
-                            nip: '197003181995021001',
-                            nama_lengkap: 'Dr. Nana Sujana, Drs., M.Si.',
-                            jabatan: 'Kepala Biro Keuangan dan Umum',
-                            unit_kerja_id: 'UN58.6',
-                            sync_action: 'UPDATE'
-                          },
-                          {
-                            nip: '197509122001121001',
-                            nama_lengkap: 'Dr. H. Cucu Suherman, M.Pd.',
-                            jabatan: 'Dekan FKIP',
-                            unit_kerja_id: 'UN58.10',
-                            sync_action: 'UPDATE'
-                          },
-                          {
-                            nip: '198904122018031002',
-                            nama_lengkap: 'Bayu Nugroho, S.Kom., M.Kom.',
-                            jabatan: 'Pranata Komputer Ahli Pertama UPA TIK',
-                            unit_kerja_id: 'UN58.32',
-                            sync_action: 'INSERT'
-                          }
-                        ]
-                    ).map((pegawai, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{pegawai.nip}</td>
-                        <td className="py-2.5 px-3 font-semibold text-slate-800">{pegawai.nama_lengkap}</td>
-                        <td className="py-2.5 px-3 text-slate-600">{pegawai.jabatan}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-unsil-green-900">{pegawai.unit_kerja_id}</td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span
-                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                              pegawai.sync_action === 'INSERT'
-                                ? 'bg-sky-100 text-sky-800'
-                                : 'bg-emerald-100 text-emerald-800'
-                            }`}
-                          >
-                            {pegawai.sync_action || 'SYNCED'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUB-TAB 2: FASILITAS INPUT MASSAL IMPOR EXCEL .xlsx (Tugas 3) */}
-      {/* ========================================================================= */}
-      {activeTab === 'excel' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <FileSpreadsheet className="w-5 h-5 text-emerald-700" />
-                  Fasilitas Input Massal (Impor Berkas Excel .xlsx)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Unggah berkas spreadsheet <code>.xlsx</code> untuk mendaftarkan atau memperbarui pegawai secara massal.
-                  Sistem memvalidasi kolom wajib: <strong>NIP, Nama, Email, dan Unit Kerja</strong>.
-                </p>
-              </div>
-
+      {/* =========================================================================
+          KONTROL FILTER & PENCARIAN (SESUAI GAMBAR 1)
+          ========================================================================= */}
+      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+          {/* Input Pencarian */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Cari nama, NIP, atau email..."
+              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+            />
+            {searchQuery && (
               <button
-                onClick={handleDownloadTemplate}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-200 text-xs font-semibold rounded-xl transition-colors cursor-pointer"
+                type="button"
+                onClick={() => setSearchQuery('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
               >
-                <Download className="w-4 h-4 text-emerald-700" />
-                <span>Unduh Format Template (.xlsx)</span>
+                <X className="w-3.5 h-3.5" />
               </button>
-            </div>
-
-            {/* Error Banner jika Format Tidak Sesuai (.xlsx validation) */}
-            {excelError && (
-              <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-800 text-xs animate-shake">
-                <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold text-rose-900">Validasi Berkas Gagal!</p>
-                  <p className="mt-0.5 text-rose-700">{excelError}</p>
-                </div>
-              </div>
             )}
+          </div>
 
-            {/* Dropzone Upload */}
-            <div className="border-2 border-dashed border-slate-300 hover:border-unsil-green-700 rounded-2xl p-8 text-center bg-slate-50/50 transition-colors">
-              <input
-                ref={fileInputRef}
-                type="file"
-                id="excelUploadInput"
-                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-                onClick={(e) => {
-                  // KUNCI UTAMA FRONTEND:
-                  // Mengosongkan nilai input sebelum dialog pemilih berkas dibuka.
-                  // Hal ini memastikan browser selalu mendeteksi perubahan nilai dan
-                  // MEMICU event onChange meskipun user memilih berkas dengan NAMA YANG SAMA!
-                  e.target.value = null;
-                }}
-                onChange={handleExcelFileSelect}
-                className="hidden"
-              />
-              <label
-                htmlFor="excelUploadInput"
-                className="cursor-pointer flex flex-col items-center justify-center space-y-3"
-              >
-                <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center ring-4 ring-emerald-50">
-                  <Upload className="w-7 h-7" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-slate-800">
-                    {excelFile ? excelFile.name : 'Klik untuk memilih berkas Excel atau seret berkas ke sini'}
-                  </p>
-                  <p className="text-xs text-slate-500 mt-1">
-                    Format berkas wajib berupa <strong>.xlsx</strong> (Maksimum 10 MB)
-                  </p>
-                </div>
-                {excelFile && (
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="px-3 py-1 bg-emerald-100 text-emerald-900 rounded-full font-mono text-xs font-bold">
-                      {(excelFile.size / 1024).toFixed(1)} KB • Siap Diunggah
-                    </span>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        handleResetExcelUpload();
-                      }}
-                      className="px-2.5 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs font-semibold rounded-full transition-colors"
+          {/* Filter Dropdown Role (Sinkron dengan Manajemen Role) */}
+          <div className="w-full sm:w-56">
+            <select
+              value={selectedRoleFilter}
+              onChange={(e) => setSelectedRoleFilter(e.target.value)}
+              className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
+            >
+              <option value="ALL">Semua Peran ({allUsers.length})</option>
+              {rolesCatalog.map((r) => (
+                <option key={r.slug || r.id} value={r.slug || r.id}>
+                  {r.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Badge Total User */}
+        <div className="flex items-center justify-end">
+          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+            Total: {filteredUsers.length} User
+          </span>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          TABEL DATA PENGGUNA (SESUAI GAMBAR 1)
+          ========================================================================= */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                <th className="py-3.5 px-4 w-12 text-center">NO</th>
+                <th className="py-3.5 px-4 min-w-[240px]">PENGGUNA</th>
+                <th className="py-3.5 px-4 min-w-[200px]">UNIT KERJA</th>
+                <th className="py-3.5 px-4 min-w-[200px]">ROLE & HAK AKSES</th>
+                <th className="py-3.5 px-4 min-w-[150px]">STATUS SSO</th>
+                <th className="py-3.5 px-4 text-center w-36">AKSI</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-xs">
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    Tidak ditemukan data pengguna yang cocok dengan kriteria pencarian.
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((u, index) => {
+                  const displayName = u.nama_lengkap || u.name || 'Pengguna SILOKA';
+                  const email = u.email || u.username || '-';
+                  const nip = u.nip || u.nip_nik || '';
+                  const unitName = resolveDisplayUnit(u);
+                  const displayRole = resolveDisplayRole(u);
+                  const userRoleSlug = resolveUserRoleSlug(u);
+                  const canonicalRole = rolesCatalog.find((r) => (r.slug || r.id) === userRoleSlug);
+                  const colorStyle = getAvatarColor(displayName);
+
+                  return (
+                    <tr
+                      key={u.id || index}
+                      className="hover:bg-slate-50/60 transition group"
                     >
-                      Batal / Ganti Berkas
-                    </button>
-                  </div>
-                )}
-              </label>
-            </div>
+                      {/* 1. NO */}
+                      <td className="py-3.5 px-4 text-center font-medium text-slate-500">
+                        {index + 1}
+                      </td>
 
-            {/* Tombol Eksekusi Upload */}
-            <div className="flex items-center justify-between pt-2">
-              <div className="text-xs text-slate-500 flex items-center gap-1.5">
-                <HelpCircle className="w-4 h-4 text-slate-400" />
-                <span>Kolom wajib terisi: NIP (18 digit), Nama Lengkap, Email @unsil.ac.id, Kode Unit (misal UN58.6)</span>
+                      {/* 2. PENGGUNA */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
+                          >
+                            {getInitials(displayName)}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-slate-900 leading-tight truncate">
+                              {displayName}
+                            </p>
+                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                              {email}
+                              {nip ? ` • NIP ${nip}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      {/* 3. UNIT KERJA */}
+                      <td className="py-3.5 px-4">
+                        <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 max-w-[240px] truncate">
+                          {unitName}
+                        </span>
+                      </td>
+
+                      {/* 4. ROLE (Peran Aktual yang Diemban & Sinkron RBAC) */}
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col gap-1 items-start">
+                          <span
+                            className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-medium border max-w-[240px] truncate ${
+                              canonicalRole?.badgeColor || getRoleBadgeStyle(displayRole)
+                            }`}
+                            title={displayRole}
+                          >
+                            {displayRole}
+                          </span>
+                          {canonicalRole && (
+                            <span className="font-mono text-[10px] text-slate-400">
+                              {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} izin
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 5. STATUS SSO */}
+                      <td className="py-3.5 px-4">
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                          Aktif Terverifikasi
+                        </span>
+                      </td>
+
+                      {/* 6. AKSI */}
+                      <td className="py-3.5 px-4 text-center">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenDetailModal(u)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5" />
+                          <span>Detail / Atur Role</span>
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* =========================================================================
+          MODAL DETAIL / ATUR ROLE PENGGUNA
+          ========================================================================= */}
+      {isDetailModalOpen && selectedUserForDetail && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-800 animate-in zoom-in-95 duration-200">
+            {/* Header Modal - Tetap Pinned di Atas */}
+            <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-gradient-to-r from-slate-50 via-white to-slate-50 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shrink-0 shadow-xs ring-2 ring-unsil-green-800/10">
+                  <UserCheck className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                    Pengaturan Profil & Otorisasi Pengguna
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Pembaruan identitas, unit kerja struktural, dan hak akses naskah dinas civitas akademika.
+                  </p>
+                </div>
               </div>
-
               <button
-                onClick={handleProcessExcelUpload}
-                disabled={isUploadingExcel || !excelFile}
-                className="px-6 py-2.5 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-bold shadow-md shadow-unsil-green-900/20 transition-all flex items-center gap-2 disabled:opacity-50 cursor-pointer"
+                type="button"
+                onClick={() => setIsDetailModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                title="Tutup dialog"
               >
-                <FileCheck className={`w-4 h-4 ${isUploadingExcel ? 'animate-spin' : ''}`} />
-                <span>{isUploadingExcel ? 'Memvalidasi & Memproses...' : 'Kirim & Impor ke Database'}</span>
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {/* Hasil Ringkasan Impor */}
-            {excelImportResult && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-3 text-xs text-emerald-950">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="flex items-center gap-1.5">
-                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                    Hasil Pemrosesan Berkas: {excelImportResult.summary.fileName}
-                  </span>
-                  <span>
-                    {excelImportResult.summary.validCount} Valid / {excelImportResult.summary.totalRows} Total Baris
-                  </span>
+            {/* Isi Form Modal - Scrollable Container */}
+            <form id="edit-user-form" onSubmit={handleSaveUserDetail} className="flex-1 overflow-y-auto px-6 py-5 space-y-5 text-xs">
+              {/* Profil Singkat Card */}
+              <div className="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-xl border border-slate-200/80 shadow-2xs flex items-center gap-3.5">
+                <div className="relative shrink-0">
+                  <div
+                    className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-sm border shadow-xs ${getAvatarColor(
+                      editFormData.name
+                    ).bg} ${getAvatarColor(editFormData.name).text} ${getAvatarColor(editFormData.name).border}`}
+                  >
+                    {getInitials(editFormData.name)}
+                  </div>
+                  <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-500 border-2 border-white ring-1 ring-emerald-200" title="Akun Aktif" />
                 </div>
-                <p className="text-emerald-800">{excelImportResult.message}</p>
+                <div className="min-w-0 flex-1 space-y-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-bold text-slate-900 text-sm truncate">{editFormData.name}</p>
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      {rolesCatalog.find((r) => (r.slug || r.id) === editFormData.role_slug)?.name || 'Pengguna'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-[11px] text-slate-500 flex-wrap">
+                    <span className="inline-flex items-center gap-1">
+                      <Mail className="w-3 h-3 text-slate-400" />
+                      {editFormData.email}
+                    </span>
+                    <span className="inline-flex items-center gap-1">
+                      <IdCard className="w-3 h-3 text-slate-400" />
+                      NIP: {editFormData.nip || '-'}
+                    </span>
+                  </div>
+                </div>
               </div>
-            )}
 
-            {/* Pratinjau Tabel Kolom Wajib */}
-            <div className="space-y-2 pt-2">
-              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                Pratinjau Struktur Baris Berkas Excel (Kolom Wajib)
-              </h4>
-              <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                <table className="w-full text-left text-xs">
-                  <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                    <tr>
-                      <th className="py-2.5 px-3">NIP (Wajib)</th>
-                      <th className="py-2.5 px-3">Nama Pegawai (Wajib)</th>
-                      <th className="py-2.5 px-3">Email Kedinasan (Wajib)</th>
-                      <th className="py-2.5 px-3">Unit Kerja (Wajib)</th>
-                      <th className="py-2.5 px-3">Jabatan & Role</th>
-                      <th className="py-2.5 px-3 text-center">Status Kolom</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 text-slate-700">
-                    {excelPreviewRows.map((row, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50">
-                        <td className="py-2.5 px-3 font-mono font-bold text-slate-900">{row.nip}</td>
-                        <td className="py-2.5 px-3 font-medium text-slate-800">{row.nama}</td>
-                        <td className="py-2.5 px-3 font-mono text-slate-600">{row.email}</td>
-                        <td className="py-2.5 px-3 font-mono font-bold text-unsil-green-900">{row.unit_kerja}</td>
-                        <td className="py-2.5 px-3 text-slate-600">
-                          {row.jabatan} ({row.role})
-                        </td>
-                        <td className="py-2.5 px-3 text-center">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                            <CheckCircle2 className="w-3 h-3" /> Lengkap
-                          </span>
-                        </td>
-                      </tr>
+              {/* Bagian 1: Data Identitas & Unit Kerja */}
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
+                  <Building2 className="w-3.5 h-3.5 text-unsil-green-800" />
+                  <span>1. Identitas Pegawai & Satuan Kerja</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Nama Lengkap (dengan Gelar Akademik) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editFormData.name}
+                    onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      NIP / Identitas ASN
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.nip}
+                      onChange={(e) => setEditFormData({ ...editFormData, nip: e.target.value })}
+                      placeholder="18 digit NIP"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Email SSO UNSIL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={editFormData.email}
+                      onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Satuan Kerja Struktural (21 Satker Resmi UNSIL)
+                  </label>
+                  <select
+                    value={editFormData.unit_kerja_id}
+                    onChange={(e) => setEditFormData({ ...editFormData, unit_kerja_id: e.target.value })}
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                  >
+                    {unitKerjaList.map((unit) => (
+                      <option key={unit.kode_unit || unit.id} value={unit.kode_unit}>
+                        {unit.kode_unit} — {unit.nama_unit}
+                      </option>
                     ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUB-TAB 3: PEMETAAN USER & MUTASI JABATAN (Tugas 4) */}
-      {/* ========================================================================= */}
-      {activeTab === 'mutasi' && (
-        <div className="space-y-6">
-          <UnitMutationManager
-            allUsers={allUsers}
-            currentUser={user}
-            onUpdateUsers={onUpdateUsers}
-            showToast={showToast}
-          />
-
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Users className="w-5 h-5 text-sky-700" />
-                  Pemetaan User, Mutasi & Tambah Akun Baru
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Kelola pendaftaran akun pegawai baru (Dosen Biasa / Pejabat Struktural) serta pemindahan tugas unit kerja (<code>id_unit</code>) dan tingkat otorisasi (<code>role</code>).
-                </p>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={handleOpenAddUser}
-                  className="px-4 py-2.5 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-bold shadow-md shadow-unsil-green-900/20 transition-all flex items-center gap-2 cursor-pointer"
-                >
-                  <UserPlus className="w-4 h-4 text-unsil-gold-400" />
-                  <span>+ Tambah User Baru</span>
-                </button>
-
-                <span className="px-3 py-2 rounded-xl bg-sky-50 text-sky-800 font-semibold text-xs border border-sky-200">
-                  Total Pegawai: {allUsers.length}
-                </span>
-              </div>
-            </div>
-
-            {/* Flash Message / Notifikasi Sukses Pembuatan User */}
-            {addUserSuccessData && (
-              <div className="p-4 rounded-2xl bg-emerald-50 border-2 border-emerald-400 text-emerald-950 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-emerald-200 text-emerald-900 font-bold text-[10px] tracking-wider uppercase mb-1">
-                        <Sparkles className="w-3 h-3 text-unsil-green-900" />
-                        Flash Message / Notifikasi Kredensial Baru
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 font-mono select-all bg-white/90 p-3 rounded-xl border border-emerald-300 shadow-inner">
-                        {addUserSuccessData.flashMessage}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setAddUserSuccessData(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-emerald-100/60 transition-colors"
-                    title="Tutup Notifikasi"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-emerald-200/60 text-xs">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 font-mono font-semibold text-slate-700 text-[11px]">
-                      Username: <strong>{addUserSuccessData.username}</strong>
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-white border border-emerald-200 font-mono font-bold text-unsil-green-900 text-[11px]">
-                      Password: <strong>{addUserSuccessData.rawPassword}</strong>
-                    </span>
-                    <span className={`px-2.5 py-1 rounded-lg text-[11px] font-bold ${
-                      addUserSuccessData.is_pejabat ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-blue-100 text-blue-900 border border-blue-300'
-                    }`}>
-                      is_pejabat = {addUserSuccessData.is_pejabat ? 'TRUE (Struktural)' : 'FALSE (Dosen Biasa)'}
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCredentials(addUserSuccessData.flashMessage)}
-                    className="px-3.5 py-1.5 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
-                  >
-                    {isCopied ? <Check className="w-3.5 h-3.5 text-unsil-gold-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopied ? 'Tersalin!' : 'Salin Detail Akun'}</span>
-                  </button>
+                  </select>
                 </div>
               </div>
-            )}
 
-            {/* Flash Message / Notifikasi Sukses Mutasi Pegawai */}
-            {mutationSuccessData && (
-              <div className="p-4 rounded-2xl bg-sky-50 border-2 border-sky-400 text-sky-950 shadow-sm space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-xl bg-sky-600 text-white flex items-center justify-center shrink-0 shadow-sm mt-0.5">
-                      <CheckCircle2 className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-sky-200 text-sky-900 font-bold text-[10px] tracking-wider uppercase mb-1">
-                        <Sparkles className="w-3 h-3 text-sky-900" />
-                        Flash Message / Notifikasi Mutasi & Kredensial
-                      </div>
-                      <p className="text-xs sm:text-sm font-bold text-slate-900 font-mono select-all bg-white/90 p-3 rounded-xl border border-sky-300 shadow-inner">
-                        {mutationSuccessData.flashMessage}
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setMutationSuccessData(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-sky-100/60 transition-colors"
-                    title="Tutup Notifikasi"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
+              {/* Bagian 2: Otorisasi Peran & Jabatan */}
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
+                  <Shield className="w-3.5 h-3.5 text-unsil-green-800" />
+                  <span>2. Otorisasi Peran & Jabatan Institusi</span>
                 </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-sky-200/60 text-xs">
-                  <div className="flex flex-wrap items-center gap-2.5">
-                    <span className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 font-medium text-slate-700 text-[11px]">
-                      Pegawai: <strong>{mutationSuccessData.nama}</strong>
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 font-medium text-slate-700 text-[11px]">
-                      Unit Baru: <strong>{mutationSuccessData.unit}</strong>
-                    </span>
-                    <span className="px-2.5 py-1 rounded-lg bg-white border border-sky-200 font-medium text-slate-700 text-[11px]">
-                      Email: <strong>{mutationSuccessData.email}</strong>
-                    </span>
-                    <span className={`px-2.5 py-1 rounded-lg font-mono text-[11px] font-bold ${
-                      mutationSuccessData.passwordChanged ? 'bg-emerald-100 text-emerald-900 border border-emerald-300' : 'bg-slate-100 text-slate-700 border border-slate-300'
-                    }`}>
-                      Password: <strong>{mutationSuccessData.passwordStatus}</strong>
-                    </span>
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={() => handleCopyCredentials(mutationSuccessData.flashMessage)}
-                    className="px-3.5 py-1.5 rounded-lg bg-sky-800 hover:bg-sky-900 text-white font-bold text-xs flex items-center gap-1.5 shadow-sm cursor-pointer transition-colors"
-                  >
-                    {isCopied ? <Check className="w-3.5 h-3.5 text-unsil-gold-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{isCopied ? 'Tersalin!' : 'Salin Detail Mutasi'}</span>
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Filter & Pencarian */}
-            <div className="flex flex-col sm:flex-row items-center gap-3">
-              <div className="relative flex-1 w-full">
-                <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Cari nama pegawai, NIP, atau email..."
-                  value={userSearch}
-                  onChange={(e) => setUserSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
-                />
-              </div>
-
-              <select
-                value={filterUnit}
-                onChange={(e) => setFilterUnit(e.target.value)}
-                className="py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 w-full sm:w-auto"
-              >
-                <option value="ALL">Semua Satuan Kerja ({unitKerjaList.length})</option>
-                {unitKerjaList.map((u) => (
-                  <option key={u.id} value={u.kode_unit}>
-                    {u.kode_unit} - {u.singkatan}
-                  </option>
-                ))}
-              </select>
-
-              <select
-                value={filterRole}
-                onChange={(e) => setFilterRole(e.target.value)}
-                className="py-2 px-3 text-xs bg-slate-50 border border-slate-200 rounded-xl font-medium text-slate-700 w-full sm:w-auto"
-              >
-                <option value="ALL">Semua Role</option>
-                <option value="DOSEN">DOSEN (Dosen / Tenaga Pendidik)</option>
-                <option value="PEJABAT">PEJABAT (Pimpinan)</option>
-                <option value="OPERATOR_UNIT">OPERATOR_UNIT (Staf TU)</option>
-                <option value="PENGAWAS">PENGAWAS (SPI)</option>
-                <option value="Super Admin">Super Admin</option>
-              </select>
-            </div>
-
-            {/* Tabel Daftar Pengguna */}
-            <div className="overflow-x-auto border border-slate-200 rounded-xl">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-3">Pegawai / Identitas</th>
-                    <th className="py-3 px-3">NIP ASN / NIK</th>
-                    <th className="py-3 px-3">Unit Kerja (id_unit)</th>
-                    <th className="py-3 px-3">Jabatan & Role</th>
-                    <th className="py-3 px-3 text-center">Aksi Mutasi</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {filteredUsers.slice(0, 15).map((u) => {
-                    const unitObj = unitKerjaList.find((uk) => uk.kode_unit === u.unit_kerja_id);
-                    return (
-                      <tr key={u.id} className="hover:bg-slate-50 transition-colors">
-                        <td className="py-3 px-3">
-                          <div className="flex items-center gap-2.5">
-                            <img
-                              src={u.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150'}
-                              alt=""
-                              className="w-8 h-8 rounded-full object-cover ring-1 ring-slate-200 shrink-0"
-                            />
-                            <div>
-                              <p className="font-bold text-slate-900">{u.nama_lengkap || u.name}</p>
-                              <p className="text-[11px] text-slate-400 font-mono">{u.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 font-mono font-bold text-slate-800">{u.nip || u.nip_nik}</td>
-                        <td className="py-3 px-3">
-                          <span className="font-mono font-bold text-unsil-green-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[11px]">
-                            {u.unit_kerja_id}
-                          </span>
-                          <p className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[180px]">
-                            {unitObj ? unitObj.nama_unit : u.unit}
-                          </p>
-                        </td>
-                        <td className="py-3 px-3">
-                          <div className="flex flex-col">
-                            <span className="font-semibold text-slate-800">{u.roleLabel || u.role_label || '-'}</span>
-                            <span className="text-[10px] text-unsil-green-800 font-bold uppercase">{u.role}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-3 text-center">
-                          <button
-                            onClick={() => handleOpenMutation(u)}
-                            className="px-3 py-1.5 rounded-lg bg-unsil-green-50 hover:bg-unsil-green-800 hover:text-white text-unsil-green-900 border border-unsil-green-300 text-xs font-semibold transition-all inline-flex items-center gap-1.5 cursor-pointer"
-                          >
-                            <UserCheck className="w-3.5 h-3.5" />
-                            <span>Mutasi Pegawai</span>
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <p className="text-[11px] text-slate-400 text-right">
-              Menampilkan {Math.min(15, filteredUsers.length)} dari {filteredUsers.length} pegawai yang cocok
-            </p>
-          </div>
-
-          {/* Modal Dialog Mutasi Pegawai */}
-          {selectedUserForMutation && (
-            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-              <div className="bg-white rounded-2xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 space-y-5 animate-in fade-in zoom-in duration-150">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center">
-                      <UserCheck className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h4 className="font-bold text-slate-900 text-sm">Form Mutasi Penugasan Pegawai</h4>
-                      <p className="text-[11px] text-slate-500">Pembaruan relasi id_unit & role di tabel tm_user</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => setSelectedUserForMutation(null)}
-                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-
-                <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200 text-xs space-y-1">
-                  <p className="font-bold text-slate-900">
-                    {selectedUserForMutation.nama_lengkap || selectedUserForMutation.name}
-                  </p>
-                  <p className="text-slate-500 font-mono">NIP: {selectedUserForMutation.nip || selectedUserForMutation.nip_nik}</p>
-                  <p className="text-slate-500">Unit Kerja Saat Ini: <strong className="text-slate-700">{selectedUserForMutation.unit_kerja_id}</strong></p>
-                </div>
-
-                <form onSubmit={handleSaveMutation} className="space-y-4 text-xs">
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1.5">
-                      Pilih Satuan Kerja Baru (id_unit / 21 Satker Resmi UNSIL) *
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Role Akses (Manajemen Role)
                     </label>
                     <select
-                      value={mutationForm.unit_kerja_id}
-                      onChange={(e) => setMutationForm({ ...mutationForm, unit_kerja_id: e.target.value })}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
+                      value={editFormData.role_slug}
+                      onChange={(e) => {
+                        const newSlug = e.target.value;
+                        const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
+                        setEditFormData((prev) => ({
+                          ...prev,
+                          role_slug: newSlug,
+                          jabatan: prev.jabatan || roleObj?.name || ''
+                        }));
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                     >
-                      {unitKerjaList.map((u) => (
-                        <option key={u.id} value={u.kode_unit}>
-                          [{u.kode_unit}] {u.nama_unit} ({u.singkatan})
+                      {rolesCatalog.map((r) => (
+                        <option key={r.slug || r.id} value={r.slug || r.id}>
+                          {r.name}
                         </option>
                       ))}
                     </select>
                   </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1.5">
-                      Tingkat Otorisasi / Role Baru *
-                    </label>
-                    <select
-                      value={mutationForm.role?.toUpperCase() === 'DOSEN' ? 'DOSEN' : mutationForm.role}
-                      onChange={(e) => {
-                        const newRole = e.target.value;
-                        setMutationForm((prev) => ({
-                          ...prev,
-                          role: newRole,
-                          role_label: newRole === 'DOSEN' && (!prev.role_label || prev.role_label === 'Staf Tata Usaha') ? 'Dosen' : prev.role_label
-                        }));
-                      }}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
-                    >
-                      <option value="DOSEN">DOSEN (Dosen / Tenaga Pendidik)</option>
-                      <option value="OPERATOR_UNIT">OPERATOR_UNIT (Pelaksana / Tata Usaha Satker)</option>
-                      <option value="PEJABAT">PEJABAT (Pimpinan Satker / Penandatangan TTE)</option>
-                      <option value="STAF_PERSURATAN">STAF_PERSURATAN (Pengelola Naskah Biro)</option>
-                      <option value="PENGAWAS">PENGAWAS (Satuan Pengawas Internal - SPI)</option>
-                      <option value="Super Admin">Super Admin (Administrator Utama)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1.5">
-                      Nama Jabatan Baru (Role Label)
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Jabatan Struktural / Peran Institusi
                     </label>
                     <input
                       type="text"
-                      value={mutationForm.role_label}
-                      onChange={(e) => setMutationForm({ ...mutationForm, role_label: e.target.value })}
-                      placeholder="Contoh: Staf Tata Usaha Fakultas Teknik"
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
+                      value={editFormData.jabatan}
+                      onChange={(e) => setEditFormData({ ...editFormData, jabatan: e.target.value })}
+                      placeholder="Contoh: Dekan Fakultas Teknik"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
                     />
                   </div>
-
-                  {/* Section Terpisah: Kredensial & Kontak Akun */}
-                  <div className="pt-3 pb-1 border-t border-slate-200 space-y-3">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                      <h5 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
-                        Kredensial & Kontak Akun
-                      </h5>
-                    </div>
-
-                    <div className="bg-slate-50/80 p-3.5 rounded-xl border border-slate-200 space-y-3">
-                      {/* Email Kedinasan */}
-                      <div>
-                        <label className="block font-bold text-slate-700 mb-1">
-                          Email Kedinasan *
-                        </label>
-                        <input
-                          type="email"
-                          required
-                          value={mutationForm.email}
-                          onChange={(e) => setMutationForm({ ...mutationForm, email: e.target.value })}
-                          placeholder="nama.pegawai@unsil.ac.id"
-                          className="w-full p-2.5 bg-white border border-slate-300 rounded-xl text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
-                        />
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          Menampilkan email aktif saat ini. Dapat diedit jika terjadi pembaruan instansi.
-                        </p>
-                      </div>
-
-                      {/* Reset Password Baru & Checkbox Generate Password Otomatis */}
-                      <div>
-                        <div className="flex items-center justify-between gap-2 mb-1.5">
-                          <label className="block font-bold text-slate-700">
-                            Reset Password Baru <span className="font-normal text-slate-500">(Opsional)</span>
-                          </label>
-                          <label className="flex items-center gap-1.5 cursor-pointer select-none text-[11px] font-semibold text-unsil-green-800 hover:text-unsil-green-950">
-                            <input
-                              type="checkbox"
-                              checked={mutationForm.is_auto_generate}
-                              onChange={handleToggleAutoGenPassword}
-                              className="rounded border-slate-300 text-unsil-green-700 focus:ring-unsil-green-700 w-3.5 h-3.5 cursor-pointer"
-                            />
-                            <span>Generate Password Otomatis</span>
-                          </label>
-                        </div>
-
-                        <div className="relative">
-                          <input
-                            type={mutationForm.is_auto_generate ? 'text' : 'password'}
-                            value={mutationForm.password_baru}
-                            onChange={(e) => setMutationForm({ ...mutationForm, password_baru: e.target.value })}
-                            placeholder={mutationForm.is_auto_generate ? 'Password acak ter-generate otomatis' : 'Kosongkan jika tidak ingin mengubah password'}
-                            className={`w-full p-2.5 bg-white border rounded-xl font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-unsil-green-700 ${
-                              mutationForm.is_auto_generate
-                                ? 'border-unsil-green-600 bg-emerald-50/50 font-bold text-unsil-green-950 shadow-inner'
-                                : 'border-slate-300'
-                            }`}
-                          />
-                        </div>
-                        <p className="text-[10px] text-slate-500 mt-1">
-                          {mutationForm.is_auto_generate ? (
-                            <span className="text-emerald-700 font-semibold">
-                              ✓ Password acak berhasil di-generate secara real-time dalam format teks terbuka (clear-text).
-                            </span>
-                          ) : (
-                            'Jika dikosongkan, sistem membypass dan tidak akan mengubah password lama di database.'
-                          )}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
-                    <button
-                      type="button"
-                      onClick={() => setSelectedUserForMutation(null)}
-                      className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-semibold hover:bg-slate-50"
-                    >
-                      Batal
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isMutating}
-                      className="px-5 py-2 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white font-bold shadow-sm transition-colors flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                      <span>{isMutating ? 'Menyimpan...' : 'Simpan Mutasi'}</span>
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* Modal Dialog Form Registrasi User Baru & RBAC Tupoksi (Super Admin) */}
-          {isAddUserModalOpen && (
-            <UserRegistrationModal
-              isOpen={isAddUserModalOpen}
-              onClose={() => setIsAddUserOpen(false)}
-              currentUser={user}
-              onUserCreated={(newUser) => {
-                if (newUser) {
-                  const unitCodeRaw = String(newUser.kode_unit_kerja || newUser.unit_kerja_id || 'UN58').trim().toUpperCase();
-                  const matchedUnit = unitKerjaList.find(
-                    (u) =>
-                      String(u.id).toUpperCase() === unitCodeRaw ||
-                      String(u.kode_otk || '').toUpperCase() === unitCodeRaw ||
-                      String(u.singkatan || '').toUpperCase() === unitCodeRaw
-                  );
-                  const resolvedUnitId = matchedUnit ? matchedUnit.id : (
-                    unitCodeRaw === 'FT' ? 'UN58.13' :
-                    unitCodeRaw === 'FKIP' ? 'UN58.10' :
-                    unitCodeRaw === 'FEB' ? 'UN58.11' :
-                    unitCodeRaw === 'FP' ? 'UN58.12' :
-                    unitCodeRaw === 'FISIP' ? 'UN58.14' :
-                    unitCodeRaw === 'FIK' ? 'UN58.15' :
-                    unitCodeRaw === 'FAI' ? 'UN58.16' :
-                    unitCodeRaw === 'PASCA' ? 'UN58.17' :
-                    unitCodeRaw === 'LPPM' ? 'UN58.08' :
-                    unitCodeRaw === 'LPMPP' ? 'UN58.09' :
-                    unitCodeRaw === 'BAKPK' ? 'UN58.06' :
-                    unitCodeRaw === 'BKU' ? 'UN58.07' :
-                    unitCodeRaw === 'UNSIL' ? 'UN58' : unitCodeRaw
-                  );
-
-                  const roleNameStr = String(newUser.role || 'DOSEN').trim();
-                  const isPejabatNormalized = Boolean(
-                    newUser.is_pejabat ||
-                    roleNameStr.toUpperCase() === 'PEJABAT' ||
-                    roleNameStr.toUpperCase().includes('DEKAN') ||
-                    roleNameStr.toUpperCase().includes('REKTOR') ||
-                    roleNameStr.toUpperCase().includes('KEPALA') ||
-                    roleNameStr.toUpperCase().includes('KETUA')
-                  );
-                  const normalizedRoleCode = isPejabatNormalized
-                    ? 'PEJABAT'
-                    : roleNameStr.toUpperCase().includes('DOSEN')
-                      ? 'DOSEN'
-                      : roleNameStr.toUpperCase().includes('ADMIN') && !roleNameStr.toUpperCase().includes('SUPER')
-                        ? 'ADMIN_UNIT'
-                        : roleNameStr;
-
-                  const formattedNewUser = {
-                    id: newUser.id_user || newUser.id || `u-${Date.now()}`,
-                    id_user: newUser.id_user || newUser.id || `u-${Date.now()}`,
-                    nip: newUser.nip_nik || newUser.nip,
-                    nip_nik: newUser.nip_nik || newUser.nip,
-                    username: newUser.email || newUser.nip_nik,
-                    nama: newUser.nama || newUser.nama_lengkap,
-                    nama_lengkap: newUser.nama_lengkap || newUser.nama,
-                    name: newUser.nama || newUser.nama_lengkap,
-                    email: newUser.email,
-                    raw_password: newUser.raw_password,
-                    kode_unit: unitCodeRaw,
-                    kode_unit_kerja: unitCodeRaw,
-                    unit_kerja_id: resolvedUnitId,
-                    unit: matchedUnit ? matchedUnit.name : unitCodeRaw,
-                    jabatan: newUser.jabatan || roleNameStr,
-                    role: normalizedRoleCode,
-                    roleLabel: newUser.roleLabel || roleNameStr,
-                    is_pejabat: isPejabatNormalized,
-                    is_active: true,
-                    signatureReady: isPejabatNormalized,
-                    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                  };
-
-                  if (typeof onUpdateUsers === 'function') {
-                    onUpdateUsers([formattedNewUser]);
-                  }
-                  if (typeof showToast === 'function') {
-                    showToast(
-                      `Pengguna "${formattedNewUser.nama}" berhasil didaftarkan sebagai ${formattedNewUser.roleLabel}!`,
-                      'success'
-                    );
-                  }
-                }
-              }}
-            />
-          )}
-        </div>
-      )}
-
-      {/* ========================================================================= */}
-      {/* SUB-TAB 4: KONFIGURASI SERTIFIKAT DIGITAL BSrE TTE (Tugas 5) */}
-      {/* ========================================================================= */}
-      {activeTab === 'tte' && (
-        <div className="space-y-6">
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-5">
-              <div>
-                <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  <Lock className="w-5 h-5 text-amber-700" />
-                  Konfigurasi Sertifikat Digital BSrE untuk Tanda Tangan Elektronik (TTE)
-                </h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  Kredensial TTE khusus profil <strong>Pimpinan / Pejabat Penandatangan</strong>. Passphrase dienkripsi
-                  menggunakan <strong>AES-256</strong> sebelum disimpan ke basis data, dan berkas sertifikat (<code>.p12</code>/<code>.pfx</code>)
-                  disimpan di direktori privat non-publik.
-                </p>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-amber-100 text-amber-900 font-mono text-xs font-bold rounded-lg border border-amber-300 flex items-center gap-1.5">
-                  <ShieldCheck className="w-4 h-4 text-amber-800" /> Standar BSSN RI
-                </span>
-              </div>
-            </div>
-
-            {tteSaveSuccess && (
-              <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3 text-emerald-900 text-xs">
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-                <div>
-                  <p className="font-bold">Kredensial Sertifikat TTE BSrE Berhasil Dikonfigurasi!</p>
-                  <p className="mt-0.5 text-emerald-700">
-                    Passphrase berhasil dienkripsi dengan standar AES-256 dan berkas sertifikat telah diamankan di storage privat terproteksi.
-                  </p>
-                </div>
-              </div>
-            )}
-
-            <form onSubmit={handleSaveTteConfig} className="space-y-5 max-w-2xl text-xs">
-              {/* Pemilihan Pejabat Penandatangan */}
-              <div>
-                <label className="block font-bold text-slate-800 mb-1.5">
-                  Profil Pejabat Penandatangan Surat (PEJABAT / Pimpinan) *
-                </label>
-                <select
-                  value={selectedPejabatId}
-                  onChange={(e) => {
-                    const selId = e.target.value;
-                    setSelectedPejabatId(selId);
-                    const selected = pejabatList.find((p) => p.id === selId);
-                    if (selected?.nip || selected?.nip_nik) {
-                      setNikBssn(selected.nip_nik?.slice(0, 16) || '3278011608670001');
-                    }
-                  }}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
-                >
-                  {pejabatList.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nama_lengkap || p.name} — [{p.roleLabel}] ({p.unit_kerja_id})
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Hanya pejabat yang memiliki kewenangan menerbitkan lembar TTE BSrE yang dapat dikonfigurasikan.
-                </p>
-              </div>
-
-              {/* Input NIK terdaftar BSSN */}
-              <div>
-                <label className="block font-bold text-slate-800 mb-1.5">
-                  NIK Terdaftar di Balai Sertifikasi Elektronik (BSSN) *
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    maxLength={16}
-                    value={nikBssn}
-                    onChange={(e) => setNikBssn(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Masukkan 16 digit NIK kependudukan"
-                    className="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-800 font-bold tracking-wider focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
-                  />
-                  <span className="absolute right-3 top-2.5 text-[10px] text-slate-400 font-mono">
-                    {nikBssn.length}/16 Digit
-                  </span>
                 </div>
               </div>
 
-              {/* Input Passphrase TTE Mode Password */}
-              <div>
-                <label className="block font-bold text-slate-800 mb-1.5">
-                  Passphrase Sertifikat TTE BSrE (Terenkripsi AES-256) *
-                </label>
+              {/* Bagian 3: Keamanan & Kata Sandi Masuk */}
+              <div className="p-3.5 bg-slate-50/70 border border-slate-200/90 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-unsil-green-800" />
+                    <span>Kata Sandi Akun (Password) <span className="text-red-500">*</span></span>
+                  </label>
+                </div>
                 <div className="relative">
                   <input
-                    type={showPassphrase ? 'text' : 'password'}
-                    value={ttePassphrase}
-                    onChange={(e) => setTtePassphrase(e.target.value)}
-                    placeholder="Masukkan passphrase sertifikat..."
-                    className="w-full p-2.5 pr-10 bg-slate-50 border border-slate-300 rounded-xl font-mono text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-unsil-green-700"
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editFormData.password}
+                    onChange={(e) => setEditFormData({ ...editFormData, password: e.target.value })}
+                    placeholder="Masukkan kata sandi pengguna"
+                    className="w-full pl-3 pr-10 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    required
                   />
                   <button
                     type="button"
-                    onClick={() => setShowPassphrase(!showPassphrase)}
-                    className="absolute right-3 top-2.5 text-slate-400 hover:text-slate-600"
-                    title={showPassphrase ? 'Sembunyikan' : 'Tampilkan'}
+                    onClick={() => setShowEditPassword(!showEditPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition"
+                    title={showEditPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
                   >
-                    {showPassphrase ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    {showEditPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-slate-500 mt-1 flex items-center gap-1">
-                  <Lock className="w-3 h-3 text-unsil-green-800" />
-                  Passphrase tidak pernah disimpan dalam bentuk teks polos (plaintext).
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Kata sandi aktif untuk akses masuk ke SILOKA. Anda dapat langsung mengedit atau mereset kata sandi ini (minimal 6 karakter).
                 </p>
               </div>
 
-              {/* Upload Berkas Sertifikat .p12 / .pfx */}
-              <div>
-                <label className="block font-bold text-slate-800 mb-1.5">
-                  Unggah Berkas Kunci Sertifikat (.p12 atau .pfx) *
-                </label>
-                <div className="p-3 bg-slate-50 border border-slate-300 rounded-xl flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <FileCheck className="w-5 h-5 text-emerald-700" />
-                    <span className="font-mono text-slate-700 font-semibold">{certFileName}</span>
+              {/* Bagian 4: Panel Hak Akses Terintegrasi */}
+              {(() => {
+                const currentRoleObj = rolesCatalog.find(
+                  (r) => (r.slug || r.id) === editFormData.role_slug
+                );
+                const roleSlugs = currentRoleObj?.keySlugs || [];
+                const hasRahasia = roleSlugs.includes('arsip.view_rahasia');
+
+                return (
+                  <div className="p-3.5 bg-gradient-to-br from-emerald-50/40 to-slate-50 border border-emerald-100 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
+                        Hak Akses Terintegrasi ({roleSlugs.length} Izin Operasional)
+                      </span>
+                      {hasRahasia && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                          <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                          Akses Brankas Digital
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      {currentRoleObj?.description || 'Hak akses otomatis sinkron dengan konfigurasi Manajemen Role & Permission.'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pt-1 max-h-28 overflow-y-auto pr-1">
+                      {roleSlugs.map((slug) => (
+                        <span
+                          key={slug}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                        >
+                          <Check className="w-3 h-3 text-unsil-green-700 shrink-0" />
+                          <span>{getPermissionLabel(slug)}</span>
+                        </span>
+                      ))}
+                    </div>
                   </div>
-                  <label className="px-3 py-1.5 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg text-xs font-semibold text-slate-700 cursor-pointer transition-colors">
-                    <span>Ganti Berkas</span>
-                    <input
-                      type="file"
-                      accept=".p12,.pfx"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) {
-                          const ext = file.name.split('.').pop().toLowerCase();
-                          if (ext === 'p12' || ext === 'pfx') {
-                            setCertFileName(file.name);
-                            showToast(`Berkas sertifikat '${file.name}' dipilih.`, 'info');
-                          } else {
-                            showToast('Format tidak valid. Hanya berkas .p12 atau .pfx yang diizinkan.', 'error');
-                          }
-                        }
-                      }}
-                      className="hidden"
-                    />
-                  </label>
-                </div>
-                <p className="text-[11px] text-slate-500 mt-1">
-                  Disimpan pada direktori tertutup <code>/storage/private_certificates/</code> (non-public web directory).
-                </p>
-              </div>
+                );
+              })()}
 
-              <div className="pt-3">
-                <button
-                  type="submit"
-                  disabled={isSavingTte}
-                  className="px-6 py-2.5 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white font-bold shadow-md shadow-unsil-green-900/20 transition-all flex items-center gap-2 disabled:opacity-60 cursor-pointer"
-                >
-                  <ShieldCheck className="w-4 h-4 text-unsil-gold-400" />
-                  <span>{isSavingTte ? 'Mengenkripsi & Menyimpan...' : 'Simpan Kredensial TTE BSrE'}</span>
-                </button>
+              {/* Bagian 5: Kredensial TTE */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/50 cursor-pointer transition">
+                  <input
+                    type="checkbox"
+                    checked={editFormData.signatureReady}
+                    onChange={(e) =>
+                      setEditFormData({ ...editFormData, signatureReady: e.target.checked })
+                    }
+                    className="mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                  />
+                  <div className="space-y-0.5">
+                    <span className="text-xs text-slate-800 font-semibold block">
+                      Kredensial Tanda Tangan Elektronik (TTE) Tersertifikasi BSrE Aktif
+                    </span>
+                    <span className="text-[11px] text-slate-500 block leading-tight">
+                      Memberikan otorisasi pembubuhan tanda tangan elektronik tersertifikasi pada dokumen dinas resmi.
+                    </span>
+                  </div>
+                </label>
               </div>
             </form>
+
+            {/* Footer Modal - Tetap Pinned di Bawah */}
+            <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-between gap-3 shrink-0">
+              {selectedUserForDetail && selectedUserForDetail.id !== user?.id && onDeleteUser ? (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteUser(selectedUserForDetail)}
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 transition cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Hapus Pengguna</span>
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setIsDetailModalOpen(false)}
+                  className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  form="edit-user-form"
+                  className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-sm active:scale-98"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Simpan Perubahan</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* ========================================================================= */}
-      {/* SUB-TAB 5: MATRIKS 21 SATKER (Referensi Master Unit Kerja) */}
-      {/* ========================================================================= */}
-      {activeTab === 'satker' && (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Building2 className="w-5 h-5 text-unsil-green-900" />
-                Matriks 21 Satuan Kerja Resmi Universitas Siliwangi
-              </h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Berdasarkan Statuta UNSIL dan SK Tata Naskah Dinas Kementerian untuk rumus kodefikasi surat kedinasan.
-              </p>
+      {/* =========================================================================
+          MODAL TAMBAH USER MANUAL
+          ========================================================================= */}
+      {isAddUserModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-800 animate-in zoom-in-95 duration-200">
+            {/* Header Modal - Tetap Pinned di Atas */}
+            <div className="px-6 py-4 border-b border-slate-200/80 flex items-center justify-between bg-gradient-to-r from-slate-50 via-white to-slate-50 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-unsil-green-900 text-unsil-gold-400 flex items-center justify-center shrink-0 shadow-xs ring-2 ring-unsil-green-800/10">
+                  <UserPlus className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 tracking-tight">
+                    Tambah Pengguna Akun SILOKA
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Daftarkan akun pengguna baru ke pangkalan data dan tentukan peran otorisasi.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                title="Tutup dialog"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
-            <span className="text-xs font-mono font-bold text-unsil-green-950 bg-unsil-gold-400 px-3 py-1 rounded-lg">
-              21 Satker Terdaftar
-            </span>
-          </div>
 
-          <div className="overflow-x-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-slate-600 font-semibold border-b border-slate-200">
-                <tr>
-                  <th className="py-2.5 px-3">Kode Unit (Nomor Surat)</th>
-                  <th className="py-2.5 px-3">Nama Satuan Kerja</th>
-                  <th className="py-2.5 px-3">Singkatan</th>
-                  <th className="py-2.5 px-3">Tipe Satker</th>
-                  <th className="py-2.5 px-3">Parent Kode</th>
-                  <th className="py-2.5 px-3 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-slate-700">
-                {unitKerjaList.map((u) => (
-                  <tr key={u.id} className="hover:bg-slate-50">
-                    <td className="py-2.5 px-3 font-mono font-bold text-unsil-green-900">{u.kode_unit}</td>
-                    <td className="py-2.5 px-3 font-medium text-slate-900">{u.nama_unit}</td>
-                    <td className="py-2.5 px-3 font-bold text-slate-800">{u.singkatan}</td>
-                    <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-800">
-                        {u.tipe_unit}
+            {/* Isi Form Modal - Scrollable Container */}
+            <form id="add-user-form" onSubmit={handleCreateUserManual} className="flex-1 overflow-y-auto px-6 py-5 space-y-5 text-xs">
+              {/* Bagian 1: Data Identitas & Unit Kerja */}
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
+                  <Building2 className="w-3.5 h-3.5 text-unsil-green-800" />
+                  <span>1. Identitas Pegawai & Satuan Kerja</span>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Nama Lengkap (dengan Gelar Akademik) <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={newUserData.name}
+                    onChange={(e) => setNewUserData({ ...newUserData, name: e.target.value })}
+                    placeholder="Contoh: Ahmad Fauzi, S.T., M.T."
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      NIP / Identitas ASN
+                    </label>
+                    <input
+                      type="text"
+                      value={newUserData.nip}
+                      onChange={(e) => setNewUserData({ ...newUserData, nip: e.target.value })}
+                      placeholder="18 digit NIP (kosongkan untuk nomor acak)"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Email SSO UNSIL <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="email"
+                      value={newUserData.email}
+                      onChange={(e) => setNewUserData({ ...newUserData, email: e.target.value })}
+                      placeholder="nama@unsil.ac.id"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-slate-700 block">
+                    Satuan Kerja Struktural (21 Satker Resmi UNSIL)
+                  </label>
+                  <select
+                    value={newUserData.unit_kerja_id}
+                    onChange={(e) =>
+                      setNewUserData({ ...newUserData, unit_kerja_id: e.target.value })
+                    }
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                  >
+                    {unitKerjaList.map((unit) => (
+                      <option key={unit.kode_unit || unit.id} value={unit.kode_unit}>
+                        {unit.kode_unit} — {unit.nama_unit}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Bagian 2: Otorisasi Peran & Jabatan */}
+              <div className="space-y-3 pt-1">
+                <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
+                  <Shield className="w-3.5 h-3.5 text-unsil-green-800" />
+                  <span>2. Otorisasi Peran & Jabatan Institusi</span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Role Akses (Manajemen Role)
+                    </label>
+                    <select
+                      value={newUserData.role_slug}
+                      onChange={(e) => {
+                        const newSlug = e.target.value;
+                        const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
+                        setNewUserData((prev) => ({
+                          ...prev,
+                          role_slug: newSlug,
+                          role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'OPERATOR_UNIT' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
+                          jabatan:
+                            newSlug === 'super_admin'
+                              ? 'Super Administrator'
+                              : prev.jabatan === 'Super Administrator'
+                              ? roleObj?.name || 'Dosen'
+                              : prev.jabatan || roleObj?.name || 'Dosen',
+                          unit_kerja_id:
+                            newSlug === 'super_admin' && prev.unit_kerja_id === 'UN58.13'
+                              ? 'UN58.32'
+                              : prev.unit_kerja_id
+                        }));
+                      }}
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                    >
+                      {rolesCatalog.map((r) => (
+                        <option key={r.slug || r.id} value={r.slug || r.id}>
+                          {r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold text-slate-700 block">
+                      Jabatan Struktural / Peran Institusi
+                    </label>
+                    <input
+                      type="text"
+                      value={newUserData.jabatan}
+                      onChange={(e) => setNewUserData({ ...newUserData, jabatan: e.target.value })}
+                      placeholder={
+                        newUserData.role_slug === 'super_admin'
+                          ? 'Super Administrator'
+                          : 'Contoh: Dosen Teknik Informatika'
+                      }
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bagian 3: Keamanan & Kata Sandi Akun Baru */}
+              <div className="p-3.5 bg-slate-50/70 border border-slate-200/90 rounded-xl space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
+                    <KeyRound className="w-3.5 h-3.5 text-unsil-green-800" />
+                    <span>Kata Sandi Akun (Password) <span className="text-red-500">*</span></span>
+                  </label>
+                </div>
+                <div className="relative">
+                  <input
+                    type={showNewPassword ? 'text' : 'password'}
+                    value={newUserData.password}
+                    onChange={(e) => setNewUserData({ ...newUserData, password: e.target.value })}
+                    placeholder="Masukkan kata sandi untuk akun baru"
+                    className="w-full pl-3 pr-10 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowNewPassword(!showNewPassword)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1 cursor-pointer transition"
+                    title={showNewPassword ? 'Sembunyikan Kata Sandi' : 'Tampilkan Kata Sandi'}
+                  >
+                    {showNewPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                  </button>
+                </div>
+                <p className="text-[10px] text-slate-500 leading-tight">
+                  Kata sandi awal untuk pengguna masuk pertama kali. Minimal 6 karakter.
+                </p>
+              </div>
+
+              {/* Bagian 4: Panel Hak Akses Terintegrasi */}
+              {(() => {
+                const currentRoleObj = rolesCatalog.find(
+                  (r) => (r.slug || r.id) === newUserData.role_slug
+                );
+                const roleSlugs = currentRoleObj?.keySlugs || [];
+                const hasRahasia = roleSlugs.includes('arsip.view_rahasia');
+
+                return (
+                  <div className="p-3.5 bg-gradient-to-br from-emerald-50/40 to-slate-50 border border-emerald-100 rounded-xl space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
+                        <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
+                        Hak Akses Terintegrasi ({roleSlugs.length} Izin Operasional)
                       </span>
-                    </td>
-                    <td className="py-2.5 px-3 font-mono text-slate-500">{u.parent_kode || 'ROOT'}</td>
-                    <td className="py-2.5 px-3 text-center">
-                      <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded">
-                        Aktif
-                      </span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      {hasRahasia && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                          <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                          Akses Brankas Digital
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-600 leading-relaxed">
+                      {currentRoleObj?.description || 'Hak akses otomatis sinkron dengan konfigurasi Manajemen Role & Permission.'}
+                    </p>
+                    <div className="flex flex-wrap gap-1.5 pt-1 max-h-28 overflow-y-auto pr-1">
+                      {roleSlugs.map((slug) => (
+                        <span
+                          key={slug}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium bg-white border border-slate-200 text-slate-700 shadow-2xs"
+                        >
+                          <Check className="w-3 h-3 text-unsil-green-700 shrink-0" />
+                          <span>{getPermissionLabel(slug)}</span>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </form>
+
+            {/* Footer Modal - Tetap Pinned di Bawah */}
+            <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-end gap-2.5 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsAddUserModalOpen(false)}
+                className="px-4 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-100 transition cursor-pointer shadow-2xs"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                form="add-user-form"
+                className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-sm active:scale-98"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Daftarkan Pengguna</span>
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -1728,3 +1298,4 @@ export const SystemSettingsView = ({
   );
 };
 
+export default SystemSettingsView;

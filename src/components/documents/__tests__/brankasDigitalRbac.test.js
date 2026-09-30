@@ -67,7 +67,7 @@ describe('Otorisasi RBAC Menu & Modul Brankas Digital (Secure Vault)', () => {
 
   it('menampilkan (true) Brankas Digital untuk Dosen dengan Tugas Tambahan / Pejabat Struktural (Rektor, Warek, Dekan, Kepala LPPM/LPMPP, Ketua SPI)', () => {
     const pejabatIds = [
-      'usr-admin-01', // Super Admin
+      'usr-dg-01',    // Super Admin (Dede Gunawan, S.Kom., M.Kom.)
       'usr-01',       // Rektor Universitas Siliwangi
       'usr-warek-01', // Wakil Rektor Bidang Akademik
       'usr-warek-02', // Wakil Rektor Bidang Keuangan dan Umum

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   SendHorizontal,
   FileSignature,
@@ -19,8 +19,15 @@ import {
   Users,
   Search,
   CheckCircle,
-  Key
+  Key,
+  ChevronLeft,
+  ChevronRight,
+  BookOpen,
+  AlertCircle,
+  Info,
+  Filter
 } from 'lucide-react';
+import { JRA_MASTER_ITEMS, JRA_PRIMARY_CATEGORIES } from '../../config/jraMasterCatalog';
 import dispositionsData from '../../data/dispositions.json';
 import metricsData from '../../data/metrics.json';
 import unitKerjaList from '../../data/unitKerja.json';
@@ -186,25 +193,26 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
 
       {/* Banner Keamanan Isolasi Data Pribadi (SKKAAD SK Rektor No. 2803 Tahun 2023) */}
       {isStrictPersonalDosen ? (
-        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-5 rounded-xl border border-emerald-800/60 shadow-sm space-y-3">
-          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-            <div className="space-y-1">
+        <div className="bg-gradient-to-r from-emerald-950 via-slate-900 to-emerald-950 text-white p-5 rounded-xl border border-emerald-800/60 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="space-y-1.5 max-w-3xl">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold">
                 <FolderLock className="w-3.5 h-3.5" /> Kepatuhan SKKAAD — SK Rektor UNSIL No. 2803 Tahun 2023
               </div>
               <h3 className="text-sm font-bold text-white">
-                Prinsip Strict Personal Isolation Aktif untuk Akun: {activeUserName}
+                Prinsip Perlindungan Naskah Pribadi: {activeUserName}
               </h3>
               <p className="text-xs text-emerald-100/90 leading-relaxed">
-                Sebagai <strong>Dosen Tanpa Jabatan Struktural</strong>, Anda hanya dapat melihat, memeriksa draf, dan membubuhkan TTE pada naskah dinas yang <strong>dibuat oleh Anda sendiri</strong> (seperti <em>Nota Dinas</em> atau <em>Laporan Tridharma</em>). Draf milik dosen lain diisolasi secara penuh untuk melindungi kerahasiaan data pribadi.
+                Sebagai <strong>Dosen</strong>, Anda dapat melihat, memeriksa draf, dan membubuhkan TTE pada naskah dinas mandiri yang Anda susun (seperti <em>Nota Dinas</em> atau <em>Laporan Tridharma</em>). Sesuai ketentuan kerahasiaan SKKAAD, berkas naskah milik rekan dosen lain tetap terlindungi dalam sistem.
               </p>
             </div>
-            <div className="bg-black/40 border border-emerald-700/50 rounded-lg p-3 font-mono text-[11px] text-emerald-300 shrink-0">
-              <div className="text-amber-300 font-bold mb-1">-- Active Backend JWT Query Clause:</div>
-              <div>SELECT * FROM tbl_document_drafts</div>
-              <div>WHERE creator_id = &apos;{lockedCreatorId}&apos;</div>
-              <div>  AND status IN (&apos;DRAFT&apos;, &apos;DIPARAF&apos;, &apos;SIAP_TTE&apos;)</div>
-              <div>ORDER BY created_at DESC;</div>
+            <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
+              <div className="px-3.5 py-2 rounded-lg bg-emerald-900/60 border border-emerald-700/60 text-right">
+                <span className="block text-[10px] text-emerald-300 font-medium">Status Ruang Kerja</span>
+                <span className="text-xs font-bold text-white flex items-center gap-1.5 justify-end mt-0.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /> Terlindungi Aman
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -213,10 +221,10 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
           <div className="text-xs text-indigo-950 space-y-0.5">
             <p className="font-bold flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-indigo-700" />
-              Otorisasi Akses Antrean Massal ({accessPolicy.entityLabel})
+              Otorisasi Akses Antrean Naskah ({accessPolicy.entityLabel})
             </p>
             <p className="text-slate-600">
-              Sesuai arsitektur RBAC SILOKA, hanya <strong>Pimpinan Unit Struktural</strong> (Target TTE Akhir), <strong>Staf Ketatausahaan / Arsiparis TU</strong> (Penomoran Resmi), dan <strong>Super Admin</strong> yang diizinkan melihat antrean lintas pengusul.
+              Hanya <strong>Pimpinan Unit Struktural</strong> (Target TTE Akhir), <strong>Staf Ketatausahaan / Arsiparis TU</strong> (Penomoran Resmi), dan <strong>Administrator Sistem</strong> yang diizinkan mengelola antrean naskah unit kerja.
             </p>
           </div>
         </div>
@@ -230,8 +238,8 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
               : `Daftar Surat Menunggu Persetujuan / Paraf (${pendingLetters.length} Dokumen)`}
           </span>
           {isStrictPersonalDosen && (
-            <span className="text-[11px] text-emerald-800 font-mono bg-emerald-50 px-2.5 py-0.5 rounded border border-emerald-200">
-              creator_id = {lockedCreatorId} (Terisolasi)
+            <span className="text-[11px] text-emerald-800 font-semibold bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200 flex items-center gap-1">
+              <FolderLock className="w-3 h-3 text-emerald-700" /> Arsip Pribadi Terisolasi
             </span>
           )}
         </div>
@@ -303,123 +311,497 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
   );
 };
 
-export const RetensiArsipView = () => {
-  const archives = [
-    {
-      kode: 'KU.02.01',
-      klasifikasi: 'KU',
-      namaSeri: 'Kuitansi Belanja Operasional, Honorarium & Pajak',
-      retensiAktif: '2 Tahun',
-      retensiInaktif: '5 Tahun',
-      statusAkhir: 'Dimusnahkan',
-      safeguard: false,
-      jumlahBerkas: 14,
-      keterangan: 'Pindah otomatis ke Inaktif -> Siap musnah tahun 2026'
-    },
-    {
-      kode: 'PP.02.00',
-      klasifikasi: 'PP',
-      namaSeri: 'Bukti Pembayaran Kuliah (UKT Mahasiswa)',
-      retensiAktif: '2 Tahun',
-      retensiInaktif: '3 Tahun',
-      statusAkhir: 'Dimusnahkan',
-      safeguard: false,
-      jumlahBerkas: 28,
-      keterangan: 'Pindah otomatis ke Inaktif -> Siap musnah sesuai jadwal'
-    },
-    {
-      kode: 'KU.02.01.h',
-      klasifikasi: 'KU',
-      namaSeri: 'Laporan Keuangan Tahunan (Audited BPK-RI)',
-      retensiAktif: '2 Tahun',
-      retensiInaktif: '10 Tahun',
-      statusAkhir: 'Permanen',
-      safeguard: true,
-      jumlahBerkas: 8,
-      keterangan: 'Folder Kunci (Safeguard) - Terkunci otomatis, tidak bisa dihapus staf'
-    },
-    {
-      kode: 'KR.07.00',
-      klasifikasi: 'KR',
-      namaSeri: 'Gambar As-Built Drawing & Instalasi Gedung Mugarsari',
-      retensiAktif: 'Selama Gedung Berdiri',
-      retensiInaktif: 'Permanen',
-      statusAkhir: 'Permanen',
-      safeguard: true,
-      jumlahBerkas: 12,
-      keterangan: 'Folder Kunci (Safeguard) - Arsip Vital Terkunci'
-    },
-    {
-      kode: 'PL.09.00',
-      klasifikasi: 'PL',
-      namaSeri: 'Sertifikat Kepemilikan Tanah & BMN UNSIL',
-      retensiAktif: 'Selama Berlaku',
-      retensiInaktif: 'Permanen',
-      statusAkhir: 'Permanen',
-      safeguard: true,
-      jumlahBerkas: 64,
-      keterangan: 'Folder Kunci (Safeguard) - Brankas Digital Terenkripsi AES-256'
+export const RetensiArsipView = ({ letters = [], currentUser = null }) => {
+  const [activeTab, setActiveTab] = useState('katalog'); // 'katalog' | 'monitoring' | 'alur_pemusnahan'
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('ALL');
+  const [selectedNasib, setSelectedNasib] = useState('ALL');
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 12;
+
+  // Filter 448 item master JRA SK Rektor No. 2803/2023
+  const filteredArchives = useMemo(() => {
+    let result = JRA_MASTER_ITEMS || [];
+
+    if (selectedCategory !== 'ALL') {
+      result = result.filter((item) => item.kode_utama === selectedCategory);
     }
-  ];
+
+    if (selectedNasib !== 'ALL') {
+      result = result.filter((item) => {
+        const nasib = (item.nasib_akhir || '').toLowerCase();
+        if (selectedNasib === 'MUSNAH') return nasib.includes('musnah');
+        if (selectedNasib === 'PERMANEN') return nasib.includes('permanen');
+        if (selectedNasib === 'DINILAI') return nasib.includes('dinilai') || nasib.includes('evaluasi');
+        return true;
+      });
+    }
+
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (item) =>
+          (item.kode_klasifikasi && item.kode_klasifikasi.toLowerCase().includes(q)) ||
+          (item.nama_klasifikasi && item.nama_klasifikasi.toLowerCase().includes(q)) ||
+          (item.perihal && item.perihal.toLowerCase().includes(q)) ||
+          (item.deskripsi_jra && item.deskripsi_jra.toLowerCase().includes(q)) ||
+          (item.nama_sub && item.nama_sub.toLowerCase().includes(q))
+      );
+    }
+
+    return result;
+  }, [searchQuery, selectedCategory, selectedNasib]);
+
+  // Reset page when filter changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedNasib]);
+
+  const totalPages = Math.ceil(filteredArchives.length / pageSize) || 1;
+  const paginatedArchives = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredArchives.slice(start, start + pageSize);
+  }, [filteredArchives, currentPage, pageSize]);
+
+  // Data seri arsip vital & monitoring berkas (Safeguard)
+  const monitoredSeries = useMemo(() => {
+    const defaultSeries = [
+      {
+        kode: 'KU.02.01',
+        namaSeri: 'Kuitansi Belanja Operasional, Honorarium & Pajak',
+        retensiAktif: '2 Tahun',
+        retensiInaktif: '5 Tahun',
+        statusAkhir: 'Dimusnahkan',
+        safeguard: false,
+        keterangan: 'Pindah otomatis ke Inaktif -> Siap musnah tahun 2026'
+      },
+      {
+        kode: 'PP.02.00',
+        namaSeri: 'Bukti Pembayaran Kuliah (UKT Mahasiswa)',
+        retensiAktif: '2 Tahun',
+        retensiInaktif: '3 Tahun',
+        statusAkhir: 'Dimusnahkan',
+        safeguard: false,
+        keterangan: 'Pindah otomatis ke Inaktif -> Siap musnah sesuai jadwal'
+      },
+      {
+        kode: 'KU.02.01.h',
+        namaSeri: 'Laporan Keuangan Tahunan (Audited BPK-RI)',
+        retensiAktif: '2 Tahun',
+        retensiInaktif: '10 Tahun',
+        statusAkhir: 'Permanen',
+        safeguard: true,
+        keterangan: 'Folder Kunci (Safeguard) - Terkunci otomatis, tidak bisa dihapus staf'
+      },
+      {
+        kode: 'KR.07.00',
+        namaSeri: 'Gambar As-Built Drawing & Instalasi Gedung Mugarsari',
+        retensiAktif: 'Selama Gedung Berdiri',
+        retensiInaktif: 'Permanen',
+        statusAkhir: 'Permanen',
+        safeguard: true,
+        keterangan: 'Folder Kunci (Safeguard) - Arsip Vital Terkunci'
+      },
+      {
+        kode: 'PL.09.00',
+        namaSeri: 'Sertifikat Kepemilikan Tanah & BMN UNSIL',
+        retensiAktif: 'Selama Berlaku',
+        retensiInaktif: 'Permanen',
+        statusAkhir: 'Permanen',
+        safeguard: true,
+        keterangan: 'Folder Kunci (Safeguard) - Brankas Digital Terlindungi Aman'
+      }
+    ];
+
+    return defaultSeries.map((s) => {
+      const matchCount = (letters || []).filter((l) => {
+        const c = String(l.kodeKlasifikasi || l.subKlasifikasi || '');
+        return c.startsWith(s.kode) || (s.kode.startsWith(c) && c.length >= 2);
+      }).length;
+      return {
+        ...s,
+        jumlahBerkas: Math.max(matchCount + 4, 8)
+      };
+    });
+  }, [letters]);
 
   return (
     <div className="space-y-6">
-      <div className="bg-white p-5 rounded-xl border border-slate-200">
-        <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-          <Archive className="w-5 h-5 text-indigo-700" />
-          Jadwal Retensi Arsip (JRA) BKU Universitas Siliwangi
-        </h2>
-        <p className="text-xs text-slate-500 mt-1">
-          Pengaturan siklus hidup arsip dinas sesuai kaidah ANRI (Aktif, Inaktif, Musnah, dan Permanen)
-        </p>
+      {/* Header Banner */}
+      <div className="bg-white p-5 rounded-xl border border-slate-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <Archive className="w-5 h-5 text-indigo-700" />
+            Jadwal Retensi Arsip (JRA) Universitas Siliwangi
+          </h2>
+          <p className="text-xs text-slate-500 mt-1">
+            Katalog lengkap 448 Kode Klasifikasi & Jadwal Retensi Arsip resmi sesuai <strong>SK Rektor No. 2803 Tahun 2023</strong> dan Pedoman ANRI.
+          </p>
+        </div>
+
+        {/* Tab Switcher */}
+        <div className="flex flex-wrap items-center gap-1 bg-slate-100 p-1 rounded-xl self-start md:self-auto">
+          <button
+            type="button"
+            onClick={() => setActiveTab('katalog')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'katalog'
+                ? 'bg-white text-indigo-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Katalog JRA (448 Kode)
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('monitoring')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'monitoring'
+                ? 'bg-white text-indigo-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Monitoring Berkas & Safeguard
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('alur_pemusnahan')}
+            className={`px-3.5 py-1.5 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              activeTab === 'alur_pemusnahan'
+                ? 'bg-white text-indigo-900 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Alur Pemusnahan Arsip (ANRI)
+          </button>
+        </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-sm">
-        <table className="w-full text-left text-xs border-collapse">
-          <thead>
-            <tr className="bg-slate-50 border-b border-slate-200 font-bold uppercase tracking-wider text-slate-500 text-[11px]">
-              <th className="py-3.5 px-4">Kode Klasifikasi & Seri Arsip</th>
-              <th className="py-3.5 px-4">Masa Aktif</th>
-              <th className="py-3.5 px-4">Masa Inaktif</th>
-              <th className="py-3.5 px-4">Nasib Akhir</th>
-              <th className="py-3.5 px-4">Volume</th>
-              <th className="py-3.5 px-4">Keterangan ANRI</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-100 text-slate-700">
-            {archives.map((a, i) => (
-              <tr key={i} className="hover:bg-slate-50">
-                <td className="py-3 px-4 font-medium text-slate-900">
-                  <span className="font-mono text-emerald-800 font-bold block">{a.kode}</span>
-                  <span>{a.namaSeri}</span>
-                </td>
-                <td className="py-3 px-4">{a.retensiAktif}</td>
-                <td className="py-3 px-4">{a.retensiInaktif}</td>
-                <td className="py-3 px-4">
-                  <div className="flex items-center gap-1.5">
-                    <span
-                      className={`px-2 py-0.5 rounded font-semibold text-[11px] ${
-                        a.statusAkhir === 'Permanen'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {a.statusAkhir}
-                    </span>
-                    {a.safeguard && (
-                      <span className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5" title="Folder Kunci: Tidak bisa dihapus akun staf">
-                        🔒 Safeguard
-                      </span>
-                    )}
-                  </div>
-                </td>
-                <td className="py-3 px-4 font-bold">{a.jumlahBerkas} Berkas</td>
-                <td className="py-3 px-4 text-slate-500 text-[11px]">{a.keterangan}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {/* TAB 1: KATALOG JRA */}
+      {activeTab === 'katalog' && (
+        <>
+          {/* Filter Bar */}
+          <div className="bg-white p-4 rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari kode atau perihal arsip..."
+                className="w-full pl-9 pr-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-600 focus:bg-white text-slate-800"
+              />
+            </div>
+
+            <div>
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:ring-1 focus:ring-indigo-600 focus:outline-none"
+              >
+                <option value="ALL">Semua Kategori Pokok (18 Urusan)</option>
+                {JRA_PRIMARY_CATEGORIES.map((cat) => (
+                  <option key={cat.kode} value={cat.kode}>
+                    {cat.kode} — {cat.nama}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <select
+                value={selectedNasib}
+                onChange={(e) => setSelectedNasib(e.target.value)}
+                className="w-full p-2 text-xs bg-slate-50 border border-slate-200 rounded-lg text-slate-800 focus:ring-1 focus:ring-indigo-600 focus:outline-none"
+              >
+                <option value="ALL">Semua Nasib Akhir</option>
+                <option value="MUSNAH">Musnah</option>
+                <option value="PERMANEN">Permanen / Statis</option>
+                <option value="DINILAI">Dinilai Kembali</option>
+              </select>
+            </div>
+
+            <div className="flex items-center justify-between sm:justify-end gap-2 text-xs text-slate-500">
+              <span className="font-semibold text-slate-800">{filteredArchives.length}</span> kode ditemukan
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-xs">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 font-bold uppercase tracking-wider text-slate-500 text-[11px]">
+                  <th className="py-3 px-4">Kode & Klasifikasi Arsip</th>
+                  <th className="py-3 px-4">Retensi Aktif</th>
+                  <th className="py-3 px-4">Retensi Inaktif</th>
+                  <th className="py-3 px-4">Nasib Akhir</th>
+                  <th className="py-3 px-4">Keamanan</th>
+                  <th className="py-3 px-4">Unit Pengolah</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {paginatedArchives.length > 0 ? (
+                  paginatedArchives.map((item, idx) => (
+                    <tr key={`${item.kode_klasifikasi}-${idx}`} className="hover:bg-slate-50 transition">
+                      <td className="py-3 px-4 font-medium max-w-sm">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-emerald-800 font-bold text-xs bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                            {item.kode_klasifikasi}
+                          </span>
+                          <span className="text-[10px] text-slate-400 font-semibold">{item.kode_utama}</span>
+                        </div>
+                        <p className="font-semibold text-slate-900 mt-1 text-xs">{item.nama_klasifikasi}</p>
+                        <p className="text-[11px] text-slate-500 line-clamp-1 mt-0.5">{item.keterangan_klasifikasi || item.deskripsi_jra}</p>
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
+                        {item.ket_retensi_aktif || `${item.retensi_aktif || 1} Tahun`}
+                      </td>
+                      <td className="py-3 px-4 font-medium text-slate-800 whitespace-nowrap">
+                        {item.ket_retensi_inaktif || `${item.retensi_inaktif || 1} Tahun`}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`px-2 py-0.5 rounded font-semibold text-[11px] inline-block ${
+                            (item.nasib_akhir || '').toLowerCase().includes('permanen')
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                              : (item.nasib_akhir || '').toLowerCase().includes('musnah')
+                              ? 'bg-rose-100 text-rose-900 border border-rose-200'
+                              : 'bg-amber-100 text-amber-900 border border-amber-200'
+                          }`}
+                        >
+                          {item.nasib_akhir || 'Dinilai Kembali'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 whitespace-nowrap">
+                        <span
+                          className={`px-2 py-0.5 rounded font-bold text-[10px] ${
+                            item.kode_keamanan === 'SR'
+                              ? 'bg-purple-100 text-purple-900'
+                              : item.kode_keamanan === 'R'
+                              ? 'bg-amber-100 text-amber-900'
+                              : 'bg-slate-100 text-slate-700'
+                          }`}
+                        >
+                          {item.klasifikasi_keamanan || (item.kode_keamanan === 'SR' ? 'Sangat Rahasia' : item.kode_keamanan === 'R' ? 'Rahasia' : 'Biasa')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-600 text-[11px] whitespace-nowrap">
+                        {item.unit_pengolah || 'Unit Terkait'}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="6" className="py-8 text-center text-slate-400">
+                      Tidak ditemukan arsip dengan kata kunci atau filter tersebut.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+                <span className="text-xs text-slate-500">
+                  Halaman <strong>{currentPage}</strong> dari <strong>{totalPages}</strong> ({filteredArchives.length} entri)
+                </span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={currentPage === 1}
+                    onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                    className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 text-slate-700 cursor-pointer"
+                    title="Halaman Sebelumnya"
+                  >
+                    <ChevronLeft className="w-4 h-4" />
+                  </button>
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                    className="p-1.5 rounded-lg border border-slate-300 hover:bg-white disabled:opacity-40 text-slate-700 cursor-pointer"
+                    title="Halaman Berikutnya"
+                  >
+                    <ChevronRight className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* TAB 2: MONITORING BERKAS & SAFEGUARD */}
+      {activeTab === 'monitoring' && (
+        <div className="space-y-5">
+          {/* Summary Metric Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-xs text-slate-500 font-semibold uppercase">Total Berkas Terdaftar</span>
+              <p className="text-2xl font-bold text-slate-900">{letters.length} Naskah</p>
+              <p className="text-[11px] text-emerald-700">Tersinkronisasi database persuratan</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-xs text-slate-500 font-semibold uppercase">Safeguard Terkunci</span>
+              <p className="text-2xl font-bold text-indigo-700">3 Seri Vital</p>
+              <p className="text-[11px] text-indigo-600">Proteksi hak hapus akun staf</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-xs text-slate-500 font-semibold uppercase">Arsip Aktif</span>
+              <p className="text-2xl font-bold text-emerald-800">
+                {letters.filter((l) => l.status === 'Disetujui' || l.status === 'Didisposisikan' || l.status === 'Selesai').length} Naskah
+              </p>
+              <p className="text-[11px] text-slate-500">Masa retensi berjalan (1-2 tahun)</p>
+            </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
+              <span className="text-xs text-slate-500 font-semibold uppercase">Status Nasib Akhir</span>
+              <p className="text-2xl font-bold text-purple-700">Permanen &amp; BAPA</p>
+              <p className="text-[11px] text-purple-600">Sesuai Peraturan Rektor No. 3/2023</p>
+            </div>
+          </div>
+
+          {/* Monitored Series Table */}
+          <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto shadow-xs">
+            <div className="p-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-xs text-slate-900">Seri Berkas Utama &amp; Kebijakan Safeguard ANRI</h3>
+                <p className="text-[11px] text-slate-500">Pengawasan masa simpan aktif, inaktif, dan penanda kunci arsip vital</p>
+              </div>
+              <span className="text-[11px] font-semibold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                ✓ Otomasi Evaluasi JRA
+              </span>
+            </div>
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="bg-slate-50 border-b border-slate-200 font-bold uppercase tracking-wider text-slate-500 text-[11px]">
+                  <th className="py-3 px-4">Kode &amp; Seri Arsip</th>
+                  <th className="py-3 px-4">Masa Aktif</th>
+                  <th className="py-3 px-4">Masa Inaktif</th>
+                  <th className="py-3 px-4">Nasib Akhir</th>
+                  <th className="py-3 px-4">Volume</th>
+                  <th className="py-3 px-4">Keterangan ANRI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-slate-700">
+                {monitoredSeries.map((a, i) => (
+                  <tr key={i} className="hover:bg-slate-50 transition">
+                    <td className="py-3 px-4 font-medium text-slate-900">
+                      <span className="font-mono text-emerald-800 font-bold block">{a.kode}</span>
+                      <span>{a.namaSeri}</span>
+                    </td>
+                    <td className="py-3 px-4">{a.retensiAktif}</td>
+                    <td className="py-3 px-4">{a.retensiInaktif}</td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-2 py-0.5 rounded font-semibold text-[11px] ${
+                            a.statusAkhir === 'Permanen'
+                              ? 'bg-emerald-100 text-emerald-900 border border-emerald-200'
+                              : 'bg-rose-100 text-rose-900 border border-rose-200'
+                          }`}
+                        >
+                          {a.statusAkhir}
+                        </span>
+                        {a.safeguard && (
+                          <span
+                            className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.5 rounded font-bold flex items-center gap-0.5"
+                            title="Folder Kunci: Tidak bisa dihapus akun staf"
+                          >
+                            🔒 Safeguard
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 font-bold">{a.jumlahBerkas} Berkas</td>
+                    <td className="py-3 px-4 text-slate-500 text-[11px]">{a.keterangan}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: ALUR PEMUSNAHAN ARSIP */}
+      {activeTab === 'alur_pemusnahan' && (
+        <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-6">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-indigo-700" />
+              Alur Prosedural Pemusnahan Arsip Resmi (UU No. 43/2009 & SK Rektor No. 2803/2023)
+            </h3>
+            <p className="text-xs text-slate-600 mt-1">
+              Sesuai kaidah kearsipan nasional (ANRI), arsip kedinasan negara <strong>TIDAK PERNAH dimusnahkan secara otomatis oleh komputer</strong>.
+              Setiap pemusnahan wajib melalui pengusulan, penilaian fisik/administratif oleh Panitia Penilai, penetapan persetujuan pimpinan, dan penerbitan Berita Acara Pemusnahan Arsip (BAPA).
+            </p>
+          </div>
+
+          {/* Warning Legal Box */}
+          <div className="p-4 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-amber-700 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-bold text-amber-900">Ketentuan Hukum Pemusnahan Arsip:</p>
+              <p className="leading-relaxed">
+                Pemusnahan arsip tanpa prosedur dan tanpa persetujuan Rektor/ANRI merupakan pelanggaran pidana kearsipan (Pasal 86 UU No. 43 Tahun 2009). Status JRA "Musnah" adalah dasar legal penilaian retensi inaktif, bukan tombol penghapusan otomatis.
+              </p>
+            </div>
+          </div>
+
+          {/* 5-Step Procedural Timeline */}
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-3 pt-2">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-700 text-white font-bold text-xs flex items-center justify-center">
+                1
+              </div>
+              <h4 className="font-bold text-xs text-slate-900">Pembentukan Panitia</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Rektor menetapkan Panitia Penilai Arsip yang beranggotakan Unit Pengolah, Unit Kearsipan, Tim Hukum, dan Pengawas Internal (SPI).
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-700 text-white font-bold text-xs flex items-center justify-center">
+                2
+              </div>
+              <h4 className="font-bold text-xs text-slate-900">Penyusunan DUPA</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Unit pengolah menyusun Daftar Usul Pemusnahan Arsip (DUPA) untuk berkas inaktif yang telah habis masa retensinya sesuai katalog JRA.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-700 text-white font-bold text-xs flex items-center justify-center">
+                3
+              </div>
+              <h4 className="font-bold text-xs text-slate-900">Penilaian &amp; Verifikasi</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Panitia melakukan pemeriksaan fisik dan substansi untuk memastikan arsip tidak memiliki nilai guna sekunder, hukum, atau sengketa.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-700 text-white font-bold text-xs flex items-center justify-center">
+                4
+              </div>
+              <h4 className="font-bold text-xs text-slate-900">Persetujuan &amp; SK</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Penerbitan Surat Persetujuan Pemusnahan oleh Kepala ANRI (jika disyaratkan) dan Keputusan Rektor tentang Penetapan Pemusnahan Arsip.
+              </p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-700 text-white font-bold text-xs flex items-center justify-center">
+                5
+              </div>
+              <h4 className="font-bold text-xs text-slate-900">Eksekusi Fisik &amp; BAPA</h4>
+              <p className="text-[11px] text-slate-600 leading-relaxed">
+                Pemusnahan fisik (pencacahan total) disaksikan sekurang-kurangnya 2 pejabat (Hukum &amp; SPI) disertai penandatanganan Berita Acara (BAPA).
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
@@ -429,21 +811,21 @@ export const BrankasDigitalView = () => {
     {
       nama: 'Sertifikat Hak Pakai Tanah Kampus Mugarsari No. 00042/2017',
       kategori: 'Aset Vital BMN',
-      ukuran: '14.2 MB (Enkripsi AES)',
+      ukuran: '14.2 MB (Arsip Terlindungi)',
       tglUpload: '14 Jan 2025',
       akses: 'Kepala Biro Only'
     },
     {
       nama: 'Master Perjanjian Kerja Sama (MoU) Perbankan Mitra UNSIL 2024-2028',
       kategori: 'Perjanjian Hukum',
-      ukuran: '8.5 MB (Enkripsi AES)',
+      ukuran: '8.5 MB (Arsip Terlindungi)',
       tglUpload: '10 Mei 2025',
       akses: 'Pimpinan & Tim Hukum'
     },
     {
       nama: 'SK Penetapan Tarif Layanan BLU Universitas Siliwangi',
       kategori: 'Regulasi Keuangan',
-      ukuran: '6.1 MB (Enkripsi AES)',
+      ukuran: '6.1 MB (Arsip Terlindungi)',
       tglUpload: '02 Feb 2026',
       akses: 'Semua Pejabat BKU'
     }
@@ -455,14 +837,14 @@ export const BrankasDigitalView = () => {
         <div>
           <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Vault className="w-5 h-5 text-emerald-800" />
-            Brankas Digital Kearsipan Vital (Secure Vault)
+            Brankas Digital Kearsipan Vital
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Penyimpanan dokumen sensitif, sertifikat aset tanah, dan naskah dinas rahasia dengan enkripsi berstandar perbankan
+            Penyimpanan dokumen sensitif, sertifikat aset tanah, dan naskah dinas rahasia dengan perlindungan keamanan berstandar tinggi
           </p>
         </div>
         <div className="flex items-center gap-2 text-xs font-semibold px-3 py-1.5 bg-emerald-50 text-emerald-900 rounded-lg border border-emerald-200">
-          <ShieldCheck className="w-4 h-4 text-emerald-700" /> Kriptografi AES-256 Aktif
+          <ShieldCheck className="w-4 h-4 text-emerald-700" /> Pengamanan Arsip Terlindungi
         </div>
       </div>
 
@@ -470,18 +852,18 @@ export const BrankasDigitalView = () => {
         <div className="bg-white p-4 rounded-xl border border-slate-200">
           <div className="text-xs text-slate-400 font-semibold uppercase">Total Berkas Vital</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">856 Dokumen</div>
-          <p className="text-[11px] text-emerald-700 mt-1">100% Terenkripsi aman</p>
+          <p className="text-[11px] text-emerald-700 mt-1">100% Tersimpan Aman</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <div className="text-xs text-slate-400 font-semibold uppercase">Kapasitas On-Premise</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">Kapasitas Ruang Simpan Kampus</div>
           <div className="text-2xl font-bold text-slate-900 mt-1">4.1 GB / 10.0 GB</div>
           <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2 overflow-hidden">
             <div className="bg-unsil-green-700 h-full w-[41%]" />
           </div>
         </div>
         <div className="bg-white p-4 rounded-xl border border-slate-200">
-          <div className="text-xs text-slate-400 font-semibold uppercase">Integritas Hash SHA-256</div>
-          <div className="text-2xl font-bold text-emerald-700 mt-1">Terverifikasi</div>
+          <div className="text-xs text-slate-400 font-semibold uppercase">Pemeriksaan Keaslian Berkas</div>
+          <div className="text-2xl font-bold text-emerald-700 mt-1">Terverifikasi Sah</div>
           <p className="text-[11px] text-slate-500 mt-1">Pemeriksaan integritas tiap 24 jam</p>
         </div>
       </div>
@@ -612,10 +994,10 @@ export const SettingsView = ({ user }) => {
             <div>
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Building2 className="w-4 h-4 text-unsil-green-800" />
-                Daftar 21 Satuan Kerja Resmi (Tabel master_unit_kerja)
+                Daftar 21 Satuan Kerja Resmi Universitas Siliwangi
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">
-                Kode unit digunakan secara presisi pada generator penomoran naskah dinas: [No]/[kode_unit]/[Klasifikasi]/[Tahun]
+                Kode unit kerja digunakan secara resmi pada format penomoran naskah dinas: Nomor Urut / Kode Unit / Klasifikasi / Tahun
               </p>
             </div>
 

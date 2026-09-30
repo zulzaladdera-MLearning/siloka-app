@@ -24,6 +24,17 @@ export const MainLayout = ({
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
+  const suratMasukCount = letters.filter(
+    (l) => l.kategori === 'Surat Masuk' && l.status !== 'Diarsipkan'
+  ).length;
+
+  const unreadCounts = {
+    disposisi: 3,
+    tte: 5,
+    retensi: 14,
+    suratMasuk: suratMasukCount > 0 ? suratMasukCount : null
+  };
+
   return (
     <div className="min-h-screen bg-slate-100 flex text-slate-800 antialiased selection:bg-unsil-green-900 selection:text-unsil-gold-400">
       {/* 4. Backdrop / Overlay Gelap (Hanya muncul saat sidebar terbuka di mode mobile) */}
@@ -46,6 +57,7 @@ export const MainLayout = ({
         setIsCollapsed={setIsSidebarCollapsed}
         onLogout={onLogout}
         user={user}
+        unreadCounts={unreadCounts}
         isSidebarOpen={isSidebarOpen}
         toggleSidebar={toggleSidebar}
       />
@@ -90,6 +102,7 @@ export const MainLayout = ({
         <MobileBottomNav
           activeTab={activeTab}
           setActiveTab={setActiveTab}
+          unreadCounts={unreadCounts}
           onOpenMobileMenu={toggleSidebar}
         />
       </div>

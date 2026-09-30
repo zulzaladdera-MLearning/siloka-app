@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   ShieldCheck,
   X,
-  Sparkles,
   History,
   UserCheck,
   Layers,
@@ -740,7 +739,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
       jabatan_penugasan: 'Kepala Pusat Penelitian LPPM',
       nomor_sk: '814/UN58/KP.04.02/2026',
       tanggal_mulai: '2026-09-01',
-      acid_transaction: 'POSTGRES_ACID_COMMITTED'
+      status_transaksi: 'Tercatat Sah'
     }
   ]);
 
@@ -1014,7 +1013,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
         tanggal_mulai: payload.tanggal_mulai,
         tanggal_selesai: payload.tanggal_selesai,
         rbac_five_mechanisms: rbacBundle,
-        acid_transaction: 'POSTGRES_ACID_COMMITTED'
+        status_transaksi: 'Tercatat Sah'
       };
 
       // Update daftar riwayat mutasi
@@ -1105,14 +1104,14 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
       <div className="bg-gradient-to-r from-unsil-green-950 via-slate-900 to-unsil-green-900 p-5 text-white flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-bold">
-            <Sparkles className="w-3.5 h-3.5" /> Dependent SOTK Dropdown (`tbl_unit_jabatan_map`) • Zero Free-Text Input
+            <ShieldCheck className="w-3.5 h-3.5" /> Standar Formasi SOTK Resmi UNSIL
           </div>
           <h3 className="text-base sm:text-lg font-extrabold flex items-center gap-2">
             <ArrowRightLeft className="w-5 h-5 text-amber-400" />
             Manajemen Mutasi Unit Kerja &amp; Penugasan Tambahan (Unit Sekunder)
           </h3>
           <p className="text-xs text-emerald-100/85">
-            Kolom <strong>Jabatan / Peran di Unit Tujuan</strong> dikunci otomatis (<em>conditional dependent dropdown</em>) dan hanya menampilkan jabatan baku SOTK dari endpoint <code>GET /api/v1/unit-kerja/:unit_id/jabatan-tersedia</code>.
+            Kolom <strong>Jabatan / Peran di Unit Tujuan</strong> menyesuaikan secara otomatis dan hanya menampilkan formasi jabatan yang sah sesuai Struktur Organisasi dan Tata Kerja (SOTK) unit tujuan.
           </p>
         </div>
 
@@ -1125,27 +1124,10 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
               setIsJabatanDropdownOpen(false);
             }}
             className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-400/30 text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5"
-            title="Kosongkan Unit Kerja Tujuan untuk menguji status Terkunci (Disabled) pada Dropdown Jabatan"
+            title="Kosongkan Unit Kerja Tujuan untuk mereset pilihan Jabatan"
           >
             <Lock className="w-3.5 h-3.5 text-amber-400" />
-            <span>Uji Status Terkunci</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => {
-              if (defaultFtEmployee) {
-                setSelectedEmployeeId(String(defaultFtEmployee.id || defaultFtEmployee.id_user));
-              }
-              setJenisPerubahan('Tugas Tambahan / Sekunder');
-              setUnitTujuanKode('LPPM');
-              setJabatanTujuanId('JBT_KAPUS_LIT');
-              setNomorSk('842/UN58/KP.04.02/2026');
-            }}
-            className="px-3.5 py-2 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-extrabold transition-all shadow-sm cursor-pointer flex items-center gap-1.5"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Simulasi Cepat: Dosen FT → Kepala Pusat Penelitian LPPM</span>
+            <span>Reset Pilihan</span>
           </button>
         </div>
       </div>
@@ -1348,12 +1330,12 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                       Mutasi Unit Penuh (Pindah Homebase)
                     </div>
                     <p className="text-[11px] text-slate-600 mt-1 leading-relaxed">
-                      <strong>Primary unit berpindah total</strong> dari [{originUnitObj.kode_unit}] ke unit kerja tujuan secara permanen pada <code>tbl_users</code>.
+                      <strong>Unit kerja utama berpindah penuh</strong> dari [{originUnitObj.kode_unit}] ke unit kerja tujuan pada data kepegawaian resmi.
                     </p>
                   </div>
                 </div>
-                <span className="text-[10px] font-mono font-bold text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded self-start">
-                  Perubahan Foreign Key Utama
+                <span className="text-[10px] font-bold text-emerald-900 bg-emerald-100/80 px-2 py-0.5 rounded self-start">
+                  Peralihan Unit Kerja Utama
                 </span>
               </label>
             </div>
@@ -1401,7 +1383,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                         disabled={isSameAsOrigin}
                       >
                         [{unit.kode_unit}] {unit.nama_unit} ({unit.kode_otk})
-                        {isSameAsOrigin ? ' — [Unit Asal Saat Ini / Terkunci]' : ''}
+                        {isSameAsOrigin ? ' - [Unit Asal Saat Ini / Terkunci]' : ''}
                       </option>
                     );
                   })}
@@ -1507,7 +1489,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                     )}
                     {isJabatanLocked ? (
                       <span className="truncate font-medium text-slate-400">
-                        Terkunci — Pilih &quot;Unit Kerja Tujuan&quot; pada Kolom 3 terlebih dahulu...
+                        Terkunci: Pilih &quot;Unit Kerja Tujuan&quot; pada Kolom 3 terlebih dahulu...
                       </span>
                     ) : selectedJabatanObj ? (
                       <div className="truncate">
@@ -1515,7 +1497,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                           {selectedJabatanObj.nama_jabatan_spesifik}
                         </span>{' '}
                         <span className="font-mono text-[10px] text-emerald-800 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 ml-1">
-                          FK: {selectedJabatanObj.id_jabatan}
+                          Kode: {selectedJabatanObj.id_jabatan}
                         </span>
                       </div>
                     ) : (
@@ -1673,206 +1655,12 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
           </div>
         </div>
 
-        {/* ================================================================= */}
-        {/* PANEL LIVE PREVIEW: 5 MEKANISME TEKNIS UTAMA CONTEXT-AWARE RBAC   */}
-        {/* ================================================================= */}
-        {liveFiveMechanisms && (
-          <div className="mt-4 rounded-2xl border-2 border-emerald-700/25 bg-gradient-to-br from-emerald-50/50 via-white to-slate-50 p-4 sm:p-5 space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-emerald-900/10 pb-3">
-              <div>
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-unsil-green-900 text-unsil-gold-300 text-[10px] font-bold">
-                  <Sparkles className="w-3 h-3" /> Context-Aware RBAC &amp; Tupoksi Otomatis (Pertek UNSIL No. 3/2023 &amp; SK Rektor No. 2803/2023)
-                </div>
-                <h4 className="text-sm sm:text-base font-extrabold text-slate-900 mt-1">
-                  Otomatisasi 5 Mekanisme Teknis Saat Jabatan / Role Dosen Diubah
-                </h4>
-                <p className="text-[11px] text-slate-600">
-                  Hak akses, template surat, TTE BSrE, E-Disposisi, SKKAAD Rahasia, dan antrean verifikasi ditempelkan ke{' '}
-                  <strong>Objek Jabatan ({liveFiveMechanisms.mekanisme_2_three_pillar_mapping.pilar_2_role.jabatan_tujuan_id})</strong>{' '}
-                  pada Unit <strong>{liveFiveMechanisms.mekanisme_2_three_pillar_mapping.pilar_3_unit_kerja.kode_otk}</strong>, bukan hardcoded ke NIP.
-                </p>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setTanggalSelesai('2024-01-01')}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
-                >
-                  Uji SK Berakhir (Auto-Expire ke Dosen Biasa)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setTanggalSelesai('2027-12-31')}
-                  className="px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-emerald-50 text-emerald-900 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
-                >
-                  Set SK Aktif (2027-12-31)
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 text-xs">
-              {/* Mekanisme 1: Role-Permission Matrix */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-unsil-green-900 bg-emerald-100 px-2 py-0.5 rounded">
-                    1. Role-Permission Matrix
-                  </span>
-                  <span className="font-mono text-[10px] font-bold text-slate-700">
-                    {liveFiveMechanisms.mekanisme_1_role_permission_matrix.active_role_key}
-                  </span>
-                </div>
-                <div className="text-[11px] font-bold text-slate-800">
-                  {liveFiveMechanisms.mekanisme_1_role_permission_matrix.role_label}
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold text-emerald-800">Template Hak TTD:</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {liveFiveMechanisms.mekanisme_1_role_permission_matrix.templates_sign_authority
-                      .slice(0, 4)
-                      .map((t) => (
-                        <span
-                          key={t}
-                          className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-900 border border-emerald-200"
-                        >
-                          {t}
-                        </span>
-                      ))}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold text-slate-600">Akses Menu Otomatis:</div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {liveFiveMechanisms.mekanisme_1_role_permission_matrix.active_menus.map((m) => (
-                      <span
-                        key={m}
-                        className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 text-slate-700"
-                      >
-                        {m}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Mekanisme 2: Pemetaan 3 Pilar Data */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded inline-block">
-                  2. Tiga Pilar Data (NIP + Role + Unit)
-                </span>
-                <div className="p-2 rounded-lg bg-slate-50 border border-slate-200 font-mono text-[10px] text-slate-800 break-words">
-                  {liveFiveMechanisms.mekanisme_2_three_pillar_mapping.formula}
-                </div>
-                <div className="space-y-1 text-[11px] text-slate-700">
-                  <div>
-                    <strong className="text-slate-900">Kop Dinas:</strong>{' '}
-                    {liveFiveMechanisms.mekanisme_2_three_pillar_mapping.auto_kop_naskah_dinas.header_baris_3}
-                  </div>
-                  <div>
-                    <strong className="text-slate-900">Nomor Otomatis:</strong>{' '}
-                    <code className="text-[10px] bg-amber-50 text-amber-900 px-1 py-0.5 rounded">
-                      {liveFiveMechanisms.mekanisme_2_three_pillar_mapping.auto_kop_naskah_dinas.format_nomor_surat}
-                    </code>
-                  </div>
-                  <div>
-                    <strong className="text-slate-900">Scope Pengawasan:</strong>{' '}
-                    {liveFiveMechanisms.mekanisme_2_three_pillar_mapping.cakupan_pengawasan_unit.kode_otk}
-                  </div>
-                </div>
-              </div>
-
-              {/* Mekanisme 3: Dynamic Workflow Routing */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-900 bg-amber-100 px-2 py-0.5 rounded inline-block">
-                  3. Dynamic Workflow Routing
-                </span>
-                <p className="text-[11px] text-slate-700 leading-relaxed">
-                  {liveFiveMechanisms.mekanisme_3_dynamic_workflow_routing.rerouted_pending_summary}
-                </p>
-                <div className="p-2 rounded-lg bg-slate-900 text-emerald-300 font-mono text-[9px] overflow-x-auto">
-                  {liveFiveMechanisms.mekanisme_3_dynamic_workflow_routing.routing_query_sql}
-                </div>
-              </div>
-
-              {/* Mekanisme 4: Pengaktifan Modul Spesifik Jabatan */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-900 bg-purple-100 px-2 py-0.5 rounded inline-block">
-                  4. Modul Spesifik Jabatan
-                </span>
-                <div className="space-y-1.5 text-[11px]">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Modul TTE BSrE:</span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        liveFiveMechanisms.mekanisme_4_specific_modules_activation.modul_tte_bsre.enabled
-                          ? 'bg-emerald-100 text-emerald-900'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {liveFiveMechanisms.mekanisme_4_specific_modules_activation.modul_tte_bsre.enabled
-                        ? 'AKTIF (QR-Code)'
-                        : 'Nonaktif'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Modul E-Disposisi:</span>
-                    <span
-                      className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                        liveFiveMechanisms.mekanisme_4_specific_modules_activation.modul_e_disposisi.enabled
-                          ? 'bg-emerald-100 text-emerald-900'
-                          : 'bg-slate-100 text-slate-600'
-                      }`}
-                    >
-                      {liveFiveMechanisms.mekanisme_4_specific_modules_activation.modul_e_disposisi.enabled
-                        ? 'AKTIF'
-                        : 'Nonaktif'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-slate-700">Klasifikasi SKKAAD:</span>
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-50 text-indigo-900">
-                      {liveFiveMechanisms.mekanisme_4_specific_modules_activation.modul_klasifikasi_rahasia_skkaad.allowed_levels.join(
-                        ', '
-                      )}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Mekanisme 5: Context Switcher & Auto-Expiration SK */}
-              <div className="p-3.5 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-2">
-                <span className="text-[10px] font-extrabold uppercase tracking-wider text-rose-900 bg-rose-100 px-2 py-0.5 rounded inline-block">
-                  5. Context Switcher &amp; SK KP.04.04
-                </span>
-                <div className="space-y-1.5 text-[11px]">
-                  <div
-                    className={`p-2 rounded-lg border font-bold text-[10px] ${
-                      liveFiveMechanisms.mekanisme_5_context_switcher_and_sk.sk_auto_expiration.is_expired
-                        ? 'bg-rose-50 text-rose-900 border-rose-300'
-                        : 'bg-emerald-50 text-emerald-900 border-emerald-300'
-                    }`}
-                  >
-                    {liveFiveMechanisms.mekanisme_5_context_switcher_and_sk.sk_auto_expiration.status_label}
-                  </div>
-                  <div className="text-[10px] text-slate-600">
-                    <strong>Sakelar Profil Navbar:</strong> Tersedia{' '}
-                    <code>Mode Dosen</code> ↔{' '}
-                    <code>
-                      {liveFiveMechanisms.mekanisme_5_context_switcher_and_sk.profiles.mode_pejabat_tugas_tambahan.label}
-                    </code>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Action Bar */}
         <div className="pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="text-xs text-slate-600 flex items-center gap-2">
             <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0" />
             <span>
-              Validasi relasi Foreign Key <code>tbl_unit_jabatan_map</code> &amp; transaksi <strong>ACID PostgreSQL</strong> aktif.
+              Verifikasi kepatuhan formasi jabatan SOTK dan perlindungan integritas data aktif terlindungi.
             </span>
           </div>
 
@@ -1882,22 +1670,22 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
             className="px-5 py-2.5 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 disabled:bg-slate-300 disabled:cursor-not-allowed text-white text-xs font-extrabold shadow-md shadow-unsil-green-900/20 transition-all flex items-center justify-center gap-2 cursor-pointer"
           >
             <ArrowRightLeft className="w-4 h-4 text-amber-300" />
-            <span>Verifikasi &amp; Eksekusi Perubahan Unit Kerja</span>
+            <span>Verifikasi &amp; Simpan Perubahan Unit Kerja</span>
           </button>
         </div>
       </form>
 
       {/* ================================================================= */}
-      {/* TABEL AUDIT RIWAYAT MUTASI & PENUGASAN TAMBAHAN (tbl_riwayat_mutasi) */}
+      {/* TABEL AUDIT RIWAYAT MUTASI & PENUGASAN TAMBAHAN                   */}
       {/* ================================================================= */}
       <div className="border-t border-slate-200 bg-slate-50/70 p-5 space-y-3">
         <div className="flex items-center justify-between">
           <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
             <History className="w-4 h-4 text-unsil-green-800" />
-            Log Audit Riwayat Mutasi &amp; Tugas Tambahan (<code>tbl_riwayat_mutasi</code>)
+            Riwayat Resmi Mutasi &amp; Tugas Tambahan Pegawai
           </h4>
-          <span className="text-[11px] font-mono text-slate-500">
-            Total Transaksi Tercatat: {mutationHistory.length}
+          <span className="text-[11px] text-slate-500 font-medium">
+            Total Riwayat Tercatat: {mutationHistory.length}
           </span>
         </div>
 
@@ -1908,7 +1696,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                 <th className="py-2.5 px-3">Pegawai / Dosen</th>
                 <th className="py-2.5 px-3">Unit Asal</th>
                 <th className="py-2.5 px-3">Unit Tujuan</th>
-                <th className="py-2.5 px-3">Jabatan Baku SOTK (FK)</th>
+                <th className="py-2.5 px-3">Jabatan Baku SOTK</th>
                 <th className="py-2.5 px-3">Nomor SK &amp; Tgl Efektif</th>
                 <th className="py-2.5 px-3">Status Transaksi</th>
               </tr>
@@ -1950,8 +1738,8 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                     <div className="text-slate-500">Mulai: {item.tanggal_mulai}</div>
                   </td>
                   <td className="py-2.5 px-3">
-                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-mono text-[10px] font-bold">
-                      <CheckCircle2 className="w-3 h-3 text-emerald-700" /> {item.acid_transaction || 'ACID_COMMITTED'}
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 font-medium text-[10px] font-bold">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-700" /> {item.status_transaksi || 'Tercatat Sah'}
                     </span>
                   </td>
                 </tr>
@@ -1977,7 +1765,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                     Konfirmasi Mutasi &amp; Validasi Jabatan SOTK
                   </h4>
                   <p className="text-xs text-slate-500">
-                    Verifikasi Foreign Key <code>jabatan_tujuan_id</code> sebelum transaksi atomik dieksekusi
+                    Verifikasi formasi jabatan tujuan sebelum penetapan mutasi disahkan
                   </p>
                 </div>
               </div>
@@ -1999,12 +1787,9 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
               </div>
 
               <div className="flex justify-between items-center border-b border-slate-200/70 pb-2">
-                <span className="text-slate-500 font-semibold">Jabatan Tujuan (FK Tervalidasi):</span>
+                <span className="text-slate-500 font-semibold">Jabatan Tujuan Resmi SOTK:</span>
                 <span className="font-bold text-emerald-950">
-                  {selectedJabatanObj.nama_jabatan_spesifik}{' '}
-                  <code className="text-[10px] bg-emerald-100 text-emerald-900 px-1.5 py-0.5 rounded">
-                    {selectedJabatanObj.id_jabatan}
-                  </code>
+                  {selectedJabatanObj.nama_jabatan_spesifik}
                 </span>
               </div>
 
@@ -2052,7 +1837,7 @@ export const UnitMutationManager = ({ allUsers = [], currentUser, onUpdateUsers,
                 className="px-5 py-2 rounded-xl bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-extrabold shadow-md cursor-pointer flex items-center gap-2"
               >
                 <CheckCircle2 className="w-4 h-4 text-amber-300" />
-                <span>{isSubmitting ? 'Mengeksekusi Transaksi ACID...' : 'Ya, Konfirmasi & Simpan Mutasi'}</span>
+                <span>{isSubmitting ? 'Menyimpan Perubahan...' : 'Ya, Konfirmasi & Simpan Mutasi'}</span>
               </button>
             </div>
           </div>

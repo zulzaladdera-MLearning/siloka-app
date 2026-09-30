@@ -962,10 +962,10 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({
             </div>
             <div>
               <h3 className="font-extrabold text-slate-900 text-lg md:text-xl">
-                Registrasi Pengguna & Otorisasi RBAC
+                Registrasi Pengguna &amp; Penetapan Wewenang
               </h3>
               <p className="text-xs text-slate-500">
-                Pemisahan identitas pengguna dari jabatan struktural & penetapan wewenang dinamis
+                Pendaftaran identitas pengguna baru dan penyesuaian hak akses jabatan resmi
               </p>
             </div>
           </div>
@@ -982,7 +982,7 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({
         {!isAuthorizedOperator && (
           <div className="mt-4 flex items-center gap-2 rounded-xl bg-red-50 p-3.5 text-xs text-red-600 border border-red-200">
             <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-            <span>Akses terlarang. Modul Pengaturan Sistem hanya boleh diakses oleh role Super Admin.</span>
+            <span>Akses terlarang. Halaman ini hanya boleh diakses oleh Administrator Utama.</span>
           </div>
         )}
 
@@ -1255,7 +1255,7 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({
               <div>
                 <div className="text-[11px] font-semibold text-slate-400 mb-1.5 flex items-center gap-1.5">
                   <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                  <span>Action Permissions Diberikan (Real-time RBAC):</span>
+                  <span>Daftar Hak Akses &amp; Wewenang Diberikan:</span>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {selectedRoleConfig.permissions.map((perm) => (
@@ -1291,10 +1291,10 @@ export const UserRegistrationModal: React.FC<UserRegistrationModalProps> = ({
                 <UserPlus className="w-4 h-4" />
                 <span>
                   {isSubmitting
-                    ? 'Mengeksekusi Otorisasi...'
+                    ? 'Menyimpan Pengguna...'
                     : isPejabatRole
                     ? 'Daftarkan & Lantik Pimpinan'
-                    : 'Daftarkan & Pasang RBAC'}
+                    : 'Daftarkan Pengguna'}
                 </span>
               </button>
             </div>

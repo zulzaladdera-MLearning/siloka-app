@@ -27,6 +27,7 @@ import {
   assembleOfficialLetterNumber
 } from '../../config/jraMasterCatalog';
 import { getRektoratOfficialSopProfile } from '../../config/documentFormats';
+import { getNextSequenceForUnit } from '../../services/letterService';
 
 /**
  * SmartKlasifikasiNumberingPanel
@@ -42,7 +43,8 @@ export default function SmartKlasifikasiNumberingPanel({
   templateKey = 'sd',
   templateLabel = 'Surat Dinas / Naskah Dinas',
   currentUser = null,
-  initialSequenceNumber = 83,
+  initialSequenceNumber = null,
+  existingLetters = [],
   catalogItems = JRA_MASTER_ITEMS,
   onNumberChange,
   onSecurityTriggerChange
@@ -77,8 +79,21 @@ export default function SmartKlasifikasiNumberingPanel({
   const resolvedUserUnit = useMemo(() => resolveOfficialUnitInfo(currentUser), [currentUser]);
 
   const [selectedUnitKode, setSelectedUnitKode] = useState(resolvedUserUnit.kode || 'UN58.10');
-  const [nomorUrut, setNomorUrut] = useState(initialSequenceNumber || 83);
   const [tahun] = useState(new Date().getFullYear());
+
+  // Hitung nomor urut secara dinamis (Pasal 39: penomoran berkesinambungan per unit per tahun)
+  const dynamicSequence = useMemo(() => {
+    if (typeof initialSequenceNumber === 'number' && initialSequenceNumber > 0) {
+      return initialSequenceNumber;
+    }
+    return getNextSequenceForUnit(selectedUnitKode, tahun, existingLetters);
+  }, [initialSequenceNumber, selectedUnitKode, tahun, existingLetters]);
+
+  const [nomorUrut, setNomorUrut] = useState(dynamicSequence);
+
+  useEffect(() => {
+    setNomorUrut(dynamicSequence);
+  }, [dynamicSequence]);
 
   // Format mode: apakah menyertakan segmen Kode Keamanan (B/R/SR) atau format ringkas (83/UN58.10/KP.04.03/2026)
   const [includeSecurityInNumber, setIncludeSecurityInNumber] = useState(false);
@@ -343,7 +358,7 @@ export default function SmartKlasifikasiNumberingPanel({
               </span>
             </div>
             <p className="text-[11px] text-slate-500">
-              Pilih perihal/materi pokok surat — sistem otomatis mengambil kode klasifikasi dari Tabel Master Database & merakit Nomor Surat (Read-Only / 0% Human Error)
+              Pilih perihal/materi pokok surat — sistem otomatis menetapkan kode klasifikasi resmi dan merakit Nomor Surat naskah dinas
             </p>
           </div>
         </div>
@@ -645,8 +660,8 @@ export default function SmartKlasifikasiNumberingPanel({
       {activeJraItem && (
         <div className="rounded-lg border border-slate-200 bg-slate-100/80 px-3 py-2 flex flex-wrap items-center justify-between gap-2 text-[11px]">
           <div className="flex items-center gap-1.5 text-slate-700">
-            <Database className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-            <span className="font-bold text-slate-900">Pustaka Master Database SILOKA:</span>
+            <BookOpen className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+            <span className="font-bold text-slate-900">Pustaka Klasifikasi Resmi SILOKA:</span>
             <span className="font-mono font-bold text-indigo-800 bg-white px-1.5 py-0.2 rounded border border-indigo-200">
               {activeJraItem.kode_klasifikasi}
             </span>

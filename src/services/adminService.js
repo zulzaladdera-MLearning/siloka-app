@@ -57,111 +57,7 @@ export const verifySuperAdminAccess = async (user) => {
 };
 
 /**
- * 2. Tugas 2: Sinkronisasi Database SIMPEG
- * Mengambil data pegawai dari SIMPEG dan melakukan upsert ke tabel tm_user
- */
-export const triggerSimpegSync = async (user) => {
-  try {
-    const res = await fetch(`${API_BASE_URL}/admin/simpeg/sync`, {
-      method: 'POST',
-      headers: getAuthHeaders(user?.role || 'Super Admin')
-    });
-
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn('[AdminService] Backend offline, menjalankan engine sinkronisasi lokal:', err.message);
-  }
-
-  // Fallback engine sinkronisasi dengan simulasi delay autentik
-  await new Promise((resolve) => setTimeout(resolve, 1200));
-
-  const sampleSyncedPegawai = [
-    {
-      nip: '196708161996031001',
-      nama: 'Aripin',
-      gelar: 'Prof. Dr. Eng. Ir., IPU., ASEAN Eng.',
-      nama_lengkap: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
-      jabatan: 'Rektor Universitas Siliwangi',
-      unit_kerja_id: 'UN58',
-      email: 'aripin.rektor@unsil.ac.id',
-      sync_action: 'UPDATE',
-      synced_at: new Date().toISOString()
-    },
-    {
-      nip: '197003181995021001',
-      nama: 'Nana Sujana',
-      gelar: 'Dr., Drs., M.Si.',
-      nama_lengkap: 'Dr. Nana Sujana, Drs., M.Si.',
-      jabatan: 'Kepala Biro Keuangan dan Umum',
-      unit_kerja_id: 'UN58.6',
-      email: 'nana.sujana@unsil.ac.id',
-      sync_action: 'UPDATE',
-      synced_at: new Date().toISOString()
-    },
-    {
-      nip: '197509122001121001',
-      nama: 'Cucu Suherman',
-      gelar: 'Dr. H., M.Pd.',
-      nama_lengkap: 'Dr. H. Cucu Suherman, M.Pd.',
-      jabatan: 'Dekan Fakultas Keguruan dan Ilmu Pendidikan',
-      unit_kerja_id: 'UN58.10',
-      email: 'cucu.suherman@unsil.ac.id',
-      sync_action: 'UPDATE',
-      synced_at: new Date().toISOString()
-    },
-    {
-      nip: '197805202005011003',
-      nama: 'Alam Rahmatulloh',
-      gelar: 'S.T., M.T.',
-      nama_lengkap: 'Alam Rahmatulloh, S.T., M.T.',
-      jabatan: 'Kepala UPA Teknologi Informasi dan Komunikasi',
-      unit_kerja_id: 'UN58.32',
-      email: 'kepala.tik@unsil.ac.id',
-      sync_action: 'UPDATE',
-      synced_at: new Date().toISOString()
-    },
-    {
-      nip: '198904122018031002',
-      nama: 'Bayu Nugroho',
-      gelar: 'S.Kom., M.Kom.',
-      nama_lengkap: 'Bayu Nugroho, S.Kom., M.Kom.',
-      jabatan: 'Pranata Komputer Ahli Pertama UPA TIK',
-      unit_kerja_id: 'UN58.32',
-      email: 'bayu.tik@unsil.ac.id',
-      sync_action: 'INSERT',
-      synced_at: new Date().toISOString()
-    },
-    {
-      nip: '199201152019022003',
-      nama: 'Annisa Fitriani',
-      gelar: 'S.Ak., M.Ak.',
-      nama_lengkap: 'Annisa Fitriani, S.Ak., M.Ak.',
-      jabatan: 'Analis Pengelolaan Keuangan APBN Biro BKU',
-      unit_kerja_id: 'UN58.6',
-      email: 'annisa.bku@unsil.ac.id',
-      sync_action: 'INSERT',
-      synced_at: new Date().toISOString()
-    }
-  ];
-
-  return {
-    status: 200,
-    success: true,
-    message: `Sinkronisasi SIMPEG selesai. Berhasil menyinkronkan ${sampleSyncedPegawai.length} data pegawai ke tabel tm_user.`,
-    stats: {
-      totalFetched: sampleSyncedPegawai.length,
-      insertedCount: 2,
-      updatedCount: 4,
-      lastSyncTimestamp: new Date().toISOString()
-    },
-    data: sampleSyncedPegawai
-  };
-};
-
-/**
- * 3. Tugas 3: Fasilitas Input Massal (Impor Excel .xlsx)
+ * 2. Fasilitas Input Massal (Impor Excel .xlsx)
  * Validasi ekstensi di sisi klien dan pengiriman ke backend
  */
 export const validateExcelFileClient = (file) => {
@@ -393,9 +289,9 @@ export const createUser = async (userData, currentUser) => {
 
   // Username = Diambil dari NIP
   const username = cleanNip;
-  // Password = Buat string acak (format: 'Unsil' + 4 angka acak)
+  // Password = Gunakan dari input userData atau buat string acak (format: 'Unsil' + 4 angka acak)
   const random4Digits = Math.floor(1000 + Math.random() * 9000);
-  const rawPassword = `Unsil${random4Digits}`;
+  const rawPassword = userData.password || userData.raw_password || `Unsil${random4Digits}`;
 
   const unitObj = unitKerjaList.find((u) => u.kode_unit === cleanUnit);
   const unitName = unitObj ? unitObj.nama_unit : (cleanUnit === 'UN58.13' ? 'Fakultas Teknik' : cleanUnit);
@@ -422,6 +318,7 @@ export const createUser = async (userData, currentUser) => {
     role: finalRole,
     roleLevel: finalRoleLevel,
     is_pejabat: is_pejabat,
+    password: rawPassword,
     raw_password: rawPassword,
     is_active: true,
     must_change_password: true,

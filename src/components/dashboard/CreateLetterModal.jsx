@@ -344,7 +344,8 @@ export const CreateLetterModal = ({
   onClose,
   onSaveLetter,
   currentUser,
-  initialMode = 'surat-keluar'
+  initialMode = 'surat-keluar',
+  allLetters = []
 }) => {
   if (!isOpen) return null;
 
@@ -428,7 +429,7 @@ export const CreateLetterModal = ({
   const [namaPejabatSigner, setNamaPejabatSigner] = useState('');
   const [gelarSigner, setGelarSigner] = useState('');
   const [nipSigner, setNipSigner] = useState('');
-  const [tteVerified, setTteVerified] = useState(true);
+  const [tteVerified, setTteVerified] = useState(false);
   const [tembusanText, setTembusanText] = useState(
     '1. Rektor Universitas Siliwangi (sebagai laporan)\n2. Kepala Satuan Pengawas Internal (SPI)'
   );
@@ -745,7 +746,7 @@ export const CreateLetterModal = ({
           tujuan: tujuanMasuk.trim(),
           ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
           lampiran: `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})`,
-          status: targetStatus || 'Dikirim',
+          status: 'Diterima',
           statusTimestamp: 'Surat Masuk terdaftar pada Buku Agenda SILOKA',
           tujuan_aksi: tujuanAksi,
           isSignatureRequest: tujuanAksi === 'TTD',
@@ -897,13 +898,13 @@ export const CreateLetterModal = ({
         kalimatPembuka,
         isiPokok,
         kalimatPenutup,
-        status: targetStatus,
-        statusTimestamp: targetStatus === 'Draft' ? 'Tersimpan sebagai Draf Naskah' : 'Baru saja didaftarkan dengan nomor resmi',
+        status: targetStatus === 'Draft' ? 'Draft' : 'DRAFT_MENUNGGU_PARAF',
+        statusTimestamp: targetStatus === 'Draft' ? 'Tersimpan sebagai Draf Naskah' : 'Diajukan untuk Paraf Berjenjang (Pasal 59) & TTE Pimpinan',
         tujuan_aksi: tujuanAksi,
         isSignatureRequest: tujuanAksi === 'TTD',
         ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
         lampiran: `${uploadedFileName} (${uploadedFileSize})`,
-        tteVerified: tteVerified,
+        tteVerified: false,
         jabatanPenandatangan: namaJabatanSigner,
         namaPenandatangan: `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}`,
         namaPejabat: namaPejabatSigner,
@@ -1417,7 +1418,7 @@ export const CreateLetterModal = ({
                         {uploadedFileNameMasuk} <span className="text-slate-400 font-normal">({uploadedFileSizeMasuk})</span>
                       </p>
                       <p className="text-[10px] text-slate-400 mt-0.5">
-                        Hash SHA-256 terenkripsi. Berkas digital surat masuk resmi.
+                        Keaslian berkas digital terverifikasi aman.
                       </p>
                     </div>
                   </div>
@@ -1436,7 +1437,7 @@ export const CreateLetterModal = ({
                       'Naskah Dinas Keluar'
                     }
                     currentUser={currentUser}
-                    initialSequenceNumber={83}
+                    existingLetters={allLetters}
                     onNumberChange={(meta) => {
                       if (meta.kodeKlasifikasi && meta.kodeKlasifikasi !== kodeKlasifikasi) {
                         setKodeKlasifikasi(meta.kodeKlasifikasi);
@@ -1832,15 +1833,10 @@ export const CreateLetterModal = ({
                     <ShieldCheck className="w-4 h-4 text-emerald-700" />
                     Pejabat Penandatangan &amp; Otoritas TTE BSrE
                   </span>
-                  <label className="flex items-center gap-1.5 text-[11px] text-emerald-800 font-semibold cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={tteVerified}
-                      onChange={(e) => setTteVerified(e.target.checked)}
-                      className="rounded text-unsil-green-800 w-3.5 h-3.5"
-                    />
-                    <span>Verifikasi TTE Aktif</span>
-                  </label>
+                  <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full font-semibold border border-emerald-200">
+                    <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                    TTE Otomatis Pasca-Paraf (Pasal 61)
+                  </span>
                 </div>
 
                 {/* 1. Deteksi Session User (Dosen/Staf Login) */}
@@ -2063,7 +2059,7 @@ export const CreateLetterModal = ({
                     {uploadedFileName} <span className="text-slate-400 font-normal">({uploadedFileSize})</span>
                   </p>
                   <p className="text-[10px] text-slate-400 mt-0.5">
-                    Hash SHA-256 terenkripsi. Klik untuk mengganti dokumen lampiran.
+                    Keaslian berkas digital terverifikasi aman. Klik untuk mengganti dokumen lampiran.
                   </p>
                 </div>
               </div>
@@ -2500,19 +2496,19 @@ export const CreateLetterModal = ({
                 </button>
                 <button
                   type="button"
-                  onClick={(e) => handleSubmit(e, 'Dikirim')}
+                  onClick={(e) => handleSubmit(e, 'DRAFT_MENUNGGU_PARAF')}
                   disabled={isSaving}
                   className="flex-2 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2 rounded-lg text-xs font-bold bg-unsil-green-900 hover:bg-unsil-green-950 text-white shadow-md shadow-unsil-green-950/20 transition-all disabled:opacity-75 cursor-pointer"
                 >
                   {isSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 text-unsil-gold-400 animate-spin" />
-                      <span>Menerbitkan Nomor...</span>
+                      <span>Mendaftarkan Naskah...</span>
                     </>
                   ) : (
                     <>
                       <Plus className="w-4 h-4 text-unsil-gold-400" />
-                      <span>Terbitkan & Ajukan Review</span>
+                      <span>Ajukan Paraf & TTE (Pasal 59)</span>
                     </>
                   )}
                 </button>

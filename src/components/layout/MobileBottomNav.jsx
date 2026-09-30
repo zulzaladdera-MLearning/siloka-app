@@ -3,7 +3,7 @@ import {
   LayoutDashboard,
   SendHorizontal,
   FileSignature,
-  Mail,
+  Inbox,
   Menu
 } from 'lucide-react';
 
@@ -35,10 +35,11 @@ export const MobileBottomNav = ({
       badgeColor: 'bg-rose-500 text-white'
     },
     {
-      id: 'pengendalian-surat',
-      label: 'Surat',
-      icon: Mail,
-      badge: null
+      id: 'surat-masuk',
+      label: 'Surat Masuk',
+      icon: Inbox,
+      badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
+      badgeColor: 'bg-yellow-400 text-slate-950 font-bold'
     },
     {
       id: 'menu',
