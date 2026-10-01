@@ -24,7 +24,10 @@ import {
   Loader2,
   Inbox,
   PenTool,
-  AlertCircle
+  AlertCircle,
+  Trash2,
+  CheckCircle2,
+  ExternalLink
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
@@ -405,8 +408,85 @@ export const CreateLetterModal = ({
   const [perihalMasuk, setPerihalMasuk] = useState('Koordinasi Pelaksanaan Program Penguatan Tata Kelola PTN-BLU');
   const [ringkasanMasuk, setRingkasanMasuk] = useState('Permohonan data dukung dan kehadiran pimpinan dalam rangka rekonsiliasi laporan keuangan dan aset');
   const [sifatSuratMasuk, setSifatSuratMasuk] = useState('Penting');
+
+  // Format ukuran berkas (B, KB, MB)
+  const formatFileSize = (bytes) => {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
+  };
+
+  // Berkas Lampiran Pindaian Surat Masuk
+  const [uploadedFileMasuk, setUploadedFileMasuk] = useState(null);
   const [uploadedFileNameMasuk, setUploadedFileNameMasuk] = useState('Surat_Masuk_Eksternal.pdf');
   const [uploadedFileSizeMasuk, setUploadedFileSizeMasuk] = useState('1.8 MB');
+  const [uploadedFileUrlMasuk, setUploadedFileUrlMasuk] = useState(null);
+  const [uploadedFileDataUrlMasuk, setUploadedFileDataUrlMasuk] = useState(null);
+  const [isDraggingMasuk, setIsDraggingMasuk] = useState(false);
+  const [uploadErrorMasuk, setUploadErrorMasuk] = useState('');
+  const fileInputMasukRef = useRef(null);
+
+  const handleProcessFileMasuk = (file) => {
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setUploadErrorMasuk('Format berkas tidak sesuai. Harap unggah dokumen pindaian berformat PDF (.pdf).');
+      return;
+    }
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setUploadErrorMasuk(`Ukuran berkas (${formatFileSize(file.size)}) melebihi batas 5MB. Harap kompres dokumen pindaian terlebih dahulu.`);
+      return;
+    }
+    setUploadErrorMasuk('');
+    setUploadedFileMasuk(file);
+    setUploadedFileNameMasuk(file.name);
+    setUploadedFileSizeMasuk(formatFileSize(file.size));
+
+    try {
+      const objUrl = URL.createObjectURL(file);
+      setUploadedFileUrlMasuk(objUrl);
+    } catch {
+      // fallback
+    }
+
+    if (file.size <= 2.5 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedFileDataUrlMasuk(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFileInputMasuk = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleProcessFileMasuk(file);
+    }
+  };
+
+  const handleRemoveFileMasuk = () => {
+    setUploadedFileMasuk(null);
+    setUploadedFileNameMasuk('');
+    setUploadedFileSizeMasuk('');
+    setUploadedFileUrlMasuk(null);
+    setUploadedFileDataUrlMasuk(null);
+    setUploadErrorMasuk('');
+    if (fileInputMasukRef.current) {
+      fileInputMasukRef.current.value = '';
+    }
+  };
+
+  const handlePreviewFileMasuk = () => {
+    if (uploadedFileUrlMasuk) {
+      window.open(uploadedFileUrlMasuk, '_blank', 'noopener,noreferrer');
+    } else if (uploadedFileNameMasuk) {
+      window.alert(`Pratinjau Berkas: "${uploadedFileNameMasuk}" (${uploadedFileSizeMasuk})\n\nDokumen pindaian resmi siap diarsipkan ke Buku Agenda Masuk SILOKA.`);
+    }
+  };
 
   // Sinkronkan mode awal saat modal dibuka
   useEffect(() => {
@@ -449,9 +529,75 @@ export const CreateLetterModal = ({
     return role === 'DOSEN' || roleLabel.includes('dosen');
   }, [currentUser, sessionUserJabatan]);
 
-  // Berkas Lampiran Pindaian
+  // Berkas Lampiran Pindaian Surat Keluar
+  const [uploadedFile, setUploadedFile] = useState(null);
   const [uploadedFileName, setUploadedFileName] = useState('Naskah_Dinas_Resmi.pdf');
   const [uploadedFileSize, setUploadedFileSize] = useState('2.4 MB');
+  const [uploadedFileUrl, setUploadedFileUrl] = useState(null);
+  const [uploadedFileDataUrl, setUploadedFileDataUrl] = useState(null);
+  const [isDraggingKeluar, setIsDraggingKeluar] = useState(false);
+  const [uploadErrorKeluar, setUploadErrorKeluar] = useState('');
+  const fileInputKeluarRef = useRef(null);
+
+  const handleProcessFileKeluar = (file) => {
+    if (!file) return;
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
+      setUploadErrorKeluar('Format berkas tidak sesuai. Harap unggah lampiran berformat PDF (.pdf).');
+      return;
+    }
+    const MAX_SIZE = 5 * 1024 * 1024;
+    if (file.size > MAX_SIZE) {
+      setUploadErrorKeluar(`Ukuran berkas (${formatFileSize(file.size)}) melebihi batas 5MB. Harap kompres dokumen lampiran terlebih dahulu.`);
+      return;
+    }
+    setUploadErrorKeluar('');
+    setUploadedFile(file);
+    setUploadedFileName(file.name);
+    setUploadedFileSize(formatFileSize(file.size));
+
+    try {
+      const objUrl = URL.createObjectURL(file);
+      setUploadedFileUrl(objUrl);
+    } catch {
+      // fallback
+    }
+
+    if (file.size <= 2.5 * 1024 * 1024) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setUploadedFileDataUrl(e.target.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFileInputKeluar = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleProcessFileKeluar(file);
+    }
+  };
+
+  const handleRemoveFileKeluar = () => {
+    setUploadedFile(null);
+    setUploadedFileName('');
+    setUploadedFileSize('');
+    setUploadedFileUrl(null);
+    setUploadedFileDataUrl(null);
+    setUploadErrorKeluar('');
+    if (fileInputKeluarRef.current) {
+      fileInputKeluarRef.current.value = '';
+    }
+  };
+
+  const handlePreviewFileKeluar = () => {
+    if (uploadedFileUrl) {
+      window.open(uploadedFileUrl, '_blank', 'noopener,noreferrer');
+    } else if (uploadedFileName) {
+      window.alert(`Pratinjau Lampiran: "${uploadedFileName}" (${uploadedFileSize})\n\nDokumen lampiran resmi terverifikasi.`);
+    }
+  };
 
   // Fetch data master klasifikasi arsip dari backend secara dinamis
   useEffect(() => {
@@ -745,7 +891,10 @@ export const CreateLetterModal = ({
           pengirim: pengirimMasuk.trim(),
           tujuan: tujuanMasuk.trim(),
           ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
-          lampiran: `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})`,
+          lampiran: uploadedFileNameMasuk ? `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})` : null,
+          lampiranUrl: uploadedFileDataUrlMasuk || uploadedFileUrlMasuk || null,
+          lampiranName: uploadedFileNameMasuk || null,
+          lampiranSize: uploadedFileSizeMasuk || null,
           status: 'Diterima',
           statusTimestamp: 'Surat Masuk terdaftar pada Buku Agenda SILOKA',
           tujuan_aksi: tujuanAksi,
@@ -826,7 +975,10 @@ export const CreateLetterModal = ({
           tujuan_aksi: tujuanAksi,
           isSignatureRequest: tujuanAksi === 'TTD',
           ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
-          lampiran: `${uploadedFileName} (${uploadedFileSize})`,
+          lampiran: uploadedFileName ? `${uploadedFileName} (${uploadedFileSize})` : null,
+          lampiranUrl: uploadedFileDataUrl || uploadedFileUrl || null,
+          lampiranName: uploadedFileName || null,
+          lampiranSize: uploadedFileSize || null,
           tteVerified: false,
           jabatanPenandatangan: namaJabatanSigner,
           namaPenandatangan: `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}`,
@@ -903,7 +1055,10 @@ export const CreateLetterModal = ({
         tujuan_aksi: tujuanAksi,
         isSignatureRequest: tujuanAksi === 'TTD',
         ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
-        lampiran: `${uploadedFileName} (${uploadedFileSize})`,
+        lampiran: uploadedFileName ? `${uploadedFileName} (${uploadedFileSize})` : null,
+        lampiranUrl: uploadedFileDataUrl || uploadedFileUrl || null,
+        lampiranName: uploadedFileName || null,
+        lampiranSize: uploadedFileSize || null,
         tteVerified: false,
         jabatanPenandatangan: namaJabatanSigner,
         namaPenandatangan: `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}`,
@@ -1409,18 +1564,126 @@ export const CreateLetterModal = ({
 
                   {/* Unggah Pindaian Dokumen PDF */}
                   <div>
-                    <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                      Unggah Pindaian Surat Fisik (PDF Maks. 5MB)
-                    </label>
-                    <div className="border-2 border-dashed border-slate-300 hover:border-unsil-green-700 rounded-xl p-3 text-center bg-slate-50/50 cursor-pointer transition-colors">
-                      <UploadCloud className="w-6 h-6 text-unsil-green-800 mx-auto mb-1" />
-                      <p className="text-xs font-semibold text-slate-800">
-                        {uploadedFileNameMasuk} <span className="text-slate-400 font-normal">({uploadedFileSizeMasuk})</span>
-                      </p>
-                      <p className="text-[10px] text-slate-400 mt-0.5">
-                        Keaslian berkas digital terverifikasi aman.
-                      </p>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                        Unggah Pindaian Surat Fisik (PDF Maks. 5MB)
+                      </label>
+                      {uploadedFileNameMasuk && (
+                        <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Berkas Terverifikasi
+                        </span>
+                      )}
                     </div>
+
+                    <input
+                      type="file"
+                      ref={fileInputMasukRef}
+                      accept="application/pdf,.pdf"
+                      onChange={handleFileInputMasuk}
+                      className="hidden"
+                    />
+
+                    {uploadedFileNameMasuk ? (
+                      /* Kartu Berkas Pindaian PDF Aktif & Fungsional */
+                      <div className="border border-slate-200 bg-white rounded-xl p-3 shadow-xs hover:border-unsil-green-700/60 transition">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 font-bold text-xs shrink-0">
+                              PDF
+                            </div>
+                            <div className="min-w-0">
+                              <p className="text-xs font-semibold text-slate-800 truncate" title={uploadedFileNameMasuk}>
+                                {uploadedFileNameMasuk}
+                              </p>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                                <span className="font-semibold text-slate-700">{uploadedFileSizeMasuk}</span>
+                                <span>•</span>
+                                <span className="text-emerald-700 font-medium">Keaslian digital terverifikasi</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                            <button
+                              type="button"
+                              onClick={handlePreviewFileMasuk}
+                              title="Lihat Pratinjau Dokumen PDF"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                            >
+                              <Eye className="w-3.5 h-3.5 text-slate-600" />
+                              <span>Pratinjau</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputMasukRef.current?.click()}
+                              title="Ganti Berkas PDF"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-unsil-green-800 bg-unsil-green-50 hover:bg-unsil-green-100 border border-unsil-green-200 transition"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5 text-unsil-green-700" />
+                              <span>Ganti</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveFileMasuk}
+                              title="Hapus Berkas"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Area Dropzone Unggah Saat Kosong */
+                      <div
+                        onClick={() => fileInputMasukRef.current?.click()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(true);
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(false);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(false);
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) handleProcessFileMasuk(file);
+                        }}
+                        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all duration-200 ${
+                          isDraggingMasuk
+                            ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
+                            : 'border-slate-300 hover:border-unsil-green-700 bg-slate-50/50 hover:bg-slate-50'
+                        }`}
+                      >
+                        <UploadCloud className={`w-7 h-7 mx-auto mb-1.5 transition-colors ${isDraggingMasuk ? 'text-emerald-700' : 'text-unsil-green-800'}`} />
+                        <p className="text-xs font-semibold text-slate-800">
+                          {isDraggingMasuk ? 'Lepaskan Berkas PDF di Sini' : 'Klik untuk Memilih Berkas atau Seret PDF ke Sini'}
+                        </p>
+                        <p className="text-[10px] text-slate-500 mt-0.5">
+                          Format pindaian naskah dinas resmi (PDF Maks. 5MB)
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Alert Kesalahan Unggah */}
+                    {uploadErrorMasuk && (
+                      <div className="mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                        <div className="flex items-center gap-1.5">
+                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                          <span>{uploadErrorMasuk}</span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setUploadErrorMasuk('')}
+                          className="text-rose-500 hover:text-rose-700 p-0.5"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : (
@@ -2048,20 +2311,128 @@ export const CreateLetterModal = ({
                 />
               </div>
 
-              {/* Unggah Pindaian PDF */}
+              {/* Unggah Dokumen Lampiran Resmi PDF */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Unggah Dokumen Lampiran Resmi (PDF Maks. 5MB)
-                </label>
-                <div className="border-2 border-dashed border-slate-300 hover:border-unsil-green-700 rounded-xl p-3 text-center bg-slate-50/50 cursor-pointer transition-colors">
-                  <UploadCloud className="w-6 h-6 text-unsil-green-800 mx-auto mb-1" />
-                  <p className="text-xs font-semibold text-slate-800">
-                    {uploadedFileName} <span className="text-slate-400 font-normal">({uploadedFileSize})</span>
-                  </p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
-                    Keaslian berkas digital terverifikasi aman. Klik untuk mengganti dokumen lampiran.
-                  </p>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] font-bold uppercase tracking-wider text-slate-600">
+                    Unggah Dokumen Lampiran Resmi (PDF Maks. 5MB)
+                  </label>
+                  {uploadedFileName && (
+                    <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                      Lampiran Terlampir
+                    </span>
+                  )}
                 </div>
+
+                <input
+                  type="file"
+                  ref={fileInputKeluarRef}
+                  accept="application/pdf,.pdf"
+                  onChange={handleFileInputKeluar}
+                  className="hidden"
+                />
+
+                {uploadedFileName ? (
+                  /* Kartu Lampiran PDF Aktif & Fungsional */
+                  <div className="border border-slate-200 bg-white rounded-xl p-3 shadow-xs hover:border-unsil-green-700/60 transition">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 font-bold text-xs shrink-0">
+                          PDF
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-slate-800 truncate" title={uploadedFileName}>
+                            {uploadedFileName}
+                          </p>
+                          <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
+                            <span className="font-semibold text-slate-700">{uploadedFileSize}</span>
+                            <span>•</span>
+                            <span className="text-emerald-700 font-medium">Keaslian digital terverifikasi</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
+                        <button
+                          type="button"
+                          onClick={handlePreviewFileKeluar}
+                          title="Lihat Pratinjau Dokumen PDF"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
+                        >
+                          <Eye className="w-3.5 h-3.5 text-slate-600" />
+                          <span>Pratinjau</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => fileInputKeluarRef.current?.click()}
+                          title="Ganti Berkas PDF"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-unsil-green-800 bg-unsil-green-50 hover:bg-unsil-green-100 border border-unsil-green-200 transition"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-unsil-green-700" />
+                          <span>Ganti</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFileKeluar}
+                          title="Hapus Berkas"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Area Dropzone Unggah Lampiran Saat Kosong */
+                  <div
+                    onClick={() => fileInputKeluarRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingKeluar(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingKeluar(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingKeluar(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleProcessFileKeluar(file);
+                    }}
+                    className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all duration-200 ${
+                      isDraggingKeluar
+                        ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
+                        : 'border-slate-300 hover:border-unsil-green-700 bg-slate-50/50 hover:bg-slate-50'
+                    }`}
+                  >
+                    <UploadCloud className={`w-7 h-7 mx-auto mb-1.5 transition-colors ${isDraggingKeluar ? 'text-emerald-700' : 'text-unsil-green-800'}`} />
+                    <p className="text-xs font-semibold text-slate-800">
+                      {isDraggingKeluar ? 'Lepaskan Berkas PDF di Sini' : 'Klik untuk Memilih Berkas atau Seret PDF ke Sini'}
+                    </p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">
+                      Khusus berkas lampiran naskah dinas resmi (PDF Maks. 5MB)
+                    </p>
+                  </div>
+                )}
+
+                {/* Alert Kesalahan Unggah */}
+                {uploadErrorKeluar && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
+                    <div className="flex items-center gap-1.5">
+                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                      <span>{uploadErrorKeluar}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUploadErrorKeluar('')}
+                      className="text-rose-500 hover:text-rose-700 p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             )}

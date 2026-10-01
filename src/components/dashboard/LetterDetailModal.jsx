@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   CheckCheck,
   RotateCcw,
-  AlertCircle
+  AlertCircle,
+  Eye
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { generateForensicWatermark } from '../../utils/security';
@@ -122,7 +123,29 @@ export const LetterDetailModal = ({
       });
     }
 
+    if (letter.lampiranUrl) {
+      const a = document.createElement('a');
+      a.href = letter.lampiranUrl;
+      a.download = letter.lampiranName || `${(letter.nomorSurat || 'Naskah_Dinas').replace(/[\/\\]/g, '_')}_lampiran.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
     alert(`[STEMPEL AIR FORENSIK DITERAPKAN]\n${watermark}\n\nStatus TTE: ${letter.tteVerified ? 'Tervalidasi BSrE BSSN (Cap dinas fisik dihapus otomatis)' : 'Draf Naskah Dinas'}`);
+  };
+
+  const handlePreviewLampiran = () => {
+    if (isRestrictedForUser) {
+      alert('AKSES DITOLAK: Akun Level 2 (Staf) tidak memiliki izin membuka berkas rahasia.');
+      return;
+    }
+    if (letter.lampiranUrl) {
+      window.open(letter.lampiranUrl, '_blank', 'noopener,noreferrer');
+    } else {
+      handleDownload();
+    }
   };
 
   return (
@@ -557,18 +580,30 @@ export const LetterDetailModal = ({
                   </div>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleDownload}
-                  className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition shadow-xs self-start sm:self-center ${
-                    isRestrictedForUser
-                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                      : 'bg-unsil-green-800 hover:bg-unsil-green-900 text-white'
-                  }`}
-                >
-                  <Download className="w-3.5 h-3.5" />
-                  <span>{isRestrictedForUser ? 'Unduhan Terkunci' : 'Unduh Berkas PDF'}</span>
-                </button>
+                <div className="flex items-center gap-2 self-start sm:self-center">
+                  {!isRestrictedForUser && letter.lampiranUrl && (
+                    <button
+                      type="button"
+                      onClick={handlePreviewLampiran}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 transition"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                      <span>Lihat Berkas</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDownload}
+                    className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold transition shadow-xs ${
+                      isRestrictedForUser
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                        : 'bg-unsil-green-800 hover:bg-unsil-green-900 text-white'
+                    }`}
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>{isRestrictedForUser ? 'Unduhan Terkunci' : 'Unduh Berkas PDF'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Safeguard Alert */}
