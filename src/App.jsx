@@ -99,44 +99,28 @@ export default function App() {
 
   const [letters, setLetters] = useState(() => {
     try {
-      // Periksa flag pembersihan riwayat naskah Surat Masuk dummy lama di browser
-      const isSuratMasukPurged = localStorage.getItem('siloka_surat_masuk_purged_v2');
+      // Periksa flag pembersihan riwayat naskah dummy lama (Surat Masuk & Surat Keluar) di browser
+      const isLettersPurged = localStorage.getItem('siloka_letters_purged_v3');
 
       const savedLetters = localStorage.getItem('siloka_letters_data');
       if (savedLetters) {
         let parsed = JSON.parse(savedLetters);
         if (Array.isArray(parsed)) {
-          // Bersihkan seluruh riwayat Surat Masuk dummy lama dari penyimpanan lokal peramban
-          if (!isSuratMasukPurged) {
-            parsed = parsed.filter((letter) => letter && letter.kategori !== 'Surat Masuk');
+          // Bersihkan seluruh riwayat naskah dinas dummy lama dari penyimpanan lokal peramban
+          if (!isLettersPurged) {
+            parsed = [];
             try {
-              localStorage.setItem('siloka_letters_data', JSON.stringify(parsed));
-              localStorage.setItem('siloka_surat_masuk_purged_v2', 'true');
+              localStorage.setItem('siloka_letters_data', JSON.stringify([]));
+              localStorage.setItem('siloka_letters_purged_v3', 'true');
             } catch (err) {
               // ignore
             }
           }
 
-          // Normalize FKIP classification and unit acronyms in cached data
-          return parsed.map((letter) => {
-            let updated = { ...letter };
-            if (updated.id === 'FKIP-2026-001' && updated.nomorSurat === '0120/UN58.10/PK.01/2026') {
-              updated.nomorSurat = '0120/UN58.10/PP.03.05/2026';
-              updated.kodeKlasifikasi = 'PP';
-              updated.subKlasifikasi = 'PP.03.05 (Pendidikan & Kurikulum)';
-            }
-            if (updated.nomorSurat) {
-              updated.nomorSurat = updated.nomorSurat
-                .replace('/UN58/BKU/', '/UN58.6/')
-                .replace('/UN58/TIK/', '/UN58.32/')
-                .replace('/UN58/SPI/', '/UN58.SPI/')
-                .replace('/UN58/BAK/', '/UN58.5/');
-            }
-            return updated;
-          });
+          return parsed;
         }
       } else {
-        localStorage.setItem('siloka_surat_masuk_purged_v2', 'true');
+        localStorage.setItem('siloka_letters_purged_v3', 'true');
       }
     } catch (e) {
       console.error('Error loading saved letters', e);
@@ -1370,13 +1354,34 @@ export default function App() {
                   Daftar naskah dinas keluar, nota dinas, surat tugas, dan korespondensi resmi yang diterbitkan oleh {currentUnit.nama_unit}.
                 </p>
               </div>
-              <button
-                onClick={() => setIsCreateModalOpen(true)}
-                className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Buat Naskah Dinas Baru</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {letters.some((l) => l.kategori !== 'Surat Masuk') && (
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          'Konfirmasi: Apakah Anda yakin ingin mengosongkan seluruh riwayat naskah Surat Keluar & Naskah Dinas?'
+                        )
+                      ) {
+                        setLetters((prev) => prev.filter((l) => l.kategori === 'Surat Masuk'));
+                        showToast('Seluruh riwayat Surat Keluar telah berhasil dikosongkan.', 'success');
+                      }
+                    }}
+                    className="px-3.5 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 hover:border-rose-300 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    title="Kosongkan Riwayat Surat Keluar"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span>Kosongkan Riwayat</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsCreateModalOpen(true)}
+                  className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Buat Naskah Dinas Baru</span>
+                </button>
+              </div>
             </div>
             <ActivityTable
               letters={scopedLetters}

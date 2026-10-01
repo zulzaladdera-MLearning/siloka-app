@@ -254,12 +254,16 @@ export const ActivityTable = ({
             <p className="font-medium text-slate-600 text-xs">
               {fixedKategori === 'Surat Masuk'
                 ? 'Belum ada naskah surat masuk yang tercatat'
-                : 'Tidak ada surat yang cocok dengan filter'}
+                : fixedKategori === 'Surat Keluar'
+                  ? 'Belum ada naskah dinas keluar yang tercatat'
+                  : 'Tidak ada surat yang cocok dengan filter'}
             </p>
             <p className="text-[10px] text-slate-400 mt-1">
               {fixedKategori === 'Surat Masuk'
                 ? 'Gunakan tombol Registrasi Surat Masuk untuk mendaftarkan naskah baru'
-                : 'Coba gunakan kata kunci lain atau setel ulang filter'}
+                : fixedKategori === 'Surat Keluar'
+                  ? 'Gunakan tombol Buat Naskah Dinas Baru untuk menerbitkan naskah surat'
+                  : 'Coba gunakan kata kunci lain atau setel ulang filter'}
             </p>
           </div>
         ) : (
@@ -371,12 +375,16 @@ export const ActivityTable = ({
                     <p className="font-medium text-slate-600">
                       {fixedKategori === 'Surat Masuk'
                         ? 'Belum ada naskah surat masuk yang tercatat'
-                        : 'Tidak ada surat yang cocok dengan filter'}
+                        : fixedKategori === 'Surat Keluar'
+                          ? 'Belum ada naskah dinas keluar yang tercatat'
+                          : 'Tidak ada surat yang cocok dengan filter'}
                     </p>
                     <p className="text-[11px] text-slate-400 mt-1">
                       {fixedKategori === 'Surat Masuk'
                         ? 'Gunakan tombol Registrasi Surat Masuk untuk mendaftarkan naskah baru'
-                        : 'Coba gunakan kata kunci lain atau setel ulang filter Anda'}
+                        : fixedKategori === 'Surat Keluar'
+                          ? 'Gunakan tombol Buat Naskah Dinas Baru untuk menerbitkan naskah surat'
+                          : 'Coba gunakan kata kunci lain atau setel ulang filter Anda'}
                     </p>
                   </div>
                 </td>

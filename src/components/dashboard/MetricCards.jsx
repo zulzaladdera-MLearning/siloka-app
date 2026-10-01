@@ -52,7 +52,7 @@ export const MetricCards = ({
   const lockedLettersCount = letters.filter((l) => l.isLockedPermanen).length;
   const brankasTotal = 856 + (lockedLettersCount > 24 ? (lockedLettersCount - 24) : 0);
   const totalAsetBmn = 64;
-  const storageUsedMb = 4120 + ((letters.length - 221) * 2.5);
+  const storageUsedMb = 512 + (letters.length * 2.5);
   const suratKeluarList = activeDataset.filter((l) => l.kategori !== 'Surat Masuk');
   const suratKeluarTotal = suratKeluarList.length;
 
