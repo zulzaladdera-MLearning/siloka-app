@@ -11,6 +11,7 @@
  */
 
 import masterPejabatList from '../data/masterPejabat.json' with { type: 'json' };
+import usersData from '../data/users.json' with { type: 'json' };
 
 /**
  * Mendapatkan daftar pejabat struktural yang HANYA berada di bawah unit kerja user login.
@@ -87,9 +88,56 @@ export const formatPejabatLabel = (pejabat) => {
   return `${pejabat.jabatan} — ${pejabat.nama}, ${pejabat.gelar}`;
 };
 
+/**
+ * Mendapatkan seluruh daftar pejabat struktural resmi UNSIL
+ * lengkap dengan pemetaan user_id dari data akun pengguna
+ * untuk kebutuhan perutean otomatis (direct inbox routing) Surat Masuk.
+ * 
+ * @returns {Array<object>}
+ */
+export const getAllOfficialsWithUserMapping = () => {
+  return masterPejabatList.map((p) => {
+    const userMatch = usersData.find(
+      (u) =>
+        u.nip_nik === p.nip ||
+        u.nip === p.nip ||
+        (u.jabatan && u.jabatan.toLowerCase() === p.jabatan.toLowerCase()) ||
+        (u.roleLabel && u.roleLabel.toLowerCase() === p.jabatan.toLowerCase())
+    );
+
+    let kategori = 'Pimpinan Fakultas & Lembaga';
+    if (p.kode_unit === 'UN58' || p.kode_unit === 'UN58.SENAT' || p.kode_unit === 'UN58.SPI' || p.kode_unit === 'UN58.DP') {
+      kategori = 'Pimpinan Rektorat & Organ Universitas';
+    } else if (p.kode_unit === 'UN58.5' || p.kode_unit === 'UN58.6') {
+      kategori = 'Pimpinan Biro UNSIL';
+    } else if (p.kode_unit.startsWith('UN58.1') && p.jabatan.toLowerCase().includes('dekan')) {
+      kategori = 'Dekan Fakultas & Direktur Pascasarjana';
+    } else if (p.kode_unit.startsWith('UN58.2') || p.kode_unit.startsWith('UN58.3')) {
+      kategori = 'Kepala Lembaga & UPA';
+    }
+
+    return {
+      id: p.id,
+      jabatan: p.jabatan,
+      nama: p.nama,
+      gelar: p.gelar,
+      nama_gelar: p.nama_gelar,
+      nip: p.nip,
+      kode_unit: p.kode_unit,
+      kategori,
+      user_id: userMatch?.id || null,
+      user_email: userMatch?.email || null,
+      user_name: userMatch?.nama_lengkap || userMatch?.name || p.nama_gelar,
+      role: userMatch?.role || 'PEJABAT',
+      label: `${p.jabatan} — ${p.nama_gelar}`
+    };
+  });
+};
+
 export default {
   getPejabatByUnit,
   findPejabatByNip,
   findPejabatById,
-  formatPejabatLabel
+  formatPejabatLabel,
+  getAllOfficialsWithUserMapping
 };

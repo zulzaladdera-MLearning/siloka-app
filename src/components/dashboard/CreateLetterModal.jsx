@@ -48,7 +48,11 @@ import {
   saveDraftLetter,
   FALLBACK_SCOPED_LETTER_TYPES
 } from '../../services/letterService';
-import { getPejabatByUnit, formatPejabatLabel } from '../../utils/pejabatHelper';
+import {
+  getPejabatByUnit,
+  formatPejabatLabel,
+  getAllOfficialsWithUserMapping
+} from '../../utils/pejabatHelper';
 import SmartKlasifikasiNumberingPanel from '../documents/SmartKlasifikasiNumberingPanel';
 
 // Daftar Template Standar Naskah Dinas Staf / Unit Kerja (13 Jenis Sesuai Tabel 1 Peraturan Rektor No. 3/2023)
@@ -416,6 +420,21 @@ export const CreateLetterModal = ({
   const [ringkasanMasuk, setRingkasanMasuk] = useState('Permohonan data dukung dan kehadiran pimpinan dalam rangka rekonsiliasi laporan keuangan dan aset');
   const [sifatSuratMasuk, setSifatSuratMasuk] = useState('Penting');
 
+  // Master Pejabat Struktural UNSIL untuk Pilihan Dropdown & Direct Account Routing
+  const allOfficialsList = useMemo(() => getAllOfficialsWithUserMapping(), []);
+  const [tujuanPejabatMode, setTujuanPejabatMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
+  const [selectedPejabatMasukId, setSelectedPejabatMasukId] = useState(1); // Default ID 1: Rektor Universitas Siliwangi
+  const [customTujuanMasuk, setCustomTujuanMasuk] = useState('');
+  const [previewMasukTab, setPreviewMasukTab] = useState('pdf'); // 'pdf' | 'agenda'
+
+  const selectedPejabatObj = useMemo(() => {
+    if (tujuanPejabatMode === 'MANUAL') return null;
+    return (
+      allOfficialsList.find((p) => Number(p.id) === Number(selectedPejabatMasukId)) ||
+      allOfficialsList[0]
+    );
+  }, [allOfficialsList, selectedPejabatMasukId, tujuanPejabatMode]);
+
   // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
   const hierarchicalDisposisiTargets = useMemo(() => {
     return getHierarchicalDisposisiTargets(currentUser);
@@ -499,13 +518,16 @@ export const CreateLetterModal = ({
       // fallback
     }
 
-    if (file.size <= 2.5 * 1024 * 1024) {
+    if (file.size <= 5 * 1024 * 1024) {
       const reader = new FileReader();
       reader.onload = (e) => {
         setUploadedFileDataUrlMasuk(e.target.result);
       };
       reader.readAsDataURL(file);
     }
+
+    // Otomatis beralih ke tab Live PDF Viewer di sisi kanan
+    setPreviewMasukTab('pdf');
   };
 
   const handleFileInputMasuk = (e) => {
@@ -894,8 +916,13 @@ export const CreateLetterModal = ({
 
     // 1. REGISTRASI SURAT MASUK (EKSTERNAL)
     if (letterType === 'surat-masuk') {
-      if (!nomorSuratAsalMasuk.trim() || !pengirimMasuk.trim() || !perihalMasuk.trim()) {
-        alert('Mohon lengkapi Nomor Surat Asal, Instansi Pengirim, dan Perihal Surat Masuk!');
+      const targetPejabat = tujuanPejabatMode === 'SELECT' ? selectedPejabatObj : null;
+      const finalTujuanMasuk = tujuanPejabatMode === 'SELECT'
+        ? (selectedPejabatObj?.jabatan || 'Rektor Universitas Siliwangi')
+        : (customTujuanMasuk.trim() || tujuanMasuk.trim() || 'Rektor Universitas Siliwangi');
+
+      if (!nomorSuratAsalMasuk.trim() || !pengirimMasuk.trim() || !finalTujuanMasuk.trim() || !perihalMasuk.trim()) {
+        alert('Mohon lengkapi Nomor Surat Asal, Instansi Pengirim, Tujuan Surat, dan Perihal Surat Masuk!');
         return;
       }
 
@@ -907,7 +934,15 @@ export const CreateLetterModal = ({
             kode_klasifikasi: kodeKlasifikasi,
             perihal: perihalMasuk.trim(),
             pengirim: pengirimMasuk.trim(),
-            tujuan: tujuanMasuk.trim(),
+            tujuan: finalTujuanMasuk,
+            target_user_id: targetPejabat?.user_id || null,
+            target_pejabat_id: targetPejabat?.id || null,
+            target_pejabat_nip: targetPejabat?.nip || null,
+            target_pejabat_nama: targetPejabat?.nama_gelar || null,
+            target_role: targetPejabat
+              ? (targetPejabat.id === 1 ? 'REKTOR' : targetPejabat.jabatan.toLowerCase().includes('warek') ? 'WAREK' : 'PEJABAT')
+              : 'PEJABAT',
+            target_unit_id: targetPejabat?.kode_unit || activeUnitObj.kode_unit,
             nomor_surat_asal: nomorSuratAsalMasuk.trim(),
             tujuan_aksi: tujuanAksi,
             tahun: currentYear,
@@ -932,7 +967,7 @@ export const CreateLetterModal = ({
         });
 
         const hasDisposisi = tujuanAksi !== 'TTD' && finalizedDisposisiActions.length > 0;
-        const targetDisposisiFinal = disposisiTargetUnit || tujuanMasuk.trim() || 'Pimpinan Unit';
+        const targetDisposisiFinal = disposisiTargetUnit || finalTujuanMasuk || 'Pimpinan Unit';
         const disposisiPayload = hasDisposisi ? {
           nomorAgenda: officialAgenda,
           tujuanDisposisi: targetDisposisiFinal,
@@ -963,7 +998,15 @@ export const CreateLetterModal = ({
           kodeKlasifikasi,
           subKlasifikasi: kodeKlasifikasi,
           pengirim: pengirimMasuk.trim(),
-          tujuan: tujuanMasuk.trim(),
+          tujuan: finalTujuanMasuk,
+          target_user_id: targetPejabat?.user_id || null,
+          target_pejabat_id: targetPejabat?.id || null,
+          target_pejabat_nip: targetPejabat?.nip || null,
+          target_pejabat_nama: targetPejabat?.nama_gelar || null,
+          target_role: targetPejabat
+            ? (targetPejabat.id === 1 ? 'REKTOR' : targetPejabat.jabatan.toLowerCase().includes('warek') ? 'WAREK' : 'PEJABAT')
+            : 'PEJABAT',
+          target_unit_id: targetPejabat?.kode_unit || activeUnitObj.kode_unit,
           ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
           lampiran: uploadedFileNameMasuk ? `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})` : null,
           lampiranUrl: uploadedFileDataUrlMasuk || uploadedFileUrlMasuk || null,
@@ -972,7 +1015,7 @@ export const CreateLetterModal = ({
           status: hasDisposisi ? 'Didisposisikan' : 'Diterima',
           statusTimestamp: hasDisposisi
             ? `Didisposisikan kepada ${targetDisposisiFinal} (Arahan: ${finalizedDisposisiActions.slice(0, 2).join(', ')})`
-            : 'Surat Masuk terdaftar pada Buku Agenda SILOKA',
+            : `Surat Masuk terdaftar pada Buku Agenda SILOKA — Diteruskan ke ${finalTujuanMasuk}`,
           tujuan_aksi: tujuanAksi,
           isSignatureRequest: tujuanAksi === 'TTD',
           tteVerified: false,
@@ -984,7 +1027,7 @@ export const CreateLetterModal = ({
               nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
               jabatan: currentUser?.roleLabel || 'Operator Unit',
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan Tanda Tangan Pejabat' : 'Disposisi Pimpinan'}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
+              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan: ${finalTujuanMasuk}] [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan Tanda Tangan Pejabat' : 'Disposisi Pimpinan'}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
             }
           ],
           disposisi: disposisiPayload
@@ -1477,17 +1520,83 @@ export const CreateLetterModal = ({
                       />
                     </div>
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-600 mb-1">
-                        Tujuan Surat (Pimpinan / Unit UNSIL) *
-                      </label>
-                      <input
-                        type="text"
-                        value={tujuanMasuk}
-                        onChange={(e) => setTujuanMasuk(e.target.value)}
-                        placeholder="Contoh: Rektor Universitas Siliwangi"
-                        className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20"
-                        required
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                          Tujuan Surat (Pejabat UNSIL) *
+                        </label>
+                        <span className="text-[10px] text-emerald-800 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          ⚡ Perutean Otomatis ke Akun
+                        </span>
+                      </div>
+                      
+                      {/* Pilihan Dropdown Pejabat Resmi UNSIL */}
+                      <select
+                        value={tujuanPejabatMode === 'MANUAL' ? 'MANUAL' : selectedPejabatMasukId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val === 'MANUAL') {
+                            setTujuanPejabatMode('MANUAL');
+                            if (!customTujuanMasuk) {
+                              setCustomTujuanMasuk(tujuanMasuk);
+                            }
+                          } else {
+                            setTujuanPejabatMode('SELECT');
+                            setSelectedPejabatMasukId(val);
+                            const p = allOfficialsList.find((item) => String(item.id) === String(val));
+                            if (p) {
+                              setTujuanMasuk(p.jabatan);
+                              if (!disposisiTargetUnit) {
+                                setDisposisiTargetUnit(p.jabatan);
+                              }
+                            }
+                          }
+                        }}
+                        className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-800 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 shadow-2xs"
+                      >
+                        {Array.from(new Set(allOfficialsList.map((p) => p.kategori))).map((kategori) => (
+                          <optgroup key={kategori} label={`── ${kategori} ──`}>
+                            {allOfficialsList
+                              .filter((p) => p.kategori === kategori)
+                              .map((p) => (
+                                <option key={p.id} value={p.id}>
+                                  {p.jabatan} — {p.nama_gelar}
+                                </option>
+                              ))}
+                          </optgroup>
+                        ))}
+                        <optgroup label="── Pilihan Lainnya ──">
+                          <option value="MANUAL">✍️ Ketik Manual Tujuan Lain / Non-Pejabat...</option>
+                        </optgroup>
+                      </select>
+
+                      {/* Input teks khusus jika mode Manual dipilih */}
+                      {tujuanPejabatMode === 'MANUAL' ? (
+                        <div className="mt-2 animate-in fade-in duration-150">
+                          <input
+                            type="text"
+                            value={customTujuanMasuk}
+                            onChange={(e) => {
+                              setCustomTujuanMasuk(e.target.value);
+                              setTujuanMasuk(e.target.value);
+                            }}
+                            placeholder="Ketik nama jabatan / pimpinan / unit tujuan surat masuk..."
+                            className="w-full p-2 bg-amber-50/60 border border-amber-300 rounded-lg text-xs text-slate-800 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20"
+                            autoFocus
+                            required
+                          />
+                        </div>
+                      ) : (
+                        selectedPejabatObj && (
+                          <div className="mt-1.5 p-2 rounded-lg bg-emerald-50/70 border border-emerald-200/80 text-[10.5px] text-slate-700 flex items-center justify-between gap-1.5">
+                            <span className="truncate">
+                              Pejabat Penerima: <strong className="text-unsil-green-950">{selectedPejabatObj.nama_gelar}</strong>
+                            </span>
+                            <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white text-emerald-800 border border-emerald-200 shrink-0">
+                              NIP: {selectedPejabatObj.nip}
+                            </span>
+                          </div>
+                        )
+                      )}
                     </div>
                   </div>
 
@@ -2719,24 +2828,126 @@ export const CreateLetterModal = ({
             >
               {letterType === 'surat-masuk' ? (
                 /* ========================================================================= */
-                /* PRATINJAU LEMBAR AGENDA SURAT MASUK                                      */
+                /* PRATINJAU LEMBAR AGENDA SURAT MASUK & LIVE PDF VIEWER                    */
                 /* ========================================================================= */
                 <>
-                  <div className="w-full max-w-[210mm] mb-2.5 flex items-center justify-between text-xs text-slate-600 px-1">
-                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-700 flex items-center gap-1.5">
-                      <Eye className="w-3.5 h-3.5 text-unsil-green-800" />
-                      Pratinjau Lembar Kendali & Agenda Surat Masuk
-                    </span>
-                    <span className="px-2.5 py-0.5 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border-emerald-300">
+                  <div className="w-full max-w-[210mm] mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 px-1">
+                    {/* Tab Switcher Pratinjau Surat Masuk */}
+                    <div className="flex items-center gap-1 p-1 bg-slate-300/80 rounded-lg shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setPreviewMasukTab('pdf')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                          previewMasukTab === 'pdf'
+                            ? 'bg-white text-unsil-green-950 shadow-xs'
+                            : 'text-slate-700 hover:text-slate-900'
+                        }`}
+                      >
+                        <FileText className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Dokumen PDF Asli</span>
+                        {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) && (
+                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Berkas PDF siap dipratinjau" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPreviewMasukTab('agenda')}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
+                          previewMasukTab === 'agenda'
+                            ? 'bg-white text-unsil-green-950 shadow-xs'
+                            : 'text-slate-700 hover:text-slate-900'
+                        }`}
+                      >
+                        <Eye className="w-3.5 h-3.5 text-unsil-green-800" />
+                        <span>Lembar Agenda & Disposisi A4</span>
+                      </button>
+                    </div>
+
+                    <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border-emerald-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      Format: A4 Agenda Kedinasan
+                      {previewMasukTab === 'pdf' ? 'Tampilan: Berkas PDF Pindaian' : 'Tampilan: Format A4 Agenda'}
                     </span>
                   </div>
 
+                  {/* 1. TAMPILAN LIVE PDF VIEWER (Jika tab 'pdf' dipilih) */}
+                  {previewMasukTab === 'pdf' && (
+                    <div className="w-full max-w-[210mm] flex-1 flex flex-col bg-white rounded-xl shadow-lg border border-slate-300 overflow-hidden min-h-[640px] mb-6 animate-in fade-in duration-200">
+                      {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) ? (
+                        <>
+                          {/* PDF Viewer Header Toolbar */}
+                          <div className="px-3.5 py-2 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800">
+                            <div className="flex items-center gap-2 truncate max-w-[65%]">
+                              <span className="p-1 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">PDF</span>
+                              <span className="font-semibold text-slate-100 truncate text-[11.5px]" title={uploadedFileNameMasuk}>
+                                {uploadedFileNameMasuk || 'Berkas_Surat_Masuk.pdf'}
+                              </span>
+                              {uploadedFileSizeMasuk && (
+                                <span className="text-[10px] text-slate-400 font-mono">({uploadedFileSizeMasuk})</span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handlePreviewFileMasuk}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] font-medium text-slate-200 transition cursor-pointer"
+                                title="Buka PDF di Tab Baru"
+                              >
+                                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                                <span>Tab Baru</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => fileInputMasukRef.current?.click()}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-[11px] font-semibold text-white transition cursor-pointer"
+                                title="Ganti Dokumen PDF"
+                              >
+                                <RefreshCw className="w-3 h-3 text-emerald-200" />
+                                <span>Ganti Berkas</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Embedded PDF iframe */}
+                          <div className="flex-1 w-full bg-slate-100 min-h-[640px] relative">
+                            <iframe
+                              src={uploadedFileDataUrlMasuk || uploadedFileUrlMasuk}
+                              title="Pratinjau Dokumen PDF Surat Masuk"
+                              className="w-full h-full min-h-[640px] border-0"
+                            />
+                          </div>
+                        </>
+                      ) : (
+                        /* Empty State Saat Berkas Belum Diunggah */
+                        <div className="flex-1 p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[540px]">
+                          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-unsil-green-800 flex items-center justify-center mb-4 border border-emerald-200 shadow-inner">
+                            <UploadCloud className="w-8 h-8" />
+                          </div>
+                          <h3 className="text-sm font-bold text-slate-800 mb-1">
+                            Belum Ada Dokumen Pindaian PDF yang Diunggah
+                          </h3>
+                          <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+                            Unggah berkas pindaian surat masuk fisik untuk langsung melihat isi naskah di panel ini sambil memverifikasi data.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => fileInputMasukRef.current?.click()}
+                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                          >
+                            <UploadCloud className="w-4 h-4 text-unsil-gold-400" />
+                            <span>Pilih Berkas PDF Surat Masuk</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* 2. TAMPILAN LEMBAR AGENDA & DISPOSISI A4 */}
                   <div
                     id="siloka-create-letter-a4-preview"
                     data-paper-size="A4"
-                    className="printable-document bg-white w-full max-w-[210mm] p-8 sm:p-12 shadow-2xl border border-slate-300 rounded-xs text-black font-serif text-[11.5px] leading-relaxed flex flex-col justify-between a4-sheet min-h-[297mm]"
+                    className={`printable-document bg-white w-full max-w-[210mm] p-8 sm:p-12 shadow-2xl border border-slate-300 rounded-xs text-black font-serif text-[11.5px] leading-relaxed flex flex-col justify-between a4-sheet min-h-[297mm] ${
+                      previewMasukTab === 'agenda' ? 'block' : 'hidden'
+                    }`}
                   >
                     <div>
                       {/* Kop Surat Resmi UNSIL */}

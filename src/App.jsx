@@ -538,23 +538,115 @@ export default function App() {
       return [...ownedLetters, ...personalSeedDrafts];
     }
 
-    if (isUniversityWideAccess || isSuperAdminUser(currentUser)) {
-      if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
-        return letters.filter((l) => l.unit_kerja_id === selectedUnitFilter);
-      }
-      return letters;
-    }
-
-    // Scoping untuk Pimpinan Fakultas/Unit, Penugasan Unit Sekunder (misal: Dosen FT dengan Tugas Tambahan di LPPM), dan Staf TU
+    // Multi-Tenancy, Perutean Surat Masuk Langsung ke Akun Pejabat, & Strict Personal Isolation
     const activeSecondaryUnits = Array.isArray(currentUser?.secondary_units)
       ? currentUser.secondary_units
       : [];
 
     return letters.filter((letter) => {
+      // =========================================================================
+      // 1. FILTER KHUSUS SURAT MASUK (DIRECT PEJABAT INBOX ROUTING)
+      // =========================================================================
+      if (letter.kategori === 'Surat Masuk') {
+        // Super Admin dan Pengawas SPI berwenang memantau seluruh surat masuk
+        if (isSuperAdminUser(currentUser) || currentUser?.role === 'PENGAWAS') {
+          if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
+            return letter.unit_kerja_id === selectedUnitFilter;
+          }
+          return true;
+        }
+
+        // Staf pembuat / pendaftar surat di loket TU selalu berhak melihat riwayat agenda yang didaftarkannya
+        const isCreator =
+          (letter.created_by_user_id && String(letter.created_by_user_id) === String(currentUser?.id || currentUser?.id_user)) ||
+          (letter.creator_id && String(letter.creator_id) === String(currentUser?.id || currentUser?.id_user));
+        if (isCreator) return true;
+
+        // Jika surat telah didisposisikan, target disposisi berhak melihat
+        if (letter.disposisi) {
+          const dispTarget = String(letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || '').toLowerCase();
+          const userRoleLabel = String(currentUser?.roleLabel || currentUser?.jabatan || '').toLowerCase();
+          const userUnitName = String(currentUnit?.nama_unit || '').toLowerCase();
+          const userUnitShort = String(currentUnit?.singkatan || '').toLowerCase();
+          if (userRoleLabel && dispTarget.includes(userRoleLabel)) return true;
+          if (userUnitName && dispTarget.includes(userUnitName)) return true;
+          if (userUnitShort && dispTarget.includes(userUnitShort)) return true;
+        }
+
+        // Jika ditujukan langsung ke akun user (Direct User ID / NIP Match)
+        if (
+          letter.target_user_id &&
+          String(letter.target_user_id) === String(currentUser?.id || currentUser?.id_user)
+        ) {
+          return true;
+        }
+        if (
+          letter.target_pejabat_nip &&
+          (letter.target_pejabat_nip === currentUser?.nip_nik || letter.target_pejabat_nip === currentUser?.nip)
+        ) {
+          return true;
+        }
+
+        // Cek kecocokan jabatan spesifik pejabat
+        const letterTujuanLower = String(letter.tujuan || '').toLowerCase();
+        const currentRoleLabel = String(currentUser?.roleLabel || currentUser?.jabatan || '').toLowerCase();
+
+        // Khusus Rektor: Hanya akun Rektor asli (bukan Wakil Rektor atau Dekan)
+        if (
+          letterTujuanLower.includes('rektor') &&
+          !letterTujuanLower.includes('wakil rektor') &&
+          !letterTujuanLower.includes('warek')
+        ) {
+          return currentRoleLabel.includes('rektor') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('warek');
+        }
+
+        // Khusus Wakil Rektor I (Bidang Akademik):
+        if (letterTujuanLower.includes('akademik') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+          return currentRoleLabel.includes('akademik') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
+        }
+
+        // Khusus Wakil Rektor II (Bidang Keuangan dan Umum):
+        if (letterTujuanLower.includes('keuangan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+          return currentRoleLabel.includes('keuangan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
+        }
+
+        // Khusus Wakil Rektor III (Bidang Kemahasiswaan dan Alumni):
+        if (letterTujuanLower.includes('kemahasiswaan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+          return currentRoleLabel.includes('kemahasiswaan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
+        }
+
+        // Khusus Dekan Fakultas / Direktur Pascasarjana / Kepala Biro:
+        if (letter.target_unit_id && letter.target_unit_id === currentUser?.unit_kerja_id && currentUser?.role === 'PEJABAT') {
+          if (letterTujuanLower.includes('dekan') && currentRoleLabel.includes('dekan')) return true;
+          if (letterTujuanLower.includes('direktur') && currentRoleLabel.includes('direktur')) return true;
+          if (letterTujuanLower.includes('kepala biro') && currentRoleLabel.includes('kepala biro')) return true;
+          if (letterTujuanLower.includes('ketua') && currentRoleLabel.includes('ketua')) return true;
+        }
+
+        // Jika surat masuk ditujukan umum ke unit kerja (misal: Fakultas Teknik)
+        const userUnitShort = (currentUnit?.singkatan || '').toLowerCase();
+        const userUnitName = (currentUnit?.nama_unit || '').toLowerCase();
+        if (userUnitShort && letterTujuanLower.includes(userUnitShort) && currentUser?.role === 'PEJABAT') return true;
+        if (userUnitName && letterTujuanLower.includes(userUnitName) && currentUser?.role === 'PEJABAT') return true;
+
+        // Selain kriteria di atas, surat masuk tidak dikirim ke akun ini (isolasi akun pejabat)
+        return false;
+      }
+
+      // =========================================================================
+      // 2. ATURAN NASKAH KELUAR / NOTA DINAS / SPT / SURAT TUGAS
+      // =========================================================================
+      if (isUniversityWideAccess || isSuperAdminUser(currentUser)) {
+        if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
+          return letter.unit_kerja_id === selectedUnitFilter;
+        }
+        return true;
+      }
+
       // Dibuat oleh atau milik unit kerja utama user yang sedang login
       if (letter.unit_kerja_id === currentUser.unit_kerja_id) return true;
 
-      // Cek apakah surat milik salah satu Unit Sekunder / Tugas Tambahan aktif (misal: LPPM / UN58.08)
+      // Cek apakah surat milik salah satu Unit Sekunder / Tugas Tambahan aktif
       const matchesSecondaryUnit = activeSecondaryUnits.some(
         (sec) =>
           letter.unit_kerja_id === sec.unit_kerja_id ||
@@ -564,9 +656,9 @@ export default function App() {
       );
       if (matchesSecondaryUnit) return true;
 
-      // Surat masuk yang dialamatkan kepada unit atau pimpinan unit
-      const userUnitShort = (currentUnit.singkatan || '').toLowerCase();
-      const userUnitName = (currentUnit.nama_unit || '').toLowerCase();
+      // Surat keluar yang dialamatkan kepada unit atau pimpinan unit
+      const userUnitShort = (currentUnit?.singkatan || '').toLowerCase();
+      const userUnitName = (currentUnit?.nama_unit || '').toLowerCase();
       const letterTujuan = (letter.tujuan || '').toLowerCase();
       if (userUnitShort && letterTujuan.includes(userUnitShort)) return true;
       if (userUnitName && letterTujuan.includes(userUnitName)) return true;
