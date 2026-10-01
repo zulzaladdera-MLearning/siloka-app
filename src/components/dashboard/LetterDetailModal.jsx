@@ -23,12 +23,16 @@ import {
   RotateCcw,
   AlertCircle,
   Eye,
-  CheckSquare
+  CheckSquare,
+  ExternalLink,
+  Layers,
+  RefreshCw
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { generateForensicWatermark } from '../../utils/security';
 import { getLetterActionCapabilities, calculateLetterTracking } from '../../utils/letterActionPolicy';
 import {
+  KopSuratUnsil,
   PosTemplateView,
   SuratEdaranTemplateView,
   KeputusanTemplateView,
@@ -55,6 +59,133 @@ import {
 } from '../documents/DocumentTemplates';
 import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
 
+// =========================================================================
+// LEMBAR AGENDA REGISTRASI SURAT MASUK (FORMAT RESMI SILOKA UNSIL)
+// =========================================================================
+const LembarRegistrasiSuratMasuk = ({ letter }) => {
+  const finalLetter = letter || {};
+
+  return (
+    <div
+      data-pasal47="true"
+      data-has-kop="true"
+      className="a4-sheet bg-white text-slate-950 font-serif p-6 sm:p-10 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+    >
+      <KopSuratUnsil unit={finalLetter.unit_kerja_id || 'UN58.6'} />
+
+      {/* Judul Lembar Agenda */}
+      <div className="text-center my-4 pb-2 border-b-2 border-slate-900">
+        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+          LEMBAR AGENDA REGISTRASI SURAT MASUK
+        </h2>
+        <p className="font-sans text-[11px] text-slate-600 mt-0.5">
+          Sistem Layanan Otomasi Kearsipan & Tata Naskah Dinas Elektronik (SILOKA) UNSIL
+        </p>
+      </div>
+
+      {/* Identitas Registrasi Agenda */}
+      <div className="grid grid-cols-2 gap-3 mb-4 font-sans text-xs">
+        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+          <span className="text-[10px] uppercase font-bold text-slate-500 block">Nomor Agenda Registrasi</span>
+          <span className="font-mono text-xs sm:text-sm font-bold text-unsil-green-900">{finalLetter.nomorSurat || '-'}</span>
+        </div>
+        <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200">
+          <span className="text-[10px] uppercase font-bold text-slate-500 block">Tanggal Diterima di Loket</span>
+          <span className="font-semibold text-slate-800">{finalLetter.tanggalTerima || finalLetter.tanggal || '-'}</span>
+        </div>
+      </div>
+
+      {/* Tabel Informasi Naskah Dinas Masuk */}
+      <table className="w-full border-collapse border border-slate-300 font-sans text-xs mb-4">
+        <tbody>
+          <tr className="border-b border-slate-300">
+            <td className="w-1/3 bg-slate-100 p-2 font-bold text-slate-700">Nomor Surat Asal</td>
+            <td className="p-2 font-mono text-slate-900 font-semibold">{finalLetter.nomorSuratAsal || '-'}</td>
+          </tr>
+          <tr className="border-b border-slate-300">
+            <td className="bg-slate-100 p-2 font-bold text-slate-700">Tanggal Naskah Surat Asal</td>
+            <td className="p-2 text-slate-900">{finalLetter.tanggal || '-'}</td>
+          </tr>
+          <tr className="border-b border-slate-300">
+            <td className="bg-slate-100 p-2 font-bold text-slate-700">Instansi / Pengirim Surat</td>
+            <td className="p-2 text-slate-900 font-semibold">{finalLetter.pengirim || '-'}</td>
+          </tr>
+          <tr className="border-b border-slate-300">
+            <td className="bg-slate-100 p-2 font-bold text-slate-700">Tujuan Naskah / Pejabat Penerima</td>
+            <td className="p-2 text-slate-900 font-semibold text-unsil-green-950">{finalLetter.tujuan || '-'}</td>
+          </tr>
+          <tr className="border-b border-slate-300">
+            <td className="bg-slate-100 p-2 font-bold text-slate-700">Sifat & Keamanan Naskah</td>
+            <td className="p-2 text-slate-900">
+              <span className="font-semibold">{finalLetter.sifat || 'Biasa'}</span> — Keamanan:{' '}
+              <span className="font-semibold">{finalLetter.kategoriKeamanan || 'Biasa/Terbuka'}</span>
+              {finalLetter.subKlasifikasi && (
+                <span className="ml-2 text-slate-500 font-mono">[{finalLetter.subKlasifikasi}]</span>
+              )}
+            </td>
+          </tr>
+          <tr className="border-b border-slate-300">
+            <td className="bg-slate-100 p-2 font-bold text-slate-700">Perihal Surat</td>
+            <td className="p-2 text-slate-900 font-bold leading-snug">{finalLetter.perihal || '-'}</td>
+          </tr>
+          <tr>
+            <td className="bg-slate-100 p-2 font-bold text-slate-700 align-top">Ringkasan Pokok Isi</td>
+            <td className="p-2 text-slate-800 leading-relaxed">{finalLetter.ringkasan || finalLetter.perihal || '-'}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      {/* Kotak Catatan Disposisi / Instruksi Awal (jika ada) */}
+      {finalLetter.disposisi && (
+        <div className="mb-4 p-3 rounded-lg border-2 border-unsil-green-800/30 bg-emerald-50/40 font-sans text-xs">
+          <div className="font-bold text-unsil-green-950 mb-1.5 flex items-center justify-between">
+            <span>INSTRUKSI DISPOSISI PIMPINAN (CONTOH 21 TATA NASKAH DINAS UNSIL)</span>
+            <span className="text-[10px] bg-emerald-200 text-emerald-900 px-2 py-0.5 rounded font-bold">
+              {finalLetter.disposisi.targetUnit || finalLetter.disposisi.tujuanDisposisi || 'Tujuan Disposisi'}
+            </span>
+          </div>
+          {finalLetter.disposisi.actions && finalLetter.disposisi.actions.length > 0 && (
+            <div className="mb-1.5">
+              <span className="text-[10.5px] font-semibold text-slate-600 block mb-1">Arahan Tindakan:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {finalLetter.disposisi.actions.map((aksi, idx) => (
+                  <span key={idx} className="px-2 py-0.5 bg-white border border-emerald-300 rounded text-[10px] font-semibold text-emerald-900">
+                    ✓ {aksi}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          {finalLetter.disposisi.catatan && (
+            <div>
+              <span className="text-[10.5px] font-semibold text-slate-600 block mb-0.5">Catatan Khusus Pimpinan:</span>
+              <p className="italic text-slate-800 bg-white p-1.5 rounded border border-emerald-200">
+                "{finalLetter.disposisi.catatan}"
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Bagian Pengesahan / Tanda Registrasi Loket */}
+      <div className="mt-6 pt-3 border-t border-slate-300 flex items-center justify-between font-sans text-xs text-slate-600">
+        <div>
+          <p className="font-bold text-slate-800">Petugas Registrasi Persuratan SILOKA</p>
+          <p className="text-[11px] text-slate-500">Unit Pengendali Surat Masuk & Kearsipan</p>
+          <p className="text-[10px] font-mono text-slate-400 mt-0.5">Dicatat secara digital pada Buku Agenda SILOKA UNSIL</p>
+        </div>
+        <div className="text-right">
+          <div className="inline-block p-2 border-2 border-dashed border-emerald-600 rounded bg-emerald-50 text-[10px] font-bold text-emerald-900 text-center">
+            <span>TERVERIFIKASI & TERCATAT</span>
+            <br />
+            <span className="font-mono">{finalLetter.nomorSurat}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const LetterDetailModal = ({
   letter,
   isOpen,
@@ -70,9 +201,97 @@ export const LetterDetailModal = ({
   if (!isOpen || !letter) return null;
 
   const [activeTabMode, setActiveTabMode] = useState('metadata'); // 'metadata' | 'document'
+  const [suratMasukViewTab, setSuratMasukViewTab] = useState('pdf'); // 'pdf' | 'agenda'
   const [showRejectBox, setShowRejectBox] = useState(false);
   const [rejectNote, setRejectNote] = useState('');
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
+
+  // Deteksi apakah naskah ini adalah Surat Masuk (Pindaian Eksternal / Agenda Masuk)
+  const isSuratMasuk = useMemo(() => {
+    if (!letter) return false;
+    const kategori = String(letter.kategori || '').toLowerCase();
+    const nomor = String(letter.nomorSurat || '');
+    return (
+      kategori === 'surat masuk' ||
+      kategori === 'inbound' ||
+      letter.isSuratMasuk === true ||
+      nomor.startsWith('AGD-') ||
+      Boolean(letter.nomorSuratAsal && letter.nomorSuratAsal !== '-')
+    );
+  }, [letter]);
+
+  // Resolusi jenis template naskah dinas resmi secara presisi sesuai dengan yang dikirimkan pembuat
+  const resolvedTemplateType = useMemo(() => {
+    if (!letter) return 'sd';
+    if (letter.templateType && letter.templateType !== 'surat-masuk') {
+      return letter.templateType;
+    }
+
+    const kode = String(letter.kode_jenis_naskah || letter.jenis_naskah || '').toUpperCase();
+    const kategori = String(letter.kategori || '').toLowerCase();
+    const nomor = String(letter.nomorSurat || '').toUpperCase();
+
+    if (kode === 'NOTA_DINAS' || kategori.includes('nota dinas') || nomor.includes('/ND/') || nomor.startsWith('ND-')) {
+      return 'nd';
+    }
+    if (kode === 'SURAT_DINAS' || kategori.includes('surat dinas') || nomor.includes('/SD/') || nomor.startsWith('SD-')) {
+      return 'sd';
+    }
+    if (kode === 'SURAT_UNDANGAN' || kategori.includes('undangan')) {
+      return 'undangan_lembar';
+    }
+    if (kode === 'SURAT_TUGAS' || kategori.includes('tugas') || nomor.includes('/ST/') || nomor.startsWith('ST-')) {
+      return 'st_lembar';
+    }
+    if (kode === 'SURAT_PERINTAH' || kategori.includes('perintah') || nomor.includes('/SP/') || nomor.startsWith('SP-')) {
+      return 'sp';
+    }
+    if (kode === 'SURAT_EDARAN' || kategori.includes('edaran') || nomor.includes('/SE/') || nomor.startsWith('SE-')) {
+      return 'se';
+    }
+    if (kode === 'KEPUTUSAN' || kode === 'SK' || kategori.includes('keputusan') || nomor.includes('/SK/') || nomor.startsWith('SK-')) {
+      return 'sk';
+    }
+    if (kode === 'PENGUMUMAN' || kategori.includes('pengumuman')) {
+      return 'peng';
+    }
+    if (kode === 'LAPORAN' || kategori.includes('laporan') || nomor.startsWith('LAP-')) {
+      return 'lap';
+    }
+    if (kode === 'BERITA_ACARA' || kategori.includes('berita acara') || nomor.includes('/BA/')) {
+      return 'ba';
+    }
+    if (kode === 'SURAT_KUASA' || kategori.includes('kuasa')) {
+      return 'skua';
+    }
+    if (kode === 'SURAT_KETERANGAN' || kategori.includes('keterangan')) {
+      return 'sket';
+    }
+    if (kode === 'SURAT_PERNYATAAN' || kategori.includes('pernyataan')) {
+      return 'sper';
+    }
+    if (kode === 'SURAT_PENGANTAR' || kategori.includes('pengantar')) {
+      return 'speng';
+    }
+    if (kode === 'NOTULA' || kategori.includes('notula')) {
+      return 'notula';
+    }
+    if (kode === 'TELAAH_STAF' || kategori.includes('telaah staf')) {
+      return 'ts';
+    }
+    if (kode === 'MOU' || kategori.includes('kesepahaman')) {
+      return 'mou';
+    }
+    if (kode === 'PKS' || kategori.includes('perjanjian kerja')) {
+      return 'pks';
+    }
+    if (kode === 'POS' || kode === 'SOP' || kategori.includes('pos') || kategori.includes('sop')) {
+      return 'pos';
+    }
+
+    // Default umum naskah korespondensi UNSIL adalah Surat Dinas (bukan Surat Edaran Rektor)
+    return 'sd';
+  }, [letter]);
 
   // Kapabilitas aksi pengguna & aturan bisnis ketat (STRICT BUSINESS RULE)
   const capabilities = useMemo(() => {
@@ -89,12 +308,44 @@ export const LetterDetailModal = ({
     return getPaperSizeInfo(letter);
   }, [letter]);
 
-  // Data template dengan keterkaitan unit kerja penerbit surat
+  // Data template dengan keterkaitan unit kerja penerbit surat & fallback aman seluruh kolom
   const effectiveTemplateData = useMemo(() => {
+    const raw = letter.templateData || {};
+    const tanggalFormatted = letter.tanggal
+      ? `Tasikmalaya, ${letter.tanggal}`
+      : `Tasikmalaya, ${new Date().toISOString().slice(0, 10)}`;
+
+    const isiNormalized = letter.isiPokok
+      ? (typeof letter.isiPokok === 'string' ? letter.isiPokok.split('\n').filter(Boolean) : letter.isiPokok)
+      : letter.ringkasan
+      ? [letter.ringkasan]
+      : [];
+
     return {
-      ...(letter.templateData || {}),
-      unitKerja: letter.templateData?.unitKerja || letter.unit_kerja_id || currentUser?.unit_kerja_id,
-      unit_kerja_id: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id
+      nomorSurat: letter.nomorSurat || letter.nomor_surat || raw.nomorSurat || '001/UN58/TU/2026',
+      tahun: letter.tanggal?.slice(0, 4) || new Date().getFullYear().toString(),
+      hal: letter.perihal || raw.hal || raw.perihal || 'Naskah Dinas',
+      perihal: letter.perihal || raw.perihal || raw.hal || 'Naskah Dinas',
+      tentang: letter.perihal || raw.tentang || raw.perihal || 'Naskah Dinas',
+      yth: letter.tujuan || raw.yth || raw.tujuan || 'Pimpinan Unit Kerja',
+      tujuan: letter.tujuan || raw.tujuan || raw.yth || 'Pimpinan Unit Kerja',
+      alamatTujuan: letter.alamatTujuan || raw.alamatTujuan || 'Di Tempat',
+      dari: letter.pengirim || raw.dari || raw.pengirim || 'Unit Kerja Pengirim',
+      pengirim: letter.pengirim || raw.pengirim || raw.dari || 'Unit Kerja Pengirim',
+      tempatTanggal: raw.tempatTanggal || tanggalFormatted,
+      tanggal: letter.tanggal || raw.tanggal,
+      kalimatPembuka: letter.kalimatPembuka || raw.kalimatPembuka || 'Dengan hormat,',
+      isiPokok: isiNormalized.length > 0 ? isiNormalized : raw.isiPokok,
+      isiSurat: isiNormalized.length > 0 ? isiNormalized : raw.isiSurat || isiNormalized,
+      kalimatPenutup: letter.kalimatPenutup || raw.kalimatPenutup || 'Demikian kami sampaikan, atas perhatian dan kerja sama diucapkan terima kasih.',
+      namaJabatan: letter.jabatanPenandatangan || letter.namaJabatan || raw.namaJabatan || letter.pengirim || 'Pejabat Penandatangan,',
+      namaPejabat: letter.namaPejabat || letter.namaPenandatangan || raw.namaPejabat || 'Pejabat Berwenang',
+      nip: letter.nipPenandatangan || letter.nip || raw.nip || '-',
+      unitKerja: raw.unitKerja || letter.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
+      unit_kerja_id: letter.unit_kerja_id || raw.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
+      lampiran: letter.lampiran || raw.lampiran || '1 (satu) Berkas',
+      tteVerified: Boolean(letter.tteVerified || raw.tteVerified),
+      ...raw
     };
   }, [letter, currentUser]);
 
@@ -134,7 +385,10 @@ export const LetterDetailModal = ({
       return;
     }
 
-    alert(`[STEMPEL AIR FORENSIK DITERAPKAN]\n${watermark}\n\nStatus TTE: ${letter.tteVerified ? 'Tervalidasi BSrE BSSN (Cap dinas fisik dihapus otomatis)' : 'Draf Naskah Dinas'}`);
+    printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL', {
+      paperSize: paperInfo.code,
+      letter
+    });
   };
 
   const handlePreviewLampiran = () => {
@@ -203,48 +457,117 @@ export const LetterDetailModal = ({
               }`}
             >
               <FileText className="w-3.5 h-3.5" />
-              <span>Naskah Resmi ({paperInfo.code})</span>
+              <span>
+                {isSuratMasuk
+                  ? (letter.lampiranUrl ? 'Naskah Berkas Masuk (PDF)' : 'Naskah Registrasi Masuk')
+                  : `Naskah Resmi (${paperInfo.code})`}
+              </span>
             </button>
           </div>
 
           {activeTabMode === 'document' && (
             <div className="flex items-center gap-2">
-              <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs ${
-                paperInfo.isF4
-                  ? 'bg-amber-100 text-amber-900 border-amber-300'
-                  : 'bg-emerald-100 text-emerald-900 border-emerald-300'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${paperInfo.isF4 ? 'bg-amber-600 animate-pulse' : 'bg-emerald-600'}`} />
-                Format: {paperInfo.badgeLabel} ({paperInfo.gramatur || 'HVS min. 70g'})
-              </span>
+              {isSuratMasuk ? (
+                letter.lampiranUrl ? (
+                  <>
+                    <div className="inline-flex rounded-lg border border-slate-300 p-0.5 bg-white text-xs shrink-0 shadow-xs">
+                      <button
+                        type="button"
+                        onClick={() => setSuratMasukViewTab('pdf')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                          suratMasukViewTab === 'pdf'
+                            ? 'bg-unsil-green-800 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Berkas PDF Asli
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSuratMasukViewTab('agenda')}
+                        className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition ${
+                          suratMasukViewTab === 'agenda'
+                            ? 'bg-unsil-green-800 text-white shadow-xs'
+                            : 'text-slate-600 hover:text-slate-900'
+                        }`}
+                      >
+                        Lembar Agenda
+                      </button>
+                    </div>
 
-              <span
-                className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-indigo-50 text-indigo-900 border-indigo-300"
-                title="Jenis dan Ukuran Huruf Naskah Dinas sesuai Peraturan Rektor UNSIL No. 3 Tahun 2023 Pasal 43–48"
-              >
-                Huruf: {paperInfo.fontFamilyLabel || (paperInfo.isF4 ? 'Bookman Old Style 12pt' : 'Times New Roman / Arial 12pt')}
-              </span>
+                    <button
+                      type="button"
+                      onClick={handlePreviewLampiran}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 text-xs font-semibold shadow-xs transition"
+                      title="Buka Dokumen PDF di Tab Baru"
+                    >
+                      <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                      <span className="hidden sm:inline">Tab Baru</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownload}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold shadow-xs transition"
+                      title="Unduh Berkas PDF Asli"
+                    >
+                      <Download className="w-3.5 h-3.5 text-unsil-gold-400" />
+                      <span className="hidden sm:inline">Unduh PDF</span>
+                    </button>
+                  </>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Lembar_Agenda_Surat_Masuk', {
+                      paperSize: 'A4',
+                      letter
+                    })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-xs shrink-0 transition"
+                    title="Cetak Lembar Agenda Registrasi Masuk (A4)"
+                  >
+                    <Printer className="w-3.5 h-3.5 text-unsil-green-800" />
+                    <span>Cetak (A4)</span>
+                  </button>
+                )
+              ) : (
+                <>
+                  <span className={`hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs ${
+                    paperInfo.isF4
+                      ? 'bg-amber-100 text-amber-900 border-amber-300'
+                      : 'bg-emerald-100 text-emerald-900 border-emerald-300'
+                  }`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${paperInfo.isF4 ? 'bg-amber-600 animate-pulse' : 'bg-emerald-600'}`} />
+                    Format: {paperInfo.badgeLabel} ({paperInfo.gramatur || 'HVS min. 70g'})
+                  </span>
 
-              <span
-                className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-teal-50 text-teal-900 border-teal-300"
-                title="Pengaturan Ruang Tepi Naskah Dinas sesuai Pasal 47 Peraturan Rektor UNSIL No. 3 Tahun 2023"
-              >
-                {paperInfo?.pasal47?.hasKop !== false
-                  ? 'Pasal 47 • Tepi Atas: 1 Spasi Kop (4,5 cm) • Bawah/Kiri/Kanan: 1,5 cm'
-                  : 'Pasal 47 • Tepi Atas: 2 cm (Tanpa Kop) • Bawah/Kiri/Kanan: 1,5 cm'}
-              </span>
+                  <span
+                    className="hidden lg:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-indigo-50 text-indigo-900 border-indigo-300"
+                    title="Jenis dan Ukuran Huruf Naskah Dinas sesuai Peraturan Rektor UNSIL No. 3 Tahun 2023 Pasal 43–48"
+                  >
+                    Huruf: {paperInfo.fontFamilyLabel || (paperInfo.isF4 ? 'Bookman Old Style 12pt' : 'Times New Roman / Arial 12pt')}
+                  </span>
 
-              <button
-                onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL', {
-                  paperSize: paperInfo.code,
-                  letter
-                })}
-                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-xs shrink-0 transition"
-                title={`Cetak Dokumen PDF Otomatis (${paperInfo.code} - ${paperInfo.width} × ${paperInfo.height})`}
-              >
-                <Printer className="w-3.5 h-3.5 text-unsil-green-800" />
-                <span>Cetak ({paperInfo.code})</span>
-              </button>
+                  <span
+                    className="hidden md:inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border shadow-xs bg-teal-50 text-teal-900 border-teal-300"
+                    title="Pengaturan Ruang Tepi Naskah Dinas sesuai Pasal 47 Peraturan Rektor UNSIL No. 3 Tahun 2023"
+                  >
+                    {paperInfo?.pasal47?.hasKop !== false
+                      ? 'Pasal 47 • Tepi Atas: 1 Spasi Kop (4,5 cm) • Bawah/Kiri/Kanan: 1,5 cm'
+                      : 'Pasal 47 • Tepi Atas: 2 cm (Tanpa Kop) • Bawah/Kiri/Kanan: 1,5 cm'}
+                  </span>
+
+                  <button
+                    onClick={() => printDocument('letter-detail-printable-area', letter.perihal || 'Naskah_Dinas_UNSIL', {
+                      paperSize: paperInfo.code,
+                      letter
+                    })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white border border-slate-300 hover:bg-slate-50 text-slate-800 text-xs font-semibold shadow-xs shrink-0 transition"
+                    title={`Cetak Dokumen PDF Otomatis (${paperInfo.code} - ${paperInfo.width} × ${paperInfo.height})`}
+                  >
+                    <Printer className="w-3.5 h-3.5 text-unsil-green-800" />
+                    <span>Cetak ({paperInfo.code})</span>
+                  </button>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -252,84 +575,88 @@ export const LetterDetailModal = ({
         {/* Content Body: Conditional Switcher between Document (F4/A4) and Metadata */}
         {activeTabMode === 'document' ? (
           <div className="p-3 sm:p-6 overflow-y-auto overflow-x-auto bg-slate-200/70 flex flex-col items-center">
-            <div
-              id="letter-detail-printable-area"
-              data-paper-size={paperInfo.code}
-              data-category={letter.kategori}
-              data-template-id={letter.templateType}
-              data-has-kop={String(paperInfo?.pasal47?.hasKop !== false)}
-              className={`w-full printable-document ${paperInfo.isF4 ? 'f4-document' : 'a4-document'}`}
-            >
-              {letter.templateType === 'pos' ? (
-                <PosTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'se' ? (
-                <SuratEdaranTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'sk' ? (
-                <KeputusanTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'sp' ? (
-                <SuratPerintahTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'st_lembar' ? (
-                <SuratTugasLembaranTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'st_kolom' ? (
-                <SuratTugasKolomTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'nd' ? (
-                <NotaDinasTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'sd' ? (
-                <SuratDinasTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'undangan_lembar' ? (
-                <SuratUndanganLembaranTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'undangan_kartu' ? (
-                <SuratUndanganKartuTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'mou' ? (
-                <NotaKesepahamanTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'pks' ? (
-                <PerjanjianKerjaSamaTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'skua' ? (
-                <SuratKuasaTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'ba' ? (
-                <BeritaAcaraTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'sket' ? (
-                <SuratKeteranganTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'sper' ? (
-                <SuratPernyataanTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'speng' ? (
-                <SuratPengantarTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'peng' ? (
-                <PengumumanTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'notula' ? (
-                <NotulaTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'lap' ? (
-                <LaporanTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'ts' || letter.templateType === 'telaah_staf' ? (
-                <TelaahStafTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'disposisi_rektor' || letter.templateType === 'disp_rektor' ? (
-                <DisposisiRektorTemplateView data={effectiveTemplateData} />
-              ) : letter.templateType === 'tte_doc' || letter.templateType === 'penggunaan_tte' ? (
-                <PenggunaanTteTemplateView data={effectiveTemplateData} />
+            {isSuratMasuk ? (
+              letter.lampiranUrl && suratMasukViewTab === 'pdf' ? (
+                /* 1. Tampilan Langsung PDF Penuh Naskah Pindaian Berkas Surat Masuk */
+                <div className="w-full max-w-4xl flex-1 flex flex-col relative rounded-xl overflow-hidden shadow-lg border border-slate-300 bg-white min-h-[750px] mb-4">
+                  <iframe
+                    src={`${letter.lampiranUrl}#toolbar=0&navpanes=0&view=FitH`}
+                    title={`Naskah Dokumen Surat Masuk - ${letter.nomorSurat}`}
+                    className="w-full h-full min-h-[750px] border-0"
+                  />
+                </div>
               ) : (
-                <SuratEdaranTemplateView
-                  data={{
-                    nomorSurat: letter.nomorSurat,
-                    tahun: letter.tanggal?.slice(0, 4) || '2026',
-                    tentang: letter.perihal,
-                    tujuanList: [letter.tujuan, 'Arsip Biro BKU Universitas Siliwangi'],
-                    dasarHukum: `Naskah dinas resmi tercatat secara sah pada buku agenda registrasi nomor ${letter.nomorSurat}.`,
-                    isiSurat: [
-                      letter.ringkasan,
-                      `Klasifikasi Arsip: ${letter.subKlasifikasi || letter.kodeKlasifikasi}`,
-                      `Kategori Sifat: ${letter.sifat} (Keamanan: ${letter.kategoriKeamanan})`
-                    ],
-                    tempatTanggal: `Tasikmalaya, ${letter.tanggal}`,
-                    namaJabatan: letter.jabatanPenandatangan || letter.pengirim || letter.templateData?.namaJabatan || 'Kepala Biro Umum dan Keuangan,',
-                    namaPejabat: letter.namaPejabat || letter.namaPenandatangan || letter.templateData?.namaPejabat || 'Dr. Nana Sujana, Drs., M.Si.',
-                    nip: letter.nipPenandatangan || letter.nip || letter.templateData?.nip || '196808301989031004',
-                    unitKerja: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id,
-                    unit_kerja_id: letter.unit_kerja_id || letter.templateData?.unit_kerja_id || currentUser?.unit_kerja_id,
-                    tteVerified: letter.tteVerified
-                  }}
-                />
-              )}
-            </div>
+                /* 2. Lembar Agenda Registrasi Naskah Masuk Resmi UNSIL */
+                <div
+                  id="letter-detail-printable-area"
+                  data-paper-size="A4"
+                  data-category="Surat Masuk"
+                  className="w-full printable-document a4-document"
+                >
+                  <LembarRegistrasiSuratMasuk letter={letter} />
+                </div>
+              )
+            ) : (
+              /* 3. Naskah Dinas Keluar / Internal Sesuai Template yang Dipilih Pembuat */
+              <div
+                id="letter-detail-printable-area"
+                data-paper-size={paperInfo.code}
+                data-category={letter.kategori}
+                data-template-id={resolvedTemplateType}
+                data-has-kop={String(paperInfo?.pasal47?.hasKop !== false)}
+                className={`w-full printable-document ${paperInfo.isF4 ? 'f4-document' : 'a4-document'}`}
+              >
+                {resolvedTemplateType === 'pos' ? (
+                  <PosTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'se' ? (
+                  <SuratEdaranTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'sk' ? (
+                  <KeputusanTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'sp' ? (
+                  <SuratPerintahTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'st_lembar' ? (
+                  <SuratTugasLembaranTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'st_kolom' ? (
+                  <SuratTugasKolomTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'nd' ? (
+                  <NotaDinasTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'sd' ? (
+                  <SuratDinasTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'undangan_lembar' ? (
+                  <SuratUndanganLembaranTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'undangan_kartu' ? (
+                  <SuratUndanganKartuTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'mou' ? (
+                  <NotaKesepahamanTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'pks' ? (
+                  <PerjanjianKerjaSamaTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'skua' ? (
+                  <SuratKuasaTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'ba' ? (
+                  <BeritaAcaraTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'sket' ? (
+                  <SuratKeteranganTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'sper' ? (
+                  <SuratPernyataanTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'speng' ? (
+                  <SuratPengantarTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'peng' ? (
+                  <PengumumanTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'notula' ? (
+                  <NotulaTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'lap' ? (
+                  <LaporanTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'ts' || resolvedTemplateType === 'telaah_staf' ? (
+                  <TelaahStafTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'disposisi_rektor' || resolvedTemplateType === 'disp_rektor' ? (
+                  <DisposisiRektorTemplateView data={effectiveTemplateData} />
+                ) : resolvedTemplateType === 'tte_doc' || resolvedTemplateType === 'penggunaan_tte' ? (
+                  <PenggunaanTteTemplateView data={effectiveTemplateData} />
+                ) : (
+                  <SuratDinasTemplateView data={effectiveTemplateData} />
+                )}
+              </div>
+            )}
           </div>
         ) : (
           <div className="p-6 overflow-y-auto space-y-6 text-slate-700 text-sm">

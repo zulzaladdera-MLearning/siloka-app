@@ -353,6 +353,29 @@ const TEMPLATES = [
   }
 ];
 
+// Helper pemetaan ID template ke kode template resmi SILOKA
+const mapTemplateIdToType = (tplId) => {
+  if (!tplId) return 'sd';
+  const idStr = String(tplId).toLowerCase();
+  if (idStr === 'nota-dinas' || idStr === 'nota_dinas' || idStr === 'nd') return 'nd';
+  if (idStr === 'surat-dinas' || idStr === 'surat_dinas' || idStr === 'sd') return 'sd';
+  if (idStr === 'undangan' || idStr === 'surat_undangan' || idStr === 'surat-undangan') return 'undangan_lembar';
+  if (idStr === 'tugas' || idStr === 'surat_tugas' || idStr === 'surat-tugas' || idStr === 'st') return 'st_lembar';
+  if (idStr === 'edaran' || idStr === 'surat_edaran' || idStr === 'surat-edaran' || idStr === 'se') return 'se';
+  if (idStr === 'perintah' || idStr === 'surat_perintah' || idStr === 'surat-perintah' || idStr === 'sp') return 'sp';
+  if (idStr === 'keputusan' || idStr === 'sk') return 'sk';
+  if (idStr === 'pengumuman' || idStr === 'peng') return 'peng';
+  if (idStr === 'laporan' || idStr === 'lap') return 'lap';
+  if (idStr === 'berita-acara' || idStr === 'berita_acara' || idStr === 'ba') return 'ba';
+  if (idStr === 'kuasa' || idStr === 'surat-kuasa' || idStr === 'skua') return 'skua';
+  if (idStr === 'keterangan' || idStr === 'surat-keterangan' || idStr === 'sket') return 'sket';
+  if (idStr === 'pernyataan' || idStr === 'surat-pernyataan' || idStr === 'sper') return 'sper';
+  if (idStr === 'pengantar' || idStr === 'surat-pengantar' || idStr === 'speng') return 'speng';
+  if (idStr === 'notula') return 'notula';
+  if (idStr === 'telaah-staf' || idStr === 'telaah_staf' || idStr === 'ts') return 'ts';
+  return 'sd';
+};
+
 export const CreateLetterModal = ({
   isOpen,
   onClose,
@@ -981,6 +1004,20 @@ export const CreateLetterModal = ({
           tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })
         } : null;
 
+        let fileDataUrlMasuk = uploadedFileDataUrlMasuk || uploadedFileUrlMasuk || null;
+        if (uploadedFileMasuk && !fileDataUrlMasuk) {
+          try {
+            fileDataUrlMasuk = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = reject;
+              reader.readAsDataURL(uploadedFileMasuk);
+            });
+          } catch (e) {
+            console.warn('Could not read uploadedFileMasuk as dataUrl:', e);
+          }
+        }
+
         onSaveLetter({
           id: `SRT-IN-${currentYear}-${seqStr}`,
           id_surat: savedData.id_surat,
@@ -991,6 +1028,8 @@ export const CreateLetterModal = ({
           tanggalTerima: tanggalTerimaMasuk,
           perihal: perihalMasuk.trim(),
           kategori: 'Surat Masuk',
+          templateType: 'surat-masuk',
+          isSuratMasuk: true,
           sifat: sifatSuratMasuk,
           kategoriKeamanan: tingkatKeamanan === 'B' ? 'Biasa/Terbuka' : tingkatKeamanan === 'R' ? 'Rahasia' : 'Sangat Rahasia',
           tingkat_keamanan: tingkatKeamanan,
@@ -1008,7 +1047,7 @@ export const CreateLetterModal = ({
           target_unit_id: targetPejabat?.kode_unit || activeUnitObj.kode_unit,
           ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
           lampiran: uploadedFileNameMasuk ? `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})` : null,
-          lampiranUrl: uploadedFileDataUrlMasuk || uploadedFileUrlMasuk || null,
+          lampiranUrl: fileDataUrlMasuk,
           lampiranName: uploadedFileNameMasuk || null,
           lampiranSize: uploadedFileSizeMasuk || null,
           status: hasDisposisi ? 'Didisposisikan' : 'Diterima',
@@ -1066,6 +1105,7 @@ export const CreateLetterModal = ({
         );
 
         const savedDraft = draftRes.data;
+        const activeTplType = mapTemplateIdToType(selectedTemplateId || selectedKodeNaskah);
         onSaveLetter({
           id: `SRT-DRAFT-${Date.now()}`,
           id_surat: savedDraft?.id_surat || Date.now(),
@@ -1087,6 +1127,30 @@ export const CreateLetterModal = ({
           kalimatPembuka,
           isiPokok,
           kalimatPenutup,
+          templateType: activeTplType,
+          templateData: {
+            nomorSurat: 'Draf Naskah (Menunggu Penomoran Resmi)',
+            tanggal,
+            perihal,
+            hal: perihal,
+            tentang: perihal,
+            tujuan,
+            yth: tujuan,
+            alamatTujuan,
+            pengirim,
+            dari: pengirim,
+            kalimatPembuka,
+            isiPokok,
+            isiSurat: typeof isiPokok === 'string' ? isiPokok.split('\n').filter(Boolean) : isiPokok,
+            kalimatPenutup,
+            namaJabatan: namaJabatanSigner,
+            namaPejabat: namaPejabatSigner,
+            gelarPejabat: gelarSigner,
+            nip: nipSigner,
+            unitKerja: activeUnitObj.kode_unit,
+            unit_kerja_id: activeUnitObj.kode_unit,
+            tteVerified: false
+          },
           status: 'DRAFT_MENUNGGU_PARAF',
           status_progres: 'DRAFT_MENUNGGU_PARAF',
           statusTimestamp: 'Tersimpan sebagai Draf Naskah (Nomor Resmi Ditunda Hingga TTE Final)',
@@ -1148,6 +1212,7 @@ export const CreateLetterModal = ({
       const seqStr = String(savedData.nomor_urut).padStart(4, '0');
 
       // 2. Teruskan payload naskah dinas lengkap ke state aplikasi
+      const activeTplType = mapTemplateIdToType(selectedTemplateId || selectedKodeNaskah);
       onSaveLetter({
         id: `SRT-${currentYear}-${seqStr}`,
         id_surat: savedData.id_surat,
@@ -1168,6 +1233,30 @@ export const CreateLetterModal = ({
         kalimatPembuka,
         isiPokok,
         kalimatPenutup,
+        templateType: activeTplType,
+        templateData: {
+          nomorSurat: officialNomorSurat,
+          tanggal,
+          perihal,
+          hal: perihal,
+          tentang: perihal,
+          tujuan,
+          yth: tujuan,
+          alamatTujuan,
+          pengirim,
+          dari: pengirim,
+          kalimatPembuka,
+          isiPokok,
+          isiSurat: typeof isiPokok === 'string' ? isiPokok.split('\n').filter(Boolean) : isiPokok,
+          kalimatPenutup,
+          namaJabatan: namaJabatanSigner,
+          namaPejabat: namaPejabatSigner,
+          gelarPejabat: gelarSigner,
+          nip: nipSigner,
+          unitKerja: activeUnitObj.kode_unit,
+          unit_kerja_id: activeUnitObj.kode_unit,
+          tteVerified: false
+        },
         status: targetStatus === 'Draft' ? 'Draft' : 'DRAFT_MENUNGGU_PARAF',
         statusTimestamp: targetStatus === 'Draft' ? 'Tersimpan sebagai Draf Naskah' : 'Diajukan untuk Paraf Berjenjang (Pasal 59) & TTE Pimpinan',
         tujuan_aksi: 'DISPOSISI',
