@@ -232,6 +232,18 @@ export const RoleManagementView = ({
     );
   });
 
+  const isSuperAdmin = isSuperAdminUser(currentUser);
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-8 max-w-4xl mx-auto text-center">
+        <div className="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
+          <p className="font-bold text-sm">Akses Dibatasi: Khusus Super Administrator</p>
+          <p className="text-xs mt-1 text-rose-600">Modul Manajemen Peran hanya dapat diakses oleh akun Super Administrator SILOKA UNSIL.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* =========================================================================

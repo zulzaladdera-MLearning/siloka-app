@@ -60,4 +60,20 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
     expect(brankasItem).toBeDefined();
     expect(brankasItem.badge).toBeNull();
   });
+
+  it('tidak boleh memuat menu induk "Manajemen" untuk role yang bukan Super Admin', () => {
+    const nonAdminRoles = [
+      { role: 'PEJABAT' },
+      { role: 'DOSEN' },
+      { role: 'STAFF', permissions: ['admin:manage_users', 'admin.access'] },
+      { role: 'ADMIN_TU', permissions: ['admin.access'] },
+      { role: 'PENGAWAS' }
+    ];
+
+    for (const user of nonAdminRoles) {
+      const items = buildSidebarMenuItems({ user, unreadCounts: {} });
+      const manajemenMenu = items.find((item) => item.id === 'manajemen');
+      expect(manajemenMenu).toBeUndefined();
+    }
+  });
 });

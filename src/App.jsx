@@ -1548,7 +1548,7 @@ export default function App() {
 
         {activeTab === 'brankas-digital' && canAccessBrankasDigital(currentUser) && <BrankasDigitalView />}
 
-        {(activeTab === 'settings' || activeTab === 'manajemen-user') && (
+        {(activeTab === 'settings' || activeTab === 'manajemen-user') && isSuperAdminUser(currentUser) && (
           <SystemSettingsView
             user={currentUser}
             allUsers={allUsers}
@@ -1559,7 +1559,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'manajemen-role' && (
+        {activeTab === 'manajemen-role' && isSuperAdminUser(currentUser) && (
           <RoleManagementView
             currentUser={currentUser}
             allUsers={allUsers}
@@ -1570,7 +1570,7 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'manajemen-permission' && (
+        {activeTab === 'manajemen-permission' && isSuperAdminUser(currentUser) && (
           <PermissionManagementView
             currentUser={currentUser}
             showToast={showToast}

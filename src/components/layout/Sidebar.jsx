@@ -24,7 +24,7 @@ import {
   KeyRound,
   Mail
 } from 'lucide-react';
-import { canAccessBrankasDigital } from '../../utils/authGuards';
+import { canAccessBrankasDigital, isSuperAdminUser } from '../../utils/authGuards';
 import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
 import { getPathFromTab } from '../../utils/routeNavigation';
 
@@ -33,7 +33,7 @@ export const buildSidebarMenuItems = ({
   unreadCounts = { disposisi: 3, tte: 5, retensi: 14 }
 }) => {
   // Tugas 1: Otorisasi RBAC Menu Pengaturan Sistem (Hanya untuk Super Admin)
-  const isSuperAdmin = user?.role === 'Super Admin' || user?.role === 'SUPER_ADMIN';
+  const isSuperAdmin = isSuperAdminUser(user);
 
   // Akses Khusus Bagian IT / UPA TIK (UN58.32)
   const isUptTik = Boolean(
@@ -65,11 +65,8 @@ export const buildSidebarMenuItems = ({
     hasTupoksiPerm('surat:agenda_access') ||
     hasUserPermission(user, 'agenda.manage') ||
     hasUserPermission(user, 'surat_masuk.register');
-  const canManageUsers =
-    isSuperAdmin ||
-    userPermissions.includes('admin:manage_users') ||
-    hasUserPermission(user, 'role.manage') ||
-    hasUserPermission(user, 'admin.access');
+  // Menu Khusus Super Admin / User Management (Eksklusif Hanya untuk Super Admin)
+  const canManageUsers = isSuperAdmin;
   const canAccessBrankas =
     canAccessBrankasDigital(user) ||
     hasUserPermission(user, 'arsip.view_rahasia');
