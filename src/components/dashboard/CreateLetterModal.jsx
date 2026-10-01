@@ -27,8 +27,15 @@ import {
   AlertCircle,
   Trash2,
   CheckCircle2,
-  ExternalLink
+  ExternalLink,
+  CheckSquare
 } from 'lucide-react';
+import {
+  OFFICIAL_DISPOSISI_CHECKLIST_COL1,
+  OFFICIAL_DISPOSISI_CHECKLIST_COL2,
+  DISPOSISI_SLA_DAYS,
+  getHierarchicalDisposisiTargets
+} from '../../utils/disposisiStandards';
 import unitKerjaList from '../../data/unitKerja.json';
 import { printDocument, getPaperSizeInfo } from '../../utils/printDocument';
 import { determineKopSurat } from '../../utils/kopSuratHelper';
@@ -408,6 +415,46 @@ export const CreateLetterModal = ({
   const [perihalMasuk, setPerihalMasuk] = useState('Koordinasi Pelaksanaan Program Penguatan Tata Kelola PTN-BLU');
   const [ringkasanMasuk, setRingkasanMasuk] = useState('Permohonan data dukung dan kehadiran pimpinan dalam rangka rekonsiliasi laporan keuangan dan aset');
   const [sifatSuratMasuk, setSifatSuratMasuk] = useState('Penting');
+
+  // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
+  const hierarchicalDisposisiTargets = useMemo(() => {
+    return getHierarchicalDisposisiTargets(currentUser);
+  }, [currentUser]);
+
+  // State Checklist Instruksi Disposisi Surat Masuk (Contoh 21)
+  const [disposisiActionsMasuk, setDisposisiActionsMasuk] = useState([]);
+  const [disposisiKoordinasiDetail, setDisposisiKoordinasiDetail] = useState('');
+  const [disposisiLainnyaDetail, setDisposisiLainnyaDetail] = useState('');
+  const [disposisiTargetUnit, setDisposisiTargetUnit] = useState('');
+  const [disposisiCatatanTambahan, setDisposisiCatatanTambahan] = useState('');
+  const [disposisiDueDate, setDisposisiDueDate] = useState(() => {
+    const d = new Date();
+    const days = DISPOSISI_SLA_DAYS['Penting'] || 2;
+    d.setDate(d.getDate() + days);
+    return d.toISOString().slice(0, 10);
+  });
+
+  const handleToggleDisposisiAction = (label) => {
+    if (disposisiActionsMasuk.includes(label)) {
+      setDisposisiActionsMasuk(disposisiActionsMasuk.filter((a) => a !== label));
+    } else {
+      setDisposisiActionsMasuk([...disposisiActionsMasuk, label]);
+    }
+  };
+
+  const handleSelectAllDisposisi = () => {
+    const allLabels = [
+      ...OFFICIAL_DISPOSISI_CHECKLIST_COL1.map((c) => c.label),
+      ...OFFICIAL_DISPOSISI_CHECKLIST_COL2.map((c) => c.label)
+    ];
+    setDisposisiActionsMasuk(allLabels);
+  };
+
+  const handleClearAllDisposisi = () => {
+    setDisposisiActionsMasuk([]);
+    setDisposisiKoordinasiDetail('');
+    setDisposisiLainnyaDetail('');
+  };
 
   // Format ukuran berkas (B, KB, MB)
   const formatFileSize = (bytes) => {
@@ -873,6 +920,33 @@ export const CreateLetterModal = ({
         const officialAgenda = savedData.nomor_agenda;
         const seqStr = String(savedData.nomor_urut).padStart(4, '0');
 
+        // Menyiapkan lembar instruksi disposisi jika ada butir yang dicentang saat registrasi surat masuk
+        const finalizedDisposisiActions = disposisiActionsMasuk.map((act) => {
+          if (act.includes('Koordinasikan dengan') && disposisiKoordinasiDetail.trim()) {
+            return `Koordinasikan dengan ${disposisiKoordinasiDetail.trim()}`;
+          }
+          if ((act.includes('Lainnya') || act.startsWith('...')) && disposisiLainnyaDetail.trim()) {
+            return `Instruksi Lainnya: ${disposisiLainnyaDetail.trim()}`;
+          }
+          return act;
+        });
+
+        const hasDisposisi = tujuanAksi !== 'TTD' && finalizedDisposisiActions.length > 0;
+        const targetDisposisiFinal = disposisiTargetUnit || tujuanMasuk.trim() || 'Pimpinan Unit';
+        const disposisiPayload = hasDisposisi ? {
+          nomorAgenda: officialAgenda,
+          tujuanDisposisi: targetDisposisiFinal,
+          targetUnit: targetDisposisiFinal,
+          actions: finalizedDisposisiActions,
+          instruksi: finalizedDisposisiActions.join(', ') + (disposisiCatatanTambahan.trim() ? ' — Catatan: ' + disposisiCatatanTambahan.trim() : ''),
+          batasWaktu: disposisiDueDate,
+          sifatInstruksi: sifatSuratMasuk,
+          customNote: disposisiCatatanTambahan.trim() || null,
+          pemberiDisposisi: currentUser?.nama_lengkap || currentUser?.name || 'Pencatat Naskah Masuk',
+          jabatanPemberi: currentUser?.jabatan || currentUser?.roleLabel || 'Operator Unit / Loket TU',
+          tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })
+        } : null;
+
         onSaveLetter({
           id: `SRT-IN-${currentYear}-${seqStr}`,
           id_surat: savedData.id_surat,
@@ -895,8 +969,10 @@ export const CreateLetterModal = ({
           lampiranUrl: uploadedFileDataUrlMasuk || uploadedFileUrlMasuk || null,
           lampiranName: uploadedFileNameMasuk || null,
           lampiranSize: uploadedFileSizeMasuk || null,
-          status: 'Diterima',
-          statusTimestamp: 'Surat Masuk terdaftar pada Buku Agenda SILOKA',
+          status: hasDisposisi ? 'Didisposisikan' : 'Diterima',
+          statusTimestamp: hasDisposisi
+            ? `Didisposisikan kepada ${targetDisposisiFinal} (Arahan: ${finalizedDisposisiActions.slice(0, 2).join(', ')})`
+            : 'Surat Masuk terdaftar pada Buku Agenda SILOKA',
           tujuan_aksi: tujuanAksi,
           isSignatureRequest: tujuanAksi === 'TTD',
           tteVerified: false,
@@ -908,10 +984,10 @@ export const CreateLetterModal = ({
               nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
               jabatan: currentUser?.roleLabel || 'Operator Unit',
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan Tanda Tangan Pejabat' : 'Disposisi Pimpinan'}]`
+              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan Tanda Tangan Pejabat' : 'Disposisi Pimpinan'}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
             }
           ],
-          disposisi: null
+          disposisi: disposisiPayload
         });
 
         onClose();
@@ -1434,7 +1510,14 @@ export const CreateLetterModal = ({
                       </label>
                       <select
                         value={sifatSuratMasuk}
-                        onChange={(e) => setSifatSuratMasuk(e.target.value)}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSifatSuratMasuk(val);
+                          const d = new Date();
+                          const days = DISPOSISI_SLA_DAYS[val] || 2;
+                          d.setDate(d.getDate() + days);
+                          setDisposisiDueDate(d.toISOString().slice(0, 10));
+                        }}
                         className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20"
                       >
                         <option value="Biasa">Biasa</option>
@@ -1685,6 +1768,194 @@ export const CreateLetterModal = ({
                       </div>
                     )}
                   </div>
+
+                  {/* PANEL CHECKLIST INSTRUKSI DISPOSISI (UNTUK :) - FORMAT RESMI UNSIL CONTOH 21 */}
+                  {tujuanAksi !== 'TTD' && (
+                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/70 p-4 space-y-3.5 shadow-2xs">
+                      {/* Header Panel */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                              <CheckSquare className="w-4 h-4 text-unsil-green-800" />
+                              <span>Instruksi Tindak Lanjut / Disposisi (Untuk :)</span>
+                            </label>
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-unsil-green-900 font-semibold border border-emerald-300">
+                              Contoh 21
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-slate-500 mt-0.5">
+                            Centang butir instruksi resmi di bawah ini untuk langsung diteruskan ke sistem SILOKA saat pendaftaran:
+                          </p>
+                        </div>
+
+                        <div className="flex items-center gap-2 text-[10.5px]">
+                          <button
+                            type="button"
+                            onClick={handleSelectAllDisposisi}
+                            className="text-unsil-green-800 hover:text-unsil-green-950 font-bold hover:underline cursor-pointer"
+                          >
+                            Pilih Semua
+                          </button>
+                          <span className="text-slate-300">•</span>
+                          <button
+                            type="button"
+                            onClick={handleClearAllDisposisi}
+                            className="text-slate-500 hover:text-slate-800 font-semibold hover:underline cursor-pointer"
+                          >
+                            Kosongkan
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Tujuan Disposisi (Diteruskan Kepada) & Tenggat Waktu (SLA) */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Diteruskan Kepada (Tujuan Disposisi)
+                          </label>
+                          <select
+                            value={disposisiTargetUnit}
+                            onChange={(e) => setDisposisiTargetUnit(e.target.value)}
+                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                          >
+                            <option value="">-- Diteruskan ke Pimpinan/Tujuan: {tujuanMasuk.slice(0, 32)}... --</option>
+                            {hierarchicalDisposisiTargets.map((tgt) => (
+                              <option key={tgt.id} value={tgt.nama}>
+                                {tgt.nama} {tgt.badge ? `[${tgt.badge}]` : ''}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                            Tenggat Waktu Penyelesaian (SLA)
+                          </label>
+                          <input
+                            type="date"
+                            value={disposisiDueDate}
+                            onChange={(e) => setDisposisiDueDate(e.target.value)}
+                            className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                          />
+                        </div>
+                      </div>
+
+                      {/* TABEL CHECKLIST 2 KOLOM (Format Disposisi Resmi UNSIL Sesuai Gambar) */}
+                      <div className="border border-slate-200 rounded-xl bg-white p-3 space-y-1">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-1.5 md:divide-x md:divide-dashed md:divide-slate-200 text-xs">
+                          {/* Kolom Kiri */}
+                          <div className="space-y-1">
+                            {OFFICIAL_DISPOSISI_CHECKLIST_COL1.map((item) => {
+                              const isChecked = disposisiActionsMasuk.includes(item.label);
+                              return (
+                                <label
+                                  key={item.id}
+                                  className={`flex items-start gap-2.5 p-1.5 rounded-lg cursor-pointer transition select-none ${
+                                    isChecked
+                                      ? 'bg-emerald-100/70 text-unsil-green-950 font-semibold shadow-2xs'
+                                      : 'hover:bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleDisposisiAction(item.label)}
+                                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-800/30 cursor-pointer"
+                                  />
+                                  <span className="text-[11.5px] leading-tight">{item.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+
+                          {/* Kolom Kanan */}
+                          <div className="space-y-1 md:pl-6 pt-2 md:pt-0">
+                            {OFFICIAL_DISPOSISI_CHECKLIST_COL2.map((item) => {
+                              const isChecked = disposisiActionsMasuk.includes(item.label);
+                              return (
+                                <div key={item.id} className="space-y-1">
+                                  <label
+                                    className={`flex items-start gap-2.5 p-1.5 rounded-lg cursor-pointer transition select-none ${
+                                      isChecked
+                                        ? 'bg-emerald-100/70 text-unsil-green-950 font-semibold shadow-2xs'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={isChecked}
+                                      onChange={() => handleToggleDisposisiAction(item.label)}
+                                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-800/30 cursor-pointer"
+                                    />
+                                    <span className="text-[11.5px] leading-tight">
+                                      {item.id === 'lainnya' ? '.............................................................. (Lainnya)' : item.label}
+                                    </span>
+                                  </label>
+
+                                  {/* Input khusus bila "Koordinasikan dengan..." dicentang */}
+                                  {item.id === 'koordinasikan_dengan' && isChecked && (
+                                    <div className="pl-6 pb-1">
+                                      <input
+                                        type="text"
+                                        value={disposisiKoordinasiDetail}
+                                        onChange={(e) => setDisposisiKoordinasiDetail(e.target.value)}
+                                        placeholder="Sebutkan pihak / unit kerja koordinasi..."
+                                        className="w-full text-[11px] p-1.5 bg-slate-50 border border-emerald-300 rounded focus:ring-1 focus:ring-unsil-green-800 outline-none"
+                                        autoFocus
+                                      />
+                                    </div>
+                                  )}
+
+                                  {/* Input khusus bila "Lainnya" dicentang */}
+                                  {item.id === 'lainnya' && isChecked && (
+                                    <div className="pl-6 pb-1">
+                                      <input
+                                        type="text"
+                                        value={disposisiLainnyaDetail}
+                                        onChange={(e) => setDisposisiLainnyaDetail(e.target.value)}
+                                        placeholder="Tuliskan arahan spesifik lainnya..."
+                                        className="w-full text-[11px] p-1.5 bg-slate-50 border border-emerald-300 rounded focus:ring-1 focus:ring-unsil-green-800 outline-none"
+                                        autoFocus
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Catatan Khusus Tambahan */}
+                      <div>
+                        <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
+                          Catatan Tambahan Instruksi (Opsional)
+                        </label>
+                        <input
+                          type="text"
+                          value={disposisiCatatanTambahan}
+                          onChange={(e) => setDisposisiCatatanTambahan(e.target.value)}
+                          placeholder="Contoh: Harap koordinasikan dengan staf pengelola keuangan terkait SPJ..."
+                          className="w-full p-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800"
+                        />
+                      </div>
+
+                      {disposisiActionsMasuk.length > 0 && (
+                        <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200 text-[11px] text-unsil-green-950 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
+                          <span className="flex items-center gap-1.5">
+                            <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0" />
+                            <span>
+                              <strong>{disposisiActionsMasuk.length}</strong> butir instruksi tindak lanjut terpilih siap dikirim ke sistem SILOKA.
+                            </span>
+                          </span>
+                          <span className="font-semibold text-emerald-800 px-2 py-0.5 rounded bg-emerald-100 border border-emerald-300 self-start sm:self-auto text-[10.5px]">
+                            Status: Otomatis Didisposisikan
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 /* ========================================================================= */
@@ -2564,24 +2835,71 @@ export const CreateLetterModal = ({
                         </tbody>
                       </table>
 
-                      {/* Kotak Instruksi Pimpinan / Disposisi */}
-                      <div className="border border-black p-3.5 mt-4 rounded-xs">
-                        <div className="font-bold uppercase text-[11px] mb-2 border-b border-black pb-1">
-                          {tujuanAksi === 'TTD' ? 'CATATAN PERMOHONAN TANDA TANGAN ELEKTRONIK (TTE PEJABAT)' : 'LEMBAR INSTRUKSI DISPOSISI PIMPINAN'}
+                      {/* Kotak Instruksi Pimpinan / Disposisi (Format Resmi UNSIL Lampiran Contoh 21) */}
+                      <div className="border border-black p-3 mt-3.5 rounded-xs font-serif">
+                        <div className="flex items-center justify-between font-bold uppercase text-[11px] mb-1.5 border-b border-black pb-1">
+                          <span>
+                            {tujuanAksi === 'TTD'
+                              ? 'CATATAN PERMOHONAN TANDA TANGAN ELEKTRONIK (TTE PEJABAT)'
+                              : 'LEMBAR DISPOSISI (UNTUK :)'}
+                          </span>
+                          {tujuanAksi !== 'TTD' && (
+                            <span className="text-[9.5px] font-sans font-normal text-slate-700">
+                              Diteruskan Kepada: <strong>{disposisiTargetUnit || tujuanMasuk || 'Pimpinan Unit'}</strong>
+                            </span>
+                          )}
                         </div>
+
                         {tujuanAksi === 'TTD' ? (
-                          <p className="text-xs italic text-slate-700 leading-relaxed">
+                          <p className="text-xs italic text-slate-700 leading-relaxed font-sans">
                             Naskah ini diajukan secara khusus kepada Pejabat berwenang untuk dibubuhi Tanda Tangan Elektronik (TTE BSrE). Pejabat hanya berwenang Menandatangani atau Menolak/Minta Revisi naskah ini. Fitur disposisi staf ditiadakan.
                           </p>
                         ) : (
-                          <div className="grid grid-cols-2 gap-2 text-[10.5px]">
-                            <div>[ ] Tindak Lanjuti Segera</div>
-                            <div>[ ] Koordinasikan dengan Unit</div>
-                            <div>[ ] Pelajari / Telaah Staf</div>
-                            <div>[ ] Hadiri / Wakilkan</div>
-                            <div>[ ] Siapkan Tanggapan / Draft</div>
-                            <div>[ ] Simpan / Arsipkan di JRA</div>
-                          </div>
+                          <>
+                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[9.5px] leading-tight font-sans">
+                              {/* Kolom Kiri */}
+                              <div className="space-y-0.5">
+                                {OFFICIAL_DISPOSISI_CHECKLIST_COL1.map((item) => {
+                                  const isChecked = disposisiActionsMasuk.includes(item.label);
+                                  return (
+                                    <div key={item.id} className="flex items-start gap-1.5">
+                                      <span className="font-mono font-bold">{isChecked ? '[✓]' : '[  ]'}</span>
+                                      <span className={isChecked ? 'font-bold text-black' : 'text-slate-700'}>{item.label}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Kolom Kanan */}
+                              <div className="space-y-0.5 border-l border-black/30 pl-3">
+                                {OFFICIAL_DISPOSISI_CHECKLIST_COL2.map((item) => {
+                                  const isChecked = disposisiActionsMasuk.includes(item.label);
+                                  let displayLabel = item.label;
+                                  if (item.id === 'koordinasikan_dengan') {
+                                    displayLabel = isChecked && disposisiKoordinasiDetail.trim()
+                                      ? `Koordinasikan dengan: ${disposisiKoordinasiDetail.trim()}`
+                                      : 'Koordinasikan dengan.....................';
+                                  } else if (item.id === 'lainnya') {
+                                    displayLabel = isChecked && disposisiLainnyaDetail.trim()
+                                      ? `Lainnya: ${disposisiLainnyaDetail.trim()}`
+                                      : '...................................................';
+                                  }
+                                  return (
+                                    <div key={item.id} className="flex items-start gap-1.5">
+                                      <span className="font-mono font-bold">{isChecked ? '[✓]' : '[  ]'}</span>
+                                      <span className={isChecked ? 'font-bold text-black' : 'text-slate-700'}>{displayLabel}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {disposisiCatatanTambahan.trim() && (
+                              <div className="mt-2 pt-1 border-t border-dashed border-black/40 text-[9.5px] font-sans">
+                                <strong>Catatan:</strong> {disposisiCatatanTambahan.trim()}
+                              </div>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
