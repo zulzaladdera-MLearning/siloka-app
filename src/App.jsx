@@ -19,7 +19,8 @@ import { SystemSettingsView } from './components/admin/SystemSettingsView';
 import { PermissionManagementView } from './components/admin/PermissionManagementView';
 import { RoleManagementView } from './components/admin/RoleManagementView';
 import { Toast } from './components/ui/Toast';
-import { Inbox, Send, Plus, Trash2 } from 'lucide-react';
+import { Inbox, Send, Plus, Trash2, Receipt, Users } from 'lucide-react';
+import { BukuAgendaView } from './components/dashboard/BukuAgendaView';
 
 import initialLetters from './data/letters.json';
 import usersData from './data/users.json';
@@ -1102,22 +1103,13 @@ export default function App() {
             ) {
               setActiveTab('dashboard');
             }
-            if (
-              isSuperAdminUser(newUser) &&
-              ['buku-agenda', 'brankas-keuangan', 'administrasi-kepegawaian'].includes(activeTab)
-            ) {
-              setActiveTab('settings');
-            }
             showToast(`Beralih peran sebagai: ${newUser.roleLabel}`, 'info');
           }}
         allUsers={allUsers}
         activeTab={
           activeTab === 'brankas-digital' && !canAccessBrankasDigital(currentUser)
             ? 'dashboard'
-            : isSuperAdminUser(currentUser) &&
-                ['buku-agenda', 'brankas-keuangan', 'administrasi-kepegawaian'].includes(activeTab)
-              ? 'settings'
-              : activeTab
+            : activeTab
         }
         setActiveTab={(tab) => {
           if (
@@ -1397,6 +1389,52 @@ export default function App() {
               setSelectedUnitFilter={setSelectedUnitFilter}
               isUniversityWideAccess={isUniversityWideAccess}
             />
+          </div>
+        )}
+
+        {/* Modul Buku Agenda Masuk & Ekspedisi */}
+        {activeTab === 'buku-agenda' && (
+          <BukuAgendaView
+            letters={letters}
+            currentUser={currentUser}
+            currentUnit={currentUnit}
+            onSelectLetter={(letter) => setSelectedLetter(letter)}
+          />
+        )}
+
+        {/* Modul Brankas Keuangan / Verifikasi SPM */}
+        {activeTab === 'brankas-keuangan' && (
+          <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Receipt className="w-5 h-5 text-unsil-green-800" />
+              Brankas Keuangan &amp; Verifikasi SPM — {currentUnit.nama_unit}
+            </h2>
+            <p className="text-xs text-slate-500">
+              Pengelolaan dokumen pertanggungjawaban keuangan, DIPA, dan Surat Perintah Membayar (SPM) terintegrasi sistem kearsipan.
+            </p>
+            <div className="py-12 text-center text-slate-400">
+              <Receipt className="w-12 h-12 mb-2 stroke-1 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-700 text-sm">Modul Brankas Keuangan Siap Digunakan</p>
+              <p className="text-xs text-slate-400 mt-1">Belum ada berkas SPM atau DIPA yang diunggah untuk unit ini.</p>
+            </div>
+          </div>
+        )}
+
+        {/* Modul Administrasi Kepegawaian / SKP */}
+        {activeTab === 'administrasi-kepegawaian' && (
+          <div className="bg-white p-6 rounded-xl border border-slate-200 space-y-4">
+            <h2 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-5 h-5 text-unsil-green-800" />
+              Administrasi Kepegawaian &amp; SKP ASN — {currentUnit.nama_unit}
+            </h2>
+            <p className="text-xs text-slate-500">
+              Pengelolaan berkas formasi jabatan, berkas kenaikan pangkat, dan penilaian Sasaran Kinerja Pegawai (SKP) ASN.
+            </p>
+            <div className="py-12 text-center text-slate-400">
+              <Users className="w-12 h-12 mb-2 stroke-1 text-slate-300 mx-auto" />
+              <p className="font-semibold text-slate-700 text-sm">Modul Administrasi Kepegawaian Siap Digunakan</p>
+              <p className="text-xs text-slate-400 mt-1">Belum ada usulan SKP atau mutasi berkas kepegawaian yang aktif.</p>
+            </div>
           </div>
         )}
 
