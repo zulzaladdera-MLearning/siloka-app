@@ -375,9 +375,6 @@ export const CreateLetterModal = ({
     }
   }, [initialMode, isOpen]);
 
-  // Tujuan Aksi Dokumen: 'DISPOSISI' vs 'TTD' (Permohonan Tanda Tangan)
-  const [tujuanAksi, setTujuanAksi] = useState('DISPOSISI');
-
   // Mode Tampilan: 'split' (Form & Pratinjau berdampingan) | 'form' (Hanya Formulir) | 'preview' (Hanya Pratinjau A4)
   const [viewMode, setViewMode] = useState(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 768) {
@@ -946,7 +943,7 @@ export const CreateLetterModal = ({
               : 'PEJABAT',
             target_unit_id: targetPejabat?.kode_unit || activeUnitObj.kode_unit,
             nomor_surat_asal: nomorSuratAsalMasuk.trim(),
-            tujuan_aksi: tujuanAksi,
+            tujuan_aksi: 'DISPOSISI',
             tahun: currentYear,
             unit_kerja_id: activeUnitObj.kode_unit
           },
@@ -968,7 +965,7 @@ export const CreateLetterModal = ({
           return act;
         });
 
-        const hasDisposisi = tujuanAksi !== 'TTD' && finalizedDisposisiActions.length > 0;
+        const hasDisposisi = finalizedDisposisiActions.length > 0;
         const targetDisposisiFinal = disposisiTargetUnit || finalTujuanMasuk || 'Pimpinan Unit';
         const disposisiPayload = hasDisposisi ? {
           nomorAgenda: officialAgenda,
@@ -1018,8 +1015,8 @@ export const CreateLetterModal = ({
           statusTimestamp: hasDisposisi
             ? `Didisposisikan kepada ${targetDisposisiFinal} (Arahan: ${finalizedDisposisiActions.slice(0, 2).join(', ')})`
             : `Surat Masuk terdaftar pada Buku Agenda SILOKA — Diteruskan ke ${finalTujuanMasuk}`,
-          tujuan_aksi: tujuanAksi,
-          isSignatureRequest: tujuanAksi === 'TTD',
+          tujuan_aksi: 'DISPOSISI',
+          isSignatureRequest: false,
           tteVerified: false,
           unit_kerja_id: activeUnitObj.kode_unit,
           created_by_user_id: currentUser?.id || 'usr-02',
@@ -1029,7 +1026,7 @@ export const CreateLetterModal = ({
               nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
               jabatan: currentUser?.roleLabel || 'Operator Unit',
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan: ${finalTujuanMasuk}] [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan Tanda Tangan Pejabat' : 'Disposisi Pimpinan'}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
+              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan: ${finalTujuanMasuk}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
             }
           ],
           disposisi: disposisiPayload
@@ -1093,8 +1090,8 @@ export const CreateLetterModal = ({
           status: 'DRAFT_MENUNGGU_PARAF',
           status_progres: 'DRAFT_MENUNGGU_PARAF',
           statusTimestamp: 'Tersimpan sebagai Draf Naskah (Nomor Resmi Ditunda Hingga TTE Final)',
-          tujuan_aksi: tujuanAksi,
-          isSignatureRequest: tujuanAksi === 'TTD',
+          tujuan_aksi: 'DISPOSISI',
+          isSignatureRequest: false,
           ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
           lampiran: uploadedFileName ? `${uploadedFileName} (${uploadedFileSize})` : null,
           lampiranUrl: uploadedFileDataUrl || uploadedFileUrl || null,
@@ -1173,8 +1170,8 @@ export const CreateLetterModal = ({
         kalimatPenutup,
         status: targetStatus === 'Draft' ? 'Draft' : 'DRAFT_MENUNGGU_PARAF',
         statusTimestamp: targetStatus === 'Draft' ? 'Tersimpan sebagai Draf Naskah' : 'Diajukan untuk Paraf Berjenjang (Pasal 59) & TTE Pimpinan',
-        tujuan_aksi: tujuanAksi,
-        isSignatureRequest: tujuanAksi === 'TTD',
+        tujuan_aksi: 'DISPOSISI',
+        isSignatureRequest: false,
         ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
         lampiran: uploadedFileName ? `${uploadedFileName} (${uploadedFileSize})` : null,
         lampiranUrl: uploadedFileDataUrl || uploadedFileUrl || null,
@@ -1195,7 +1192,7 @@ export const CreateLetterModal = ({
             nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
             jabatan: currentUser?.roleLabel || 'Operator Unit',
             waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-            catatan: `${targetStatus === 'Draft' ? 'Penyusunan Draf' : 'Registrasi naskah'} ${TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || 'Surat Keluar'} - Diterbitkan Nomor Resmi: ${officialNomorSurat} [Tujuan Aksi: ${tujuanAksi === 'TTD' ? 'Permohonan TTD Pejabat' : 'Disposisi'}]`
+            catatan: `${targetStatus === 'Draft' ? 'Penyusunan Draf' : 'Registrasi naskah'} ${TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || 'Surat Keluar'} - Diterbitkan Nomor Resmi: ${officialNomorSurat}`
           }
         ],
         disposisi: null
@@ -1334,56 +1331,6 @@ export const CreateLetterModal = ({
           </div>
         </div>
 
-        {/* IDENTITAS JENIS NASKAH MODAL (FITUR TERPISAH SURAT KELUAR VS SURAT MASUK) */}
-        <div className="px-4 sm:px-5 py-2 bg-slate-100/95 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
-          <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200 shadow-2xs">
-            {letterType === 'surat-masuk' ? (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900">
-                <Inbox className="w-3.5 h-3.5 text-emerald-400" />
-                <span>📥 Registrasi Surat Masuk</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900">
-                <Send className="w-3.5 h-3.5 text-unsil-gold-400" />
-                <span>📤 Surat Keluar / Nota Dinas</span>
-              </span>
-            )}
-          </div>
-
-          {/* Sifat & Tujuan Aksi Selector: Disposisi vs Permohonan TTD */}
-          <div className="flex items-center gap-2">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider hidden md:inline">
-              Tujuan Aksi:
-            </span>
-            <div className="inline-flex items-center bg-white p-0.5 rounded-lg border border-slate-200 text-xs">
-              <button
-                type="button"
-                onClick={() => setTujuanAksi('DISPOSISI')}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                  tujuanAksi === 'DISPOSISI'
-                    ? 'bg-emerald-100 text-unsil-green-950 font-bold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-                title="Dapat didisposisikan kepada unit bawahan"
-              >
-                <span>📋 Disposisi Pimpinan</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTujuanAksi('TTD')}
-                className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all ${
-                  tujuanAksi === 'TTD'
-                    ? 'bg-amber-500 text-slate-950 font-black shadow-2xs'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-                title="Permohonan Tanda Tangan Pejabat (Fitur Disposisi DILARANG/DISEMBUNYIKAN)"
-              >
-                <span>✍️ Permohonan TTD (Strict)</span>
-              </button>
-            </div>
-          </div>
-        </div>
-
         {/* TEMPLATE SELECTOR BAR (KHUSUS SURAT KELUAR) */}
         {letterType === 'surat-keluar' && (
           <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 overflow-x-auto flex items-center gap-2 shrink-0">
@@ -1451,23 +1398,10 @@ export const CreateLetterModal = ({
                     </div>
                   </div>
 
-                  {/* Notice Aturan Ketat Permohonan TTD jika tujuanAksi === 'TTD' */}
-                  {tujuanAksi === 'TTD' ? (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                        <span>Aturan Bisnis: Permohonan Tanda Tangan Pejabat (Tujuan TTD)</span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-amber-900">
-                        Surat masuk ini diajukan <strong>khusus untuk penandatanganan pejabat (TTE)</strong>. Pejabat penerima <strong>hanya dapat Menandatangani (TTE) atau Menolak/Minta Revisi</strong>. Fitur Disposisi akan <strong>otomatis dinonaktifkan & disembunyikan sepenuhnya</strong> dari layar.
-                      </p>
-                    </div>
-                  ) : (
-                    <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
-                      <Send className="w-3.5 h-3.5 text-unsil-green-700 shrink-0" />
-                      <span>Jalur Disposisi: Surat masuk akan diteruskan ke pimpinan untuk penerbitan lembar instruksi disposisi online.</span>
-                    </div>
-                  )}
+                  <div className="p-2.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-600 text-[11px] flex items-center gap-2">
+                    <Send className="w-3.5 h-3.5 text-unsil-green-700 shrink-0" />
+                    <span>Jalur Disposisi: Surat masuk akan diteruskan ke pimpinan untuk penerbitan lembar instruksi disposisi online.</span>
+                  </div>
 
                   {/* Row 1: Nomor Surat Asal & Tanggal Surat Asal */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1757,8 +1691,7 @@ export const CreateLetterModal = ({
                   />
 
                   {/* PANEL CHECKLIST INSTRUKSI DISPOSISI (UNTUK :) - FORMAT RESMI UNSIL CONTOH 21 */}
-                  {tujuanAksi !== 'TTD' && (
-                    <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/70 p-4 space-y-3.5 shadow-2xs">
+                  <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/70 p-4 space-y-3.5 shadow-2xs">
                       {/* Header Panel */}
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2.5">
                         <div>
@@ -1942,7 +1875,6 @@ export const CreateLetterModal = ({
                         </div>
                       )}
                     </div>
-                  )}
                 </div>
               ) : (
                 /* ========================================================================= */
@@ -1998,19 +1930,6 @@ export const CreateLetterModal = ({
                       </span>
                     </div>
                   </div>
-
-                  {/* Warning Aturan Ketat Permohonan TTD jika tujuanAksi === 'TTD' */}
-                  {tujuanAksi === 'TTD' && (
-                    <div className="p-3 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-1">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-900">
-                        <AlertCircle className="w-4 h-4 text-amber-700 shrink-0" />
-                        <span>Aturan Bisnis: Permohonan Tanda Tangan Pejabat (Tujuan TTD)</span>
-                      </div>
-                      <p className="text-[11px] leading-relaxed text-amber-900">
-                        Naskah ini ditujukan khusus kepada Pejabat Penandatangan untuk dibubuhi TTE BSrE. Sesuai aturan bisnis, pejabat penerima <strong>hanya dapat Menandatangani (TTE) atau Menolak/Minta Revisi</strong>. Fitur Disposisi akan <strong>otomatis disembunyikan total</strong> dari layar.
-                      </p>
-                    </div>
-                  )}
 
                   {/* SELEKSI JENIS NASKAH DINAS (TABEL 1 PERATURAN REKTOR NO. 3/2023) */}
                   <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
