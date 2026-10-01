@@ -251,8 +251,16 @@ export const ActivityTable = ({
         {filteredLetters.length === 0 ? (
           <div className="py-12 text-center px-4">
             <FileText className="w-10 h-10 mb-2 stroke-1 text-slate-300 mx-auto" />
-            <p className="font-medium text-slate-600 text-xs">Tidak ada surat yang cocok dengan filter</p>
-            <p className="text-[10px] text-slate-400 mt-1">Coba gunakan kata kunci lain atau setel ulang filter</p>
+            <p className="font-medium text-slate-600 text-xs">
+              {fixedKategori === 'Surat Masuk'
+                ? 'Belum ada naskah surat masuk yang tercatat'
+                : 'Tidak ada surat yang cocok dengan filter'}
+            </p>
+            <p className="text-[10px] text-slate-400 mt-1">
+              {fixedKategori === 'Surat Masuk'
+                ? 'Gunakan tombol Registrasi Surat Masuk untuk mendaftarkan naskah baru'
+                : 'Coba gunakan kata kunci lain atau setel ulang filter'}
+            </p>
           </div>
         ) : (
           filteredLetters.map((letter) => (
@@ -360,8 +368,16 @@ export const ActivityTable = ({
                 <td colSpan="5" className="py-12 text-center">
                   <div className="flex flex-col items-center justify-center text-slate-400">
                     <FileText className="w-10 h-10 mb-2 stroke-1 text-slate-300" />
-                    <p className="font-medium text-slate-600">Tidak ada surat yang cocok dengan filter</p>
-                    <p className="text-[11px] text-slate-400 mt-1">Coba gunakan kata kunci lain atau setel ulang filter Anda</p>
+                    <p className="font-medium text-slate-600">
+                      {fixedKategori === 'Surat Masuk'
+                        ? 'Belum ada naskah surat masuk yang tercatat'
+                        : 'Tidak ada surat yang cocok dengan filter'}
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      {fixedKategori === 'Surat Masuk'
+                        ? 'Gunakan tombol Registrasi Surat Masuk untuk mendaftarkan naskah baru'
+                        : 'Coba gunakan kata kunci lain atau setel ulang filter Anda'}
+                    </p>
                   </div>
                 </td>
               </tr>

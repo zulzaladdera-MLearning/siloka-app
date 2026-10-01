@@ -19,7 +19,7 @@ import { SystemSettingsView } from './components/admin/SystemSettingsView';
 import { PermissionManagementView } from './components/admin/PermissionManagementView';
 import { RoleManagementView } from './components/admin/RoleManagementView';
 import { Toast } from './components/ui/Toast';
-import { Inbox, Send, Plus } from 'lucide-react';
+import { Inbox, Send, Plus, Trash2 } from 'lucide-react';
 
 import initialLetters from './data/letters.json';
 import usersData from './data/users.json';
@@ -99,10 +99,24 @@ export default function App() {
 
   const [letters, setLetters] = useState(() => {
     try {
+      // Periksa flag pembersihan riwayat naskah Surat Masuk dummy lama di browser
+      const isSuratMasukPurged = localStorage.getItem('siloka_surat_masuk_purged_v2');
+
       const savedLetters = localStorage.getItem('siloka_letters_data');
       if (savedLetters) {
-        const parsed = JSON.parse(savedLetters);
-        if (Array.isArray(parsed) && parsed.length >= 33) {
+        let parsed = JSON.parse(savedLetters);
+        if (Array.isArray(parsed)) {
+          // Bersihkan seluruh riwayat Surat Masuk dummy lama dari penyimpanan lokal peramban
+          if (!isSuratMasukPurged) {
+            parsed = parsed.filter((letter) => letter && letter.kategori !== 'Surat Masuk');
+            try {
+              localStorage.setItem('siloka_letters_data', JSON.stringify(parsed));
+              localStorage.setItem('siloka_surat_masuk_purged_v2', 'true');
+            } catch (err) {
+              // ignore
+            }
+          }
+
           // Normalize FKIP classification and unit acronyms in cached data
           return parsed.map((letter) => {
             let updated = { ...letter };
@@ -121,6 +135,8 @@ export default function App() {
             return updated;
           });
         }
+      } else {
+        localStorage.setItem('siloka_surat_masuk_purged_v2', 'true');
       }
     } catch (e) {
       console.error('Error loading saved letters', e);
@@ -1295,13 +1311,34 @@ export default function App() {
                   Pencatatan, verifikasi, dan tindak lanjut disposisi naskah dinas masuk dari instansi eksternal maupun antar-unit kerja UNSIL.
                 </p>
               </div>
-              <button
-                onClick={() => setIsQuickRegisterOpen(true)}
-                className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Registrasi Surat Masuk</span>
-              </button>
+              <div className="flex items-center gap-2">
+                {letters.some((l) => l.kategori === 'Surat Masuk') && (
+                  <button
+                    onClick={() => {
+                      if (
+                        window.confirm(
+                          'Konfirmasi: Apakah Anda yakin ingin mengosongkan seluruh riwayat naskah Surat Masuk?'
+                        )
+                      ) {
+                        setLetters((prev) => prev.filter((l) => l.kategori !== 'Surat Masuk'));
+                        showToast('Seluruh riwayat Surat Masuk telah berhasil dikosongkan.', 'success');
+                      }
+                    }}
+                    className="px-3.5 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 hover:border-rose-300 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    title="Kosongkan Riwayat Surat Masuk"
+                  >
+                    <Trash2 className="w-4 h-4 text-rose-600" />
+                    <span>Kosongkan Riwayat</span>
+                  </button>
+                )}
+                <button
+                  onClick={() => setIsQuickRegisterOpen(true)}
+                  className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Registrasi Surat Masuk</span>
+                </button>
+              </div>
             </div>
             <ActivityTable
               letters={scopedLetters}
