@@ -498,9 +498,6 @@ export const ActivityTable = ({
           Menampilkan <strong className="text-slate-700">{filteredLetters.length}</strong> dari{' '}
           <strong className="text-slate-700">{letters.length}</strong> entri surat aktif
         </span>
-        <div className="flex items-center gap-1 font-medium text-unsil-green-900">
-          <span>Standar Kearsipan Perka ANRI No. 9 Tahun 2018</span>
-        </div>
       </div>
     </div>
   );
