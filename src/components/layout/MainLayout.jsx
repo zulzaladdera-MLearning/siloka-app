@@ -93,7 +93,7 @@ export const MainLayout = ({
             <div className="flex items-center gap-3 text-[11px] text-slate-400">
               <span>Universitas Siliwangi</span>
               <span>•</span>
-              <span className="text-emerald-700 font-semibold">BSSN Certified</span>
+              <span className="text-emerald-700 font-semibold">Tanda Tangan Digital Resmi BSSN</span>
             </div>
           </div>
         </footer>

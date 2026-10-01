@@ -281,7 +281,7 @@ export const Navbar = ({
         {dualRoleContext?.hasDualRole && (
           <div
             className="hidden xl:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs"
-            title={`Sakelar Profil (Context Switcher) — ${dualRoleContext.nomorSk} (${dualRoleContext.skLabel})`}
+            title={`Ganti Peran Tampilan — ${dualRoleContext.nomorSk} (${dualRoleContext.skLabel})`}
           >
             <button
               type="button"
@@ -453,8 +453,8 @@ export const Navbar = ({
                   <span className="truncate">{user.unit}</span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-unsil-green-900 text-unsil-gold-300 font-mono">
-                    {user.role}
+                  <span className="text-[10px] font-semibold px-2 py-0.5 rounded bg-unsil-green-900 text-unsil-gold-300">
+                    {user.roleLabel || user.role}
                   </span>
                   {user.signatureReady && (
                     <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 flex items-center gap-1">
@@ -468,7 +468,7 @@ export const Navbar = ({
                 <div className="p-2.5 border-b border-slate-100 bg-emerald-50/40">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-unsil-green-900 flex items-center gap-1">
-                      <ArrowLeftRight className="w-3 h-3" /> Sakelar Profil (Tugas Tambahan)
+                      <ArrowLeftRight className="w-3 h-3" /> Ganti Peran (Tugas Tambahan)
                     </span>
                     <span
                       className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${

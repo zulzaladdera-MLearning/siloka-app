@@ -840,7 +840,7 @@ export const CreateLetterModal = ({
           riwayatParaf: [
             {
               nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
-              jabatan: currentUser?.roleLabel || 'Drafter / Konseptor',
+              jabatan: currentUser?.roleLabel || 'Pembuat Naskah / Konseptor',
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
               catatan: `Penyusunan Draf ${currentTypeMeta?.nama_jenis_naskah} - Diajukan untuk verifikasi paraf sebelum TTE oleh ${namaJabatanSigner}`
             }

@@ -37,12 +37,12 @@ export const TtePassphraseModal = ({
     setErrorMsg('');
 
     if (!passphrase.trim()) {
-      setErrorMsg('Harap masukkan passphrase TTE Anda.');
+      setErrorMsg('Harap masukkan kata sandi tanda tangan Anda.');
       return;
     }
 
     if (!agreementChecked) {
-      setErrorMsg('Anda wajib menyetujui pernyataan keabsahan hukum TTE.');
+      setErrorMsg('Anda wajib menyetujui pernyataan keabsahan hukum tanda tangan elektronik.');
       return;
     }
 
@@ -65,9 +65,9 @@ export const TtePassphraseModal = ({
         const nextAttempts = attemptsLeft - 1;
         setAttemptsLeft(nextAttempts);
         if (nextAttempts <= 0) {
-          setErrorMsg('Sertifikat TTE terkunci sementara karena 3 kali kesalahan passphrase. Hubungi Administrator TIK BKU.');
+          setErrorMsg('Tanda tangan digital terkunci sementara karena 3 kali salah memasukkan kata sandi. Silakan hubungi bagian TIK UNSIL.');
         } else {
-          setErrorMsg(`Passphrase salah. Sisa kesempatan: ${nextAttempts} kali lagi. (Petunjuk Demo: Gunakan UNSIL-TTE-2026)`);
+          setErrorMsg(`Kata sandi salah. Sisa kesempatan: ${nextAttempts} kali lagi. (Petunjuk: Gunakan UNSIL-TTE-2026)`);
         }
       }
     }, 600);
@@ -153,10 +153,10 @@ export const TtePassphraseModal = ({
             <div>
               <div className="flex items-center justify-between mb-1.5">
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                  Passphrase Sertifikat TTE
+                  Kata Sandi Pengesahan Digital
                 </label>
                 <span className="text-[11px] text-emerald-700 font-mono">
-                  Petunjuk Demo: <strong>UNSIL-TTE-2026</strong>
+                  Petunjuk: <strong>UNSIL-TTE-2026</strong>
                 </span>
               </div>
               <div className="relative">
@@ -167,7 +167,7 @@ export const TtePassphraseModal = ({
                   type={showPassphrase ? 'text' : 'password'}
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
-                  placeholder="Masukkan passphrase sertifikat digital Anda"
+                  placeholder="Masukkan PIN / kata sandi pengesahan"
                   autoFocus
                   disabled={attemptsLeft <= 0}
                   className="w-full pl-9 pr-10 py-2.5 bg-slate-50 border border-slate-300 rounded-lg text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-unsil-green-800 focus:border-unsil-green-800 transition"
@@ -191,7 +191,7 @@ export const TtePassphraseModal = ({
                 className="mt-0.5 rounded text-unsil-green-800 focus:ring-unsil-green-800"
               />
               <span className="text-[11px] text-slate-600 leading-snug">
-                Saya menyatakan keabsahan naskah ini dan memahami bahwa pembubuhan TTE memiliki kekuatan hukum sah sesuai <strong>UU No. 11/2008</strong> dan <strong>PP No. 71/2019</strong>.
+                Saya menyatakan keabsahan naskah ini dan memahami bahwa pembubuhan tanda tangan elektronik memiliki kekuatan hukum sah sesuai <strong>UU ITE</strong> dan <strong>PP Penyelenggaraan Sistem Elektronik</strong>.
               </span>
             </label>
 
@@ -212,7 +212,7 @@ export const TtePassphraseModal = ({
                 {isProcessing ? (
                   <>
                     <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Memverifikasi Kriptografi...</span>
+                    <span>Memverifikasi Pengesahan...</span>
                   </>
                 ) : (
                   <>

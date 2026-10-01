@@ -2454,7 +2454,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
           ? 'Disetujui'
           : finalLetterObject.status,
         statusTimestamp: isLecturerDraftForLeader
-          ? `Konsep Dosen (Drafter) — Diajukan Paraf Berjenjang untuk TTD ${activeLecturerLeader?.jabatan || 'Pimpinan'}`
+          ? `Konsep Naskah Dosen — Diajukan Paraf Berjenjang untuk TTD ${activeLecturerLeader?.jabatan || 'Pimpinan'}`
           : isLecturerDirectSign
           ? `Ditandatangani Langsung oleh Dosen (${currentLecturerSopMeta?.pasal})`
           : finalLetterObject.statusTimestamp,

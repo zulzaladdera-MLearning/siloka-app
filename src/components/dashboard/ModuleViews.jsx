@@ -640,7 +640,7 @@ export const RetensiArsipView = ({ letters = [], currentUser = null }) => {
             <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-semibold uppercase">Total Berkas Terdaftar</span>
               <p className="text-2xl font-bold text-slate-900">{letters.length} Naskah</p>
-              <p className="text-[11px] text-emerald-700">Tersinkronisasi database persuratan</p>
+              <p className="text-[11px] text-emerald-700">Tersinkronisasi sistem persuratan</p>
             </div>
             <div className="bg-white p-4 rounded-xl border border-slate-200 space-y-1">
               <span className="text-xs text-slate-500 font-semibold uppercase">Safeguard Terkunci</span>

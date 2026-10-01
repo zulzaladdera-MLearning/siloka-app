@@ -182,17 +182,17 @@ export const buildSidebarMenuItems = ({
             children: [
               {
                 id: 'settings',
-                label: 'Manajemen User',
+                label: 'Manajemen Pengguna',
                 icon: Users,
               },
               {
                 id: 'manajemen-role',
-                label: 'Manajemen Role',
+                label: 'Manajemen Peran',
                 icon: Shield,
               },
               {
                 id: 'manajemen-permission',
-                label: 'Manajemen Permission',
+                label: 'Hak Akses & Izin',
                 icon: KeyRound,
               },
             ],

@@ -19,7 +19,8 @@ import {
   saveRolesCatalog,
   computeUserCountPerRole,
   RBAC_CHANGE_EVENT,
-  DEFAULT_CANONICAL_ROLES
+  DEFAULT_CANONICAL_ROLES,
+  getPermissionLabel
 } from '../../utils/rbacSyncService';
 
 /**
@@ -34,10 +35,10 @@ const AVAILABLE_PERMISSIONS_CATALOG = [
     items: [
       { slug: 'admin.access', name: 'Akses Portal Administrasi' },
       { slug: 'dashboard.view', name: 'Melihat Ringkasan Dashboard' },
-      { slug: 'role.manage', name: 'Mengelola Role & Permission' },
-      { slug: 'user.impersonate', name: 'Impersonate Pengguna Lain' },
-      { slug: 'unit.manage', name: 'Master Unit Kerja Struktural' },
-      { slug: 'audit.view', name: 'Melihat Jejak Audit (Audit Trail)' }
+      { slug: 'role.manage', name: 'Mengelola Peran & Hak Akses' },
+      { slug: 'user.impersonate', name: 'Akses Tampilan Pengguna Lain' },
+      { slug: 'unit.manage', name: 'Pengelolaan Unit Kerja' },
+      { slug: 'audit.view', name: 'Melihat Riwayat Perubahan Sistem' }
     ]
   },
   {
@@ -239,7 +240,7 @@ export const RoleManagementView = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Manajemen Role
+            Manajemen Peran Pengguna
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             Pengelolaan daftar peran pengguna, cakupan kewenangan penandatanganan, dan hak akses fitur kearsipan di lingkungan Universitas Siliwangi.
@@ -253,7 +254,7 @@ export const RoleManagementView = ({
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>+ Buat Role Baru</span>
+            <span>+ Tambah Peran Baru</span>
           </button>
         </div>
       </div>
@@ -278,9 +279,6 @@ export const RoleManagementView = ({
                 <span className="inline-block text-[11px] font-medium text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
                   {role.badgeType}
                 </span>
-                <span className="inline-block text-[11px] font-mono text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                  {role.slug}
-                </span>
               </div>
 
               <button
@@ -300,9 +298,9 @@ export const RoleManagementView = ({
             {/* Baris 3: Statistik Ringkas (Terhubung Dinamis dengan Master User) */}
             <div className="flex items-center justify-between mb-2.5">
               <p className="text-xs font-semibold text-slate-700">
-                {role.keySlugs?.length || role.permissionCount || 0} permission •{' '}
+                {role.keySlugs?.length || role.permissionCount || 0} wewenang •{' '}
                 <span className="font-bold text-unsil-green-900">
-                  {userCounts[role.slug || role.id] ?? role.userCount ?? 0} user aktif
+                  {userCounts[role.slug || role.id] ?? role.userCount ?? 0} pengguna aktif
                 </span>
               </p>
               {onNavigateToUserManagement && (
@@ -312,19 +310,19 @@ export const RoleManagementView = ({
                   className="text-[11px] font-semibold text-unsil-green-800 hover:text-unsil-green-950 hover:underline flex items-center gap-1 cursor-pointer"
                 >
                   <Users className="w-3 h-3" />
-                  <span>Lihat di Manajemen User</span>
+                  <span>Lihat Pengguna</span>
                 </button>
               )}
             </div>
 
-            {/* Baris 4: Chip Tags Hak Akses (Permission Slugs) */}
+            {/* Baris 4: Chip Tags Hak Akses (Bahasa Indonesia Ramah) */}
             <div className="flex flex-wrap items-center gap-1.5 pt-1">
               {role.keySlugs.map((slug) => (
                 <span
                   key={slug}
-                  className="font-mono text-[11px] text-slate-600 bg-slate-50 border border-slate-200/90 px-2 py-0.5 rounded-md"
+                  className="text-[11px] font-medium text-slate-700 bg-slate-50 border border-slate-200/90 px-2.5 py-0.5 rounded-md shadow-2xs"
                 >
-                  {slug}
+                  {getPermissionLabel(slug)}
                 </span>
               ))}
               {role.remainingCount > 0 && (
@@ -351,10 +349,10 @@ export const RoleManagementView = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Edit Role: {editingRole.name}
+                    Pengaturan Peran: {editingRole.name}
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Sesuaikan deskripsi wewenang dan cakupan hak akses permission.
+                    Sesuaikan deskripsi tugas dan wewenang hak akses persuratan.
                   </p>
                 </div>
               </div>
@@ -371,7 +369,7 @@ export const RoleManagementView = ({
             <form onSubmit={handleSaveEdit} className="flex-1 overflow-y-auto p-6 space-y-5 text-xs">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Nama Role
+                  Nama Peran
                 </label>
                 <input
                   type="text"
@@ -384,7 +382,7 @@ export const RoleManagementView = ({
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Deskripsi Kewenangan
+                  Uraian Tugas &amp; Wewenang
                 </label>
                 <textarea
                   rows={3}
@@ -401,7 +399,7 @@ export const RoleManagementView = ({
               <div className="space-y-4 pt-2">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-2">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Daftar Hak Akses (Permission Slugs)
+                    Daftar Hak Akses &amp; Wewenang
                   </h4>
                   <span className="text-[11px] font-semibold text-unsil-green-800 bg-unsil-green-50 px-2 py-0.5 rounded-full">
                     {editFormData.selectedSlugs.length} Dipilih
@@ -442,11 +440,8 @@ export const RoleManagementView = ({
                               className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700"
                             />
                             <div className="min-w-0 flex-1">
-                              <span className="font-medium text-slate-800 block text-[11px] truncate">
+                              <span className="font-medium text-slate-800 block text-[11px]">
                                 {item.name}
-                              </span>
-                              <span className="font-mono text-[10px] text-slate-400 block truncate">
-                                {item.slug}
                               </span>
                             </div>
                             {isSecretRestricted && (
@@ -474,7 +469,7 @@ export const RoleManagementView = ({
                   className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs"
                 >
                   <Check className="w-3.5 h-3.5" />
-                  <span>Simpan Perubahan Role</span>
+                  <span>Simpan Perubahan Peran</span>
                 </button>
               </div>
             </form>
@@ -496,10 +491,10 @@ export const RoleManagementView = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Buat Role Baru SILOKA
+                    Tambah Peran Baru
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Definisikan peran baru beserta hak akses fitur kearsipan dan naskah dinas.
+                    Definisikan peran baru beserta hak akses persuratan dan kearsipan dinas.
                   </p>
                 </div>
               </div>
@@ -517,7 +512,7 @@ export const RoleManagementView = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 block">
-                    Nama Role <span className="text-red-500">*</span>
+                    Nama Peran <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -530,14 +525,14 @@ export const RoleManagementView = ({
                 </div>
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 block">
-                    Slug Kode Role <span className="text-red-500">*</span>
+                    Kode Pengenal Singkat <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={newRoleData.slug}
                     onChange={(e) => setNewRoleData({ ...newRoleData, slug: e.target.value })}
-                    placeholder="Contoh: auditor_spi"
-                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+                    placeholder="Contoh: auditor_spi atau arsiparis"
+                    className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
                     required
                   />
                 </div>
@@ -545,7 +540,7 @@ export const RoleManagementView = ({
 
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-slate-700 block">
-                  Deskripsi Kewenangan
+                  Uraian Tugas &amp; Wewenang
                 </label>
                 <textarea
                   rows={2}
@@ -560,7 +555,7 @@ export const RoleManagementView = ({
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between border-b border-slate-200 pb-1.5">
                   <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                    Pilih Hak Akses Awal
+                    Pilih Hak Akses &amp; Wewenang
                   </h4>
                   <span className="text-[11px] font-semibold text-unsil-green-800 bg-unsil-green-50 px-2 py-0.5 rounded-full">
                     {newRoleData.selectedSlugs.length} Dipilih
@@ -591,11 +586,8 @@ export const RoleManagementView = ({
                               className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
                             />
                             <div className="min-w-0 flex-1">
-                              <span className="font-medium text-slate-800 block text-[11px] truncate">
+                              <span className="font-medium text-slate-800 block text-[11px]">
                                 {item.name}
-                              </span>
-                              <span className="font-mono text-[10px] text-slate-400 block truncate">
-                                {item.slug}
                               </span>
                             </div>
                           </label>
@@ -620,7 +612,7 @@ export const RoleManagementView = ({
                   className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Buat Role Baru</span>
+                  <span>Simpan Peran Baru</span>
                 </button>
               </div>
             </form>

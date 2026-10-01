@@ -247,7 +247,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
               Masuk ke SILOKA UNSIL
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Gunakan username akun resmi Universitas Siliwangi
+              Gunakan email atau akun resmi Universitas Siliwangi
             </p>
           </div>
 
@@ -263,7 +263,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-xs font-semibold uppercase tracking-wider text-slate-300 mb-1.5">
-                Username
+                Email / Nama Pengguna
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
@@ -273,7 +273,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
                   type="text"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan username Anda"
+                  placeholder="nama@unsil.ac.id atau nama pengguna"
                   className="w-full pl-10 pr-4 py-2.5 bg-slate-800/90 border border-slate-700 rounded-lg text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-unsil-gold-500/60 focus:border-unsil-gold-500 transition duration-150"
                 />
               </div>
@@ -341,7 +341,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
                 </>
               ) : (
                 <>
-                  <span>Masuk ke Dashboard SILOKA</span>
+                  <span>Masuk ke SILOKA</span>
                   <ArrowRight className="w-4 h-4 text-unsil-gold-300" />
                 </>
               )}
@@ -351,7 +351,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
           {/* Quick Demo Preset Accounts */}
           <div className="mt-6 pt-5 border-t border-slate-800">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Pilih Cepat Akun Uji Coba (Demo Testing):
+              Pilihan Akun Masuk (Uji Coba):
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
               <button

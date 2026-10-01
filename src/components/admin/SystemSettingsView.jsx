@@ -382,7 +382,7 @@ export const SystemSettingsView = ({
     const name = targetUser.nama_lengkap || targetUser.name || 'Pengguna';
     if (
       window.confirm(
-        `Apakah Anda yakin ingin menghapus akun pengguna "${name}" dari pangkalan data sistem? Tindakan ini tidak dapat dibatalkan.`
+        `Apakah Anda yakin ingin menghapus akun pengguna "${name}" dari sistem? Tindakan ini tidak dapat dibatalkan.`
       )
     ) {
       if (onDeleteUser) {
@@ -496,13 +496,13 @@ export const SystemSettingsView = ({
     showToast(`Pengguna baru [${newUser.name}] berhasil ditambahkan dengan role ${selectedRole.name}.`, 'success');
   };
 
-  // Handler: Simulasi Sinkronisasi SSO
+  // Handler: Simulasi Sinkronisasi Data Pegawai
   const handleSyncSSO = () => {
     setIsSyncingSSO(true);
     setTimeout(() => {
       setIsSyncingSSO(false);
       showToast(
-        `Sinkronisasi SSO berhasil: ${allUsers.length} akun pengguna aktif tersinkronisasi dengan pangkalan data SSO UNSIL.`,
+        `Pembaruan data berhasil: ${allUsers.length} akun pengguna aktif telah disinkronkan dengan data kepegawaian UNSIL.`,
         'success'
       );
     }, 600);
@@ -516,27 +516,27 @@ export const SystemSettingsView = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-            Manajemen User
+            Manajemen Pengguna
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Kelola data pengguna, hak akses peran lokal, dan sinkronisasi profil SSO Universitas Siliwangi.
+            Kelola data pegawai, hak akses akun, dan sinkronisasi profil kepegawaian Universitas Siliwangi.
           </p>
         </div>
 
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* Tombol Sync SSO */}
+          {/* Tombol Sinkron Data Pegawai */}
           <button
             type="button"
             onClick={handleSyncSSO}
             disabled={isSyncingSSO}
             className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 hover:border-slate-400 transition cursor-pointer shadow-2xs active:scale-95 disabled:opacity-50"
-            title="Sinkronisasi Data Pengguna dengan Single Sign-On (SSO) UNSIL"
+            title="Sinkronkan data pegawai dengan sistem kepegawaian resmi UNSIL"
           >
             <RotateCw className={`w-3.5 h-3.5 text-slate-600 ${isSyncingSSO ? 'animate-spin' : ''}`} />
-            <span>Sync SSO</span>
+            <span>Sinkron Data Pegawai</span>
           </button>
 
-          {/* Tombol Tambah User Manual */}
+          {/* Tombol Tambah Pengguna Baru */}
           <button
             type="button"
             onClick={() => {
@@ -556,7 +556,7 @@ export const SystemSettingsView = ({
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
-            <span>Tambah User Manual</span>
+            <span>Tambah Pengguna Baru</span>
           </button>
         </div>
       </div>
@@ -604,10 +604,10 @@ export const SystemSettingsView = ({
           </div>
         </div>
 
-        {/* Badge Total User */}
+        {/* Badge Total Pengguna */}
         <div className="flex items-center justify-end">
           <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-            Total: {filteredUsers.length} User
+            Total: {filteredUsers.length} Pengguna
           </span>
         </div>
       </div>
@@ -623,8 +623,8 @@ export const SystemSettingsView = ({
                 <th className="py-3.5 px-4 w-12 text-center">NO</th>
                 <th className="py-3.5 px-4 min-w-[240px]">PENGGUNA</th>
                 <th className="py-3.5 px-4 min-w-[200px]">UNIT KERJA</th>
-                <th className="py-3.5 px-4 min-w-[200px]">ROLE & HAK AKSES</th>
-                <th className="py-3.5 px-4 min-w-[150px]">STATUS SSO</th>
+                <th className="py-3.5 px-4 min-w-[200px]">PERAN & HAK AKSES</th>
+                <th className="py-3.5 px-4 min-w-[150px]">STATUS AKUN</th>
                 <th className="py-3.5 px-4 text-center w-36">AKSI</th>
               </tr>
             </thead>
@@ -695,14 +695,14 @@ export const SystemSettingsView = ({
                             {displayRole}
                           </span>
                           {canonicalRole && (
-                            <span className="font-mono text-[10px] text-slate-400">
-                              {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} izin
+                            <span className="text-[10px] text-slate-500 font-medium">
+                              {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} hak akses
                             </span>
                           )}
                         </div>
                       </td>
 
-                      {/* 5. STATUS SSO */}
+                      {/* 5. STATUS AKUN */}
                       <td className="py-3.5 px-4">
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
@@ -718,7 +718,7 @@ export const SystemSettingsView = ({
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
                         >
                           <SlidersHorizontal className="w-3.5 h-3.5" />
-                          <span>Detail / Atur Role</span>
+                          <span>Detail &amp; Hak Akses</span>
                         </button>
                       </td>
                     </tr>
@@ -744,10 +744,10 @@ export const SystemSettingsView = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                    Pengaturan Profil & Otorisasi Pengguna
+                    Pengaturan Profil &amp; Hak Akses Pengguna
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Pembaruan identitas, unit kerja struktural, dan hak akses naskah dinas civitas akademika.
+                    Pembaruan identitas pegawai, unit kerja, dan hak akses persuratan dinas.
                   </p>
                 </div>
               </div>
@@ -799,7 +799,7 @@ export const SystemSettingsView = ({
               <div className="space-y-3 pt-1">
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
                   <Building2 className="w-3.5 h-3.5 text-unsil-green-800" />
-                  <span>1. Identitas Pegawai & Satuan Kerja</span>
+                  <span>1. Data Pegawai &amp; Unit Kerja</span>
                 </div>
 
                 <div className="space-y-1">
@@ -830,7 +830,7 @@ export const SystemSettingsView = ({
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 block">
-                      Email SSO UNSIL <span className="text-red-500">*</span>
+                      Email Resmi UNSIL (@unsil.ac.id) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
@@ -844,7 +844,7 @@ export const SystemSettingsView = ({
 
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 block">
-                    Satuan Kerja Struktural (21 Satker Resmi UNSIL)
+                    Unit Kerja / Fakultas di Lingkungan UNSIL
                   </label>
                   <select
                     value={editFormData.unit_kerja_id}
@@ -860,17 +860,17 @@ export const SystemSettingsView = ({
                 </div>
               </div>
 
-              {/* Bagian 2: Otorisasi Peran & Jabatan */}
+              {/* Bagian 2: Peran & Jabatan Pegawai */}
               <div className="space-y-3 pt-1">
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
                   <Shield className="w-3.5 h-3.5 text-unsil-green-800" />
-                  <span>2. Otorisasi Peran & Jabatan Institusi</span>
+                  <span>2. Peran &amp; Jabatan Pegawai</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 block">
-                      Role Akses (Manajemen Role)
+                      Peran &amp; Wewenang Akun
                     </label>
                     <select
                       value={editFormData.role_slug}
@@ -951,7 +951,7 @@ export const SystemSettingsView = ({
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
-                        Hak Akses Terintegrasi ({roleSlugs.length} Izin Operasional)
+                        Daftar Hak Akses ({roleSlugs.length} Wewenang)
                       </span>
                       {hasRahasia && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
@@ -961,7 +961,7 @@ export const SystemSettingsView = ({
                       )}
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      {currentRoleObj?.description || 'Hak akses otomatis sinkron dengan konfigurasi Manajemen Role & Permission.'}
+                      {currentRoleObj?.description || 'Hak akses otomatis disesuaikan dengan peran yang dipilih.'}
                     </p>
                     <div className="flex flex-wrap gap-1.5 pt-1 max-h-28 overflow-y-auto pr-1">
                       {roleSlugs.map((slug) => (
@@ -978,7 +978,7 @@ export const SystemSettingsView = ({
                 );
               })()}
 
-              {/* Bagian 5: Kredensial TTE */}
+              {/* Bagian 5: Wewenang TTE */}
               <div className="pt-2 border-t border-slate-100">
                 <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200/80 bg-white hover:bg-slate-50/50 cursor-pointer transition">
                   <input
@@ -991,10 +991,10 @@ export const SystemSettingsView = ({
                   />
                   <div className="space-y-0.5">
                     <span className="text-xs text-slate-800 font-semibold block">
-                      Kredensial Tanda Tangan Elektronik (TTE) Tersertifikasi BSrE Aktif
+                      Wewenang Tanda Tangan Digital (TTE) Aktif
                     </span>
                     <span className="text-[11px] text-slate-500 block leading-tight">
-                      Memberikan otorisasi pembubuhan tanda tangan elektronik tersertifikasi pada dokumen dinas resmi.
+                      Memberikan hak kepada pejabat untuk menandatangani surat dinas resmi secara digital.
                     </span>
                   </div>
                 </label>
@@ -1052,10 +1052,10 @@ export const SystemSettingsView = ({
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 tracking-tight">
-                    Tambah Pengguna Akun SILOKA
+                    Tambah Pengguna Baru
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Daftarkan akun pengguna baru ke pangkalan data dan tentukan peran otorisasi.
+                    Daftarkan akun pegawai baru dan tentukan wewenang perannya.
                   </p>
                 </div>
               </div>
@@ -1075,7 +1075,7 @@ export const SystemSettingsView = ({
               <div className="space-y-3 pt-1">
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
                   <Building2 className="w-3.5 h-3.5 text-unsil-green-800" />
-                  <span>1. Identitas Pegawai & Satuan Kerja</span>
+                  <span>1. Data Pegawai &amp; Unit Kerja</span>
                 </div>
 
                 <div className="space-y-1">
@@ -1107,7 +1107,7 @@ export const SystemSettingsView = ({
                   </div>
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 block">
-                      Email SSO UNSIL <span className="text-red-500">*</span>
+                      Email Resmi UNSIL (@unsil.ac.id) <span className="text-red-500">*</span>
                     </label>
                     <input
                       type="email"
@@ -1122,7 +1122,7 @@ export const SystemSettingsView = ({
 
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-slate-700 block">
-                    Satuan Kerja Struktural (21 Satker Resmi UNSIL)
+                    Unit Kerja / Fakultas di Lingkungan UNSIL
                   </label>
                   <select
                     value={newUserData.unit_kerja_id}
@@ -1140,17 +1140,17 @@ export const SystemSettingsView = ({
                 </div>
               </div>
 
-              {/* Bagian 2: Otorisasi Peran & Jabatan */}
+              {/* Bagian 2: Peran & Jabatan Pegawai */}
               <div className="space-y-3 pt-1">
                 <div className="text-[11px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5 pb-1 border-b border-slate-100">
                   <Shield className="w-3.5 h-3.5 text-unsil-green-800" />
-                  <span>2. Otorisasi Peran & Jabatan Institusi</span>
+                  <span>2. Peran &amp; Jabatan Pegawai</span>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold text-slate-700 block">
-                      Role Akses (Manajemen Role)
+                      Peran &amp; Wewenang Akun
                     </label>
                     <select
                       value={newUserData.role_slug}
@@ -1245,7 +1245,7 @@ export const SystemSettingsView = ({
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
-                        Hak Akses Terintegrasi ({roleSlugs.length} Izin Operasional)
+                        Daftar Hak Akses ({roleSlugs.length} Wewenang)
                       </span>
                       {hasRahasia && (
                         <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
@@ -1255,7 +1255,7 @@ export const SystemSettingsView = ({
                       )}
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
-                      {currentRoleObj?.description || 'Hak akses otomatis sinkron dengan konfigurasi Manajemen Role & Permission.'}
+                      {currentRoleObj?.description || 'Hak akses otomatis disesuaikan dengan peran yang dipilih.'}
                     </p>
                     <div className="flex flex-wrap gap-1.5 pt-1 max-h-28 overflow-y-auto pr-1">
                       {roleSlugs.map((slug) => (
