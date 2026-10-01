@@ -691,6 +691,28 @@ export default function App() {
     setIsDisposisiOpen(true);
   };
 
+  // Penghapusan Riwayat Naskah Dinas Per-Item dengan Validasi & Audit Trail
+  const handleDeleteLetter = (letterToDelete) => {
+    if (!letterToDelete || !letterToDelete.id) return;
+    if (currentUser?.role === 'PENGAWAS') {
+      showToast('Akses Read-Only: Pengawas SPI berstatus peninjau dan tidak berwenang menghapus riwayat naskah.', 'warning');
+      return;
+    }
+    if (letterToDelete.isLockedPermanen) {
+      showToast('Akses Ditolak: Berkas ini berstatus Arsip Permanen dan dilindungi regulasi kearsipan.', 'error');
+      return;
+    }
+
+    setLetters((prev) => prev.filter((l) => l.id !== letterToDelete.id));
+    showToast(`Naskah ${letterToDelete.nomorSurat || 'dinas'} berhasil dihapus dari riwayat.`, 'success');
+
+    handleLogAction({
+      action: 'LETTER_DELETED',
+      details: `Penghapusan riwayat naskah dinas: ${letterToDelete.nomorSurat || letterToDelete.id} (${letterToDelete.perihal || 'Naskah'}) oleh ${currentUser?.nama_lengkap || currentUser?.name || 'Pengguna'}`,
+      severity: 'WARNING'
+    });
+  };
+
   // Feature 6: Review & Approval Workflow (Setujui Naskah)
   const handleApproveLetter = (letterId, note) => {
     let approvedNomor = '';
@@ -1238,6 +1260,7 @@ export default function App() {
               letters={scopedLetters}
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
+              onDeleteLetter={handleDeleteLetter}
               searchQuery={searchQuery}
               activeFilter={metricFilter}
               setActiveFilter={setMetricFilter}
@@ -1288,25 +1311,6 @@ export default function App() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {letters.some((l) => l.kategori === 'Surat Masuk') && (
-                  <button
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          'Konfirmasi: Apakah Anda yakin ingin mengosongkan seluruh riwayat naskah Surat Masuk?'
-                        )
-                      ) {
-                        setLetters((prev) => prev.filter((l) => l.kategori !== 'Surat Masuk'));
-                        showToast('Seluruh riwayat Surat Masuk telah berhasil dikosongkan.', 'success');
-                      }
-                    }}
-                    className="px-3.5 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 hover:border-rose-300 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    title="Kosongkan Riwayat Surat Masuk"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-600" />
-                    <span>Kosongkan Riwayat</span>
-                  </button>
-                )}
                 <button
                   onClick={() => setIsQuickRegisterOpen(true)}
                   className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -1322,6 +1326,7 @@ export default function App() {
               tableTitle="Daftar Surat Masuk Resmi"
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
+              onDeleteLetter={handleDeleteLetter}
               searchQuery={searchQuery}
               activeFilter={null}
               setActiveFilter={() => {}}
@@ -1347,25 +1352,6 @@ export default function App() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                {letters.some((l) => l.kategori !== 'Surat Masuk') && (
-                  <button
-                    onClick={() => {
-                      if (
-                        window.confirm(
-                          'Konfirmasi: Apakah Anda yakin ingin mengosongkan seluruh riwayat naskah Surat Keluar & Naskah Dinas?'
-                        )
-                      ) {
-                        setLetters((prev) => prev.filter((l) => l.kategori === 'Surat Masuk'));
-                        showToast('Seluruh riwayat Surat Keluar telah berhasil dikosongkan.', 'success');
-                      }
-                    }}
-                    className="px-3.5 py-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-semibold hover:bg-rose-100 hover:border-rose-300 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                    title="Kosongkan Riwayat Surat Keluar"
-                  >
-                    <Trash2 className="w-4 h-4 text-rose-600" />
-                    <span>Kosongkan Riwayat</span>
-                  </button>
-                )}
                 <button
                   onClick={() => setIsCreateModalOpen(true)}
                   className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -1378,9 +1364,10 @@ export default function App() {
             <ActivityTable
               letters={scopedLetters}
               fixedKategori="Surat Keluar"
-              tableTitle="Daftar Surat Keluar &amp; Naskah Dinas"
+              tableTitle="Daftar Surat Keluar & Naskah Dinas"
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
+              onDeleteLetter={handleDeleteLetter}
               searchQuery={searchQuery}
               activeFilter={null}
               setActiveFilter={() => {}}
