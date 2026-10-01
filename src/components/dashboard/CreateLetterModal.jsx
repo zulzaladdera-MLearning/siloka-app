@@ -2625,128 +2625,99 @@ export const CreateLetterModal = ({
             >
               {letterType === 'surat-masuk' ? (
                 /* ========================================================================= */
-                /* PRATINJAU PINDAIAN BERKAS PDF SURAT MASUK (LIVE PDF VIEWER)               */
+                /* PRATINJAU DOKUMEN PDF SURAT MASUK (LANGSUNG PDF)                          */
                 /* ========================================================================= */
-                <>
-                  <div className="w-full max-w-[210mm] mb-2.5 flex items-center justify-between text-xs text-slate-600 px-1">
-                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-700 flex items-center gap-1.5">
-                      <FileText className="w-4 h-4 text-rose-600" />
-                      <span>Pratinjau Pindaian Berkas PDF Surat Masuk</span>
-                    </span>
-                    <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border-emerald-300">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      <span>Live PDF Viewer</span>
-                    </span>
-                  </div>
-
-                  {/* Panel Live PDF Viewer & Area Unggah Terintegrasi */}
-                  <div className="w-full max-w-[210mm] flex-1 flex flex-col bg-white rounded-xl shadow-lg border border-slate-300 overflow-hidden min-h-[640px] mb-6 animate-in fade-in duration-200">
-                    {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) ? (
-                      <>
-                        {/* PDF Viewer Header Toolbar */}
-                        <div className="px-3.5 py-2 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800">
-                          <div className="flex items-center gap-2 truncate max-w-[65%]">
-                            <span className="p-1 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">PDF</span>
-                            <span className="font-semibold text-slate-100 truncate text-[11.5px]" title={uploadedFileNameMasuk}>
-                              {uploadedFileNameMasuk || 'Berkas_Surat_Masuk.pdf'}
-                            </span>
-                            {uploadedFileSizeMasuk && (
-                              <span className="text-[10px] text-slate-400 font-mono">({uploadedFileSizeMasuk})</span>
-                            )}
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={handlePreviewFileMasuk}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] font-medium text-slate-200 transition cursor-pointer"
-                              title="Buka PDF di Tab Baru"
-                            >
-                              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                              <span>Tab Baru</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => fileInputMasukRef.current?.click()}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-[11px] font-semibold text-white transition cursor-pointer"
-                              title="Ganti Dokumen PDF"
-                            >
-                              <RefreshCw className="w-3 h-3 text-emerald-200" />
-                              <span>Ganti Berkas</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveFileMasuk}
-                              className="p-1 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded transition cursor-pointer"
-                              title="Hapus Berkas PDF"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-
-                        {/* Embedded PDF iframe */}
-                        <div className="flex-1 w-full bg-slate-100 min-h-[640px] relative">
-                          <iframe
-                            src={uploadedFileDataUrlMasuk || uploadedFileUrlMasuk}
-                            title="Pratinjau Dokumen PDF Surat Masuk"
-                            className="w-full h-full min-h-[640px] border-0"
-                          />
-                        </div>
-                      </>
-                    ) : (
-                      /* Area Dropzone Unggah Interaktif Saat Kosong */
-                      <div
-                        onClick={() => fileInputMasukRef.current?.click()}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(true);
-                        }}
-                        onDragLeave={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(false);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(false);
-                          const file = e.dataTransfer.files?.[0];
-                          if (file) handleProcessFileMasuk(file);
-                        }}
-                        className={`flex-1 p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[540px] border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
-                          isDraggingMasuk
-                            ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
-                            : 'border-slate-300 hover:border-unsil-green-700 bg-slate-50/50 hover:bg-slate-50'
-                        }`}
+                (uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) ? (
+                  <div className="w-full max-w-[210mm] flex-1 flex flex-col relative rounded-xl overflow-hidden shadow-lg border border-slate-300 bg-white min-h-[680px] mb-4">
+                    {/* Floating discreet action bar */}
+                    <div className="absolute top-2.5 right-2.5 z-20 flex items-center gap-1.5 bg-white/95 backdrop-blur-sm border border-slate-200/90 shadow-md rounded-lg p-1">
+                      <button
+                        type="button"
+                        onClick={handlePreviewFileMasuk}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-md text-[11px] font-semibold transition cursor-pointer"
+                        title="Buka Dokumen PDF di Tab Baru"
                       >
-                        <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-unsil-green-800 flex items-center justify-center mb-4 border border-emerald-200 shadow-inner">
-                          <UploadCloud className="w-8 h-8" />
-                        </div>
-                        <h3 className="text-sm font-bold text-slate-800 mb-1">
-                          {isDraggingMasuk ? 'Lepaskan Berkas PDF di Sini' : 'Belum Ada Dokumen Pindaian PDF yang Diunggah'}
-                        </h3>
-                        <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
-                          Pilih berkas atau seret dokumen PDF surat masuk fisik ke sini (Maks. 5MB) untuk langsung melihat isi naskah secara utuh di panel ini.
-                        </p>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            fileInputMasukRef.current?.click();
-                          }}
-                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
-                        >
-                          <UploadCloud className="w-4 h-4 text-unsil-gold-400" />
-                          <span>Pilih Berkas PDF Surat Masuk</span>
-                        </button>
-                        {uploadErrorMasuk && (
-                          <div className="mt-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
-                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                            <span>{uploadErrorMasuk}</span>
-                          </div>
-                        )}
+                        <ExternalLink className="w-3.5 h-3.5 text-slate-500" />
+                        <span>Tab Baru</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => fileInputMasukRef.current?.click()}
+                        className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-unsil-green-900 rounded-md text-[11px] font-bold border border-emerald-200 transition cursor-pointer"
+                        title="Ganti Berkas PDF"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-emerald-700" />
+                        <span>Ganti Berkas</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleRemoveFileMasuk}
+                        className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded-md transition cursor-pointer"
+                        title="Hapus Berkas PDF"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+
+                    {/* Langsung PDF - Full Frame, No Navpanes, No Toolbar, Fit Width */}
+                    <iframe
+                      src={`${uploadedFileUrlMasuk || uploadedFileDataUrlMasuk}#toolbar=0&navpanes=0&view=FitH`}
+                      title="Dokumen PDF Surat Masuk"
+                      className="w-full h-full min-h-[680px] border-0"
+                    />
+                  </div>
+                ) : (
+                  /* Area Dropzone Unggah Interaktif Saat Kosong */
+                  <div
+                    onClick={() => fileInputMasukRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDraggingMasuk(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsDraggingMasuk(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDraggingMasuk(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) handleProcessFileMasuk(file);
+                    }}
+                    className={`w-full max-w-[210mm] flex-1 p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[580px] border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                      isDraggingMasuk
+                        ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
+                        : 'border-slate-300 hover:border-unsil-green-700 bg-white hover:bg-emerald-50/20 shadow-sm'
+                    }`}
+                  >
+                    <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-unsil-green-800 flex items-center justify-center mb-4 border border-emerald-200 shadow-inner">
+                      <UploadCloud className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-sm font-bold text-slate-800 mb-1">
+                      {isDraggingMasuk ? 'Lepaskan Berkas PDF di Sini' : 'Pilih Berkas PDF Surat Masuk'}
+                    </h3>
+                    <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+                      Pilih berkas atau seret dokumen PDF surat masuk fisik ke sini (Maksimal 5MB) untuk langsung menampilkan dokumen secara utuh.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        fileInputMasukRef.current?.click();
+                      }}
+                      className="inline-flex items-center gap-2 px-4 py-2.5 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                    >
+                      <UploadCloud className="w-4 h-4 text-unsil-gold-400" />
+                      <span>Pilih Berkas PDF Surat Masuk</span>
+                    </button>
+                    {uploadErrorMasuk && (
+                      <div className="mt-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                        <span>{uploadErrorMasuk}</span>
                       </div>
                     )}
                   </div>
-                </>
+                )
               ) : (
                 /* ========================================================================= */
                 /* PRATINJAU SURAT KELUAR / NOTA DINAS (A4 / F4)                             */
