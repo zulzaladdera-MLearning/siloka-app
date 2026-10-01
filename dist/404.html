@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <title>SILOKA UNSIL</title>
+  <script>
+    // Menyimpan path yang diminta pengguna dan mengalihkan ke root SPA
+    sessionStorage.setItem('siloka_redirect_path', window.location.pathname + window.location.search + window.location.hash);
+    window.location.replace('/');
+  </script>
+</head>
+<body>
+</body>
+</html>

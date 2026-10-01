@@ -39,6 +39,11 @@ import {
 } from './utils/authGuards';
 import { sanitizeUiText, sanitizeErrorMessage } from './utils/antiSlopGuard';
 import { incrementSequenceSession } from './services/letterService';
+import {
+  getTabFromPathname,
+  getPathFromTab,
+  syncUrlWithTab
+} from './utils/routeNavigation';
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState(() => {
@@ -235,10 +240,33 @@ export default function App() {
 
   const [activeTab, setActiveTab] = useState(() => {
     try {
-      return localStorage.getItem('siloka_active_tab') || 'dashboard';
+      // 1. Periksa path URL dari 404 redirection (Cloudflare Pages fallback)
+      const redirectPath = sessionStorage.getItem('siloka_redirect_path');
+      if (redirectPath) {
+        sessionStorage.removeItem('siloka_redirect_path');
+        const tabFromRedirect = getTabFromPathname(redirectPath);
+        if (tabFromRedirect) {
+          return tabFromRedirect;
+        }
+      }
+
+      // 2. Baca URL browser saat ini (misal: /surat-masuk -> 'surat-masuk')
+      if (typeof window !== 'undefined' && window.location.pathname) {
+        const tabFromUrl = getTabFromPathname(window.location.pathname);
+        if (tabFromUrl) {
+          return tabFromUrl;
+        }
+      }
+
+      // 3. Fallback ke tab yang disimpan di penyimpanan lokal
+      const savedTab = localStorage.getItem('siloka_active_tab');
+      if (savedTab) {
+        return savedTab;
+      }
     } catch (e) {
-      return 'dashboard';
+      console.warn('Error determining initial active tab', e);
     }
+    return 'dashboard';
   });
 
   const [searchQuery, setSearchQuery] = useState('');
@@ -263,13 +291,53 @@ export default function App() {
     }
   }, [letters]);
 
+  // Sinkronisasi navigasi tombol Back/Forward (popstate) browser dengan activeTab
+  useEffect(() => {
+    const handlePopState = () => {
+      const tabFromUrl = getTabFromPathname(window.location.pathname) || 'dashboard';
+      setActiveTab(tabFromUrl);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sinkronisasi activeTab ke localStorage dan address bar browser secara real-time
   useEffect(() => {
     try {
       localStorage.setItem('siloka_active_tab', activeTab);
     } catch (e) {
       console.error('Failed to persist active tab', e);
     }
-  }, [activeTab]);
+
+    if (currentUser) {
+      syncUrlWithTab(activeTab);
+    }
+  }, [activeTab, currentUser]);
+
+  // Validasi proteksi akses rute berdasarkan otorisasi peran pengguna aktif
+  useEffect(() => {
+    if (!currentUser) return;
+
+    if (
+      (activeTab === 'settings' ||
+        activeTab === 'manajemen-user' ||
+        activeTab === 'manajemen-role' ||
+        activeTab === 'manajemen-permission') &&
+      !isSuperAdminUser(currentUser)
+    ) {
+      showToast('Akses Terbatas: Menu Manajemen hanya dapat diakses oleh Super Administrator.', 'error');
+      setActiveTab('dashboard');
+      syncUrlWithTab('dashboard', true);
+    } else if (
+      activeTab === 'brankas-digital' &&
+      !canAccessBrankasDigital(currentUser)
+    ) {
+      showToast('Akses Terbatas: Menu Brankas Digital hanya untuk Pejabat Struktural & Arsiparis.', 'error');
+      setActiveTab('dashboard');
+      syncUrlWithTab('dashboard', true);
+    }
+  }, [activeTab, currentUser]);
 
   // Security, Units & Modals
   const [tteTargetLetter, setTteTargetLetter] = useState(null);
@@ -562,6 +630,20 @@ export default function App() {
 
     setCurrentUser(user);
 
+    // Buka rute/tab yang diminta pengguna sebelum login jika ada
+    const redirectPath = sessionStorage.getItem('siloka_redirect_path');
+    const postLoginTab = sessionStorage.getItem('siloka_post_login_tab');
+    const targetTab = (redirectPath && getTabFromPathname(redirectPath)) || postLoginTab;
+
+    if (targetTab) {
+      sessionStorage.removeItem('siloka_redirect_path');
+      sessionStorage.removeItem('siloka_post_login_tab');
+      setActiveTab(targetTab);
+      syncUrlWithTab(targetTab, true);
+    } else {
+      syncUrlWithTab(activeTab, true);
+    }
+
     const entry = createAuditEntry({
       user,
       action: 'AUTH_LOGIN_SUCCESS',
@@ -590,6 +672,7 @@ export default function App() {
 
     setCurrentUser(null);
     setActiveTab('dashboard');
+    syncUrlWithTab('dashboard', true);
     showToast('Anda telah keluar dari sesi SILOKA.', 'info');
   };
 
@@ -1038,10 +1121,10 @@ export default function App() {
         }
         setActiveTab={(tab) => {
           if (
-            tab === 'settings' &&
+            (tab === 'settings' || tab === 'manajemen-user' || tab === 'manajemen-role' || tab === 'manajemen-permission') &&
             !isSuperAdminUser(currentUser)
           ) {
-            showToast('Akses Ditolak: Modul Pengaturan Sistem hanya boleh diakses oleh Super Admin.', 'error');
+            showToast('Akses Ditolak: Modul Manajemen Pengaturan hanya boleh diakses oleh Super Admin.', 'error');
             setActiveTab('dashboard');
             return;
           }

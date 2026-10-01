@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { canAccessBrankasDigital } from '../../utils/authGuards';
 import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
+import { getPathFromTab } from '../../utils/routeNavigation';
 
 export const buildSidebarMenuItems = ({
   user,
@@ -428,13 +429,16 @@ export const Sidebar = ({
                             activeTab === child.id ||
                             (child.id === 'settings' && activeTab === 'manajemen-user');
                           return (
-                            <button
+                            <a
                               key={child.id}
-                              type="button"
-                              onClick={() => {
-                                setActiveTab(child.id);
-                                if (toggleSidebar && window.innerWidth < 768) {
-                                  toggleSidebar();
+                              href={getPathFromTab(child.id)}
+                              onClick={(e) => {
+                                if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                                  e.preventDefault();
+                                  setActiveTab(child.id);
+                                  if (toggleSidebar && window.innerWidth < 768) {
+                                    toggleSidebar();
+                                  }
                                 }
                               }}
                               className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition cursor-pointer text-left ${
@@ -460,7 +464,7 @@ export const Sidebar = ({
                                   {child.badge}
                                 </span>
                               )}
-                            </button>
+                            </a>
                           );
                         })}
                       </div>
@@ -470,12 +474,16 @@ export const Sidebar = ({
               }
 
               return (
-                <button
+                <a
                   key={item.id}
-                  onClick={() => {
-                    setActiveTab(item.id);
-                    if (toggleSidebar && window.innerWidth < 768) {
-                      toggleSidebar();
+                  href={getPathFromTab(item.id)}
+                  onClick={(e) => {
+                    if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
+                      e.preventDefault();
+                      setActiveTab(item.id);
+                      if (toggleSidebar && window.innerWidth < 768) {
+                        toggleSidebar();
+                      }
                     }
                   }}
                   title={isCollapsed ? item.label : undefined}
@@ -510,7 +518,7 @@ export const Sidebar = ({
                       {item.badge && ` (${item.badge})`}
                     </div>
                   )}
-                </button>
+                </a>
               );
             })}
           </nav>
