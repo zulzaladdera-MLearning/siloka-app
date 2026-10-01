@@ -157,6 +157,7 @@ export const SystemSettingsView = ({
   allUsers = [],
   onUpdateUsers,
   onDeleteUser,
+  onPurgeNonSuperAdmins,
   showToast = () => {}
 }) => {
   // Verifikasi Otorisasi Super Admin
@@ -379,6 +380,10 @@ export const SystemSettingsView = ({
   // Handler: Hapus Pengguna dari Sistem
   const handleDeleteUser = (targetUser) => {
     if (!targetUser) return;
+    if (isSuperAdminUser(targetUser)) {
+      showToast('Akun Super Administrator sistem tidak dapat dihapus untuk menjaga keamanan dan kedaulatan akses SILOKA.', 'error');
+      return;
+    }
     const name = targetUser.nama_lengkap || targetUser.name || 'Pengguna';
     if (
       window.confirm(
@@ -390,6 +395,28 @@ export const SystemSettingsView = ({
       }
       setIsDetailModalOpen(false);
       showToast(`Pengguna ${name} berhasil dihapus dari sistem.`, 'info');
+    }
+  };
+
+  // Handler: Hapus Seluruh Pengguna Kecuali Super Administrator
+  const handlePurgeNonSuperAdmins = () => {
+    const nonSuperAdmins = allUsers.filter((u) => !isSuperAdminUser(u));
+    if (nonSuperAdmins.length === 0) {
+      showToast('Seluruh pengguna non-admin telah dibersihkan. Hanya akun Super Administrator yang tersisa.', 'info');
+      return;
+    }
+
+    if (
+      window.confirm(
+        `Perhatian: Tindakan ini akan menghapus seluruh ${nonSuperAdmins.length} akun pengguna selain Super Administrator. Apakah Anda yakin ingin melanjutkan tindakan ini?`
+      )
+    ) {
+      if (onPurgeNonSuperAdmins) {
+        onPurgeNonSuperAdmins();
+      } else if (onDeleteUser) {
+        nonSuperAdmins.forEach((u) => onDeleteUser(u.id));
+      }
+      showToast('Seluruh akun pengguna selain Super Administrator berhasil dihapus dari sistem.', 'success');
     }
   };
 
@@ -523,7 +550,20 @@ export const SystemSettingsView = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          {/* Tombol Hapus Semua Kecuali Super Admin (Muncul jika terdapat akun non-super-admin) */}
+          {allUsers.some((u) => !isSuperAdminUser(u)) && (
+            <button
+              type="button"
+              onClick={handlePurgeNonSuperAdmins}
+              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 hover:border-rose-300 transition cursor-pointer shadow-2xs active:scale-95"
+              title="Hapus seluruh akun pengguna selain Super Administrator"
+            >
+              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+              <span>Hapus Semua Kecuali Super Admin</span>
+            </button>
+          )}
+
           {/* Tombol Sinkron Data Pegawai */}
           <button
             type="button"
@@ -712,14 +752,26 @@ export const SystemSettingsView = ({
 
                       {/* 6. AKSI */}
                       <td className="py-3.5 px-4 text-center">
-                        <button
-                          type="button"
-                          onClick={() => handleOpenDetailModal(u)}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
-                        >
-                          <SlidersHorizontal className="w-3.5 h-3.5" />
-                          <span>Detail &amp; Hak Akses</span>
-                        </button>
+                        <div className="flex items-center justify-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleOpenDetailModal(u)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
+                          >
+                            <SlidersHorizontal className="w-3.5 h-3.5" />
+                            <span>Detail &amp; Hak Akses</span>
+                          </button>
+                          {!isSuperAdminUser(u) && onDeleteUser && (
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteUser(u)}
+                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                              title={`Hapus akun pengguna ${displayName}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1003,7 +1055,7 @@ export const SystemSettingsView = ({
 
             {/* Footer Modal - Tetap Pinned di Bawah */}
             <div className="px-6 py-3.5 border-t border-slate-200/80 bg-slate-50/90 flex items-center justify-between gap-3 shrink-0">
-              {selectedUserForDetail && selectedUserForDetail.id !== user?.id && onDeleteUser ? (
+              {selectedUserForDetail && !isSuperAdminUser(selectedUserForDetail) && onDeleteUser ? (
                 <button
                   type="button"
                   onClick={() => handleDeleteUser(selectedUserForDetail)}
@@ -1012,6 +1064,11 @@ export const SystemSettingsView = ({
                   <Trash2 className="w-3.5 h-3.5" />
                   <span>Hapus Pengguna</span>
                 </button>
+              ) : selectedUserForDetail && isSuperAdminUser(selectedUserForDetail) ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-200">
+                  <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Akun Super Administrator Terlindungi</span>
+                </span>
               ) : (
                 <div />
               )}

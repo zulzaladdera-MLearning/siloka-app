@@ -58,4 +58,48 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     expect(realSuperAdmin.nama_lengkap).toBe('Dede Gunawan, S.Kom., M.Kom.');
     expect(realSuperAdmin.role).toBe('Super Admin');
   });
+
+  it('hanya menyisakan Super Administrator saat seluruh user non-super-admin dihapus', async () => {
+    const usersData = (await import('../../../data/users.json')).default;
+    const { isSuperAdminUser } = await import('../../../utils/authGuards');
+
+    // Filter simulasi pembersihan user non-super-admin
+    const superAdminsOnly = usersData.filter(
+      (u) =>
+        isSuperAdminUser(u) &&
+        u.id !== 'usr-admin-01' &&
+        u.id !== 'usr-00' &&
+        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+    );
+
+    // Harus menyisakan tepat 1 akun Super Administrator (Dede Gunawan)
+    expect(superAdminsOnly.length).toBe(1);
+    expect(superAdminsOnly[0].email).toBe('dedegunawan@unsil.ac.id');
+    expect(superAdminsOnly[0].is_super_admin).toBe(true);
+
+    // Tidak boleh ada role lain (Dosen, Pejabat, dsb) di hasil pembersihan
+    const hasNonAdmin = superAdminsOnly.some((u) => !isSuperAdminUser(u));
+    expect(hasNonAdmin).toBe(false);
+  });
+
+  it('memastikan proteksi akun Super Administrator agar tidak terhapus oleh handler penghapusan', async () => {
+    const { isSuperAdminUser } = await import('../../../utils/authGuards');
+    const mockUsers = [
+      { id: 'usr-dg-01', name: 'Dede Gunawan', role: 'Super Admin', is_super_admin: true },
+      { id: 'usr-02', name: 'Staf Non Admin', role: 'STAF' }
+    ];
+
+    // Logika proteksi handleDeleteUser: Super Admin kebal terhadap penghapusan
+    const deleteTarget = (userId, list) => list.filter((u) => u.id !== userId || isSuperAdminUser(u));
+
+    // Coba hapus akun staf biasa -> harus terhapus
+    const afterDeleteStaf = deleteTarget('usr-02', mockUsers);
+    expect(afterDeleteStaf.length).toBe(1);
+    expect(afterDeleteStaf[0].id).toBe('usr-dg-01');
+
+    // Coba hapus akun Super Admin -> harus tetap terlindungi (tidak terhapus)
+    const afterAttemptDeleteSuper = deleteTarget('usr-dg-01', afterDeleteStaf);
+    expect(afterAttemptDeleteSuper.length).toBe(1);
+    expect(afterAttemptDeleteSuper[0].id).toBe('usr-dg-01');
+  });
 });

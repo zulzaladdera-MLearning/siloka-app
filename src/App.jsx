@@ -125,59 +125,76 @@ export default function App() {
 
   const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
 
-  // State master users yang dapat dimutasi dan diperbarui via modul Pengaturan Sistem
+  // State master users yang dapat dimutasi dan diperbarui via modul Manajemen Pengguna
+  // Kebijakan: Hanya mempertahankan akun Super Administrator, menghapus seluruh pengguna non-super-admin
   const [allUsers, setAllUsers] = useState(() => {
     try {
       const savedUsers = localStorage.getItem('siloka_users_data');
       if (savedUsers) {
         let parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Bersihkan artefak data dummy seperti "Administrator Utama SILOKA" agar tidak muncul lagi
-          parsed = parsed.filter(
+          // Hanya pertahankan Super Administrator asli sistem
+          const superAdminsOnly = parsed.filter(
             (u) =>
+              isSuperAdminUser(u) &&
               u.id !== 'usr-admin-01' &&
               u.id !== 'usr-00' &&
               !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
           );
 
-          const merged = [...parsed];
-          usersData.forEach((seedUser, sIdx) => {
-            const idx = merged.findIndex(
-              (u) =>
-                u.id === seedUser.id ||
-                (u.email && seedUser.email && u.email.toLowerCase() === seedUser.email.toLowerCase())
-            );
-            if (idx === -1) {
-              // Sisipkan seedUser baru sesuai posisi alaminya
-              merged.splice(sIdx, 0, seedUser);
-            } else if (
-              seedUser.id === 'usr-01' ||
-              seedUser.id.startsWith('usr-warek-')
-            ) {
-              merged[idx] = { ...seedUser, ...merged[idx], is_pejabat: true, jabatan: seedUser.jabatan };
-            } else if (seedUser.id.startsWith('usr-dosen-')) {
-              merged[idx] = { ...seedUser, ...merged[idx], role: 'DOSEN', is_pejabat: false };
-            }
-          });
-          localStorage.setItem('siloka_users_data', JSON.stringify(merged));
-          return merged;
+          if (superAdminsOnly.length > 0) {
+            localStorage.setItem('siloka_users_data', JSON.stringify(superAdminsOnly));
+            return superAdminsOnly;
+          }
         }
       }
     } catch (e) {
       console.error('Error loading saved users', e);
     }
-    return usersData;
+
+    // Default: Ambil hanya akun Super Administrator dari seed usersData
+    const defaultSuperAdmins = usersData.filter(
+      (u) =>
+        isSuperAdminUser(u) &&
+        u.id !== 'usr-admin-01' &&
+        u.id !== 'usr-00' &&
+        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+    );
+
+    try {
+      localStorage.setItem('siloka_users_data', JSON.stringify(defaultSuperAdmins));
+    } catch (e) {
+      console.error('Error saving initial super admin', e);
+    }
+    return defaultSuperAdmins;
   });
 
   const handleDeleteUser = (userId) => {
     setAllUsers((prev) => {
-      const filtered = prev.filter((u) => u.id !== userId);
+      // Proteksi mutlak: Akun Super Administrator sistem tidak boleh dihapus
+      const filtered = prev.filter((u) => u.id !== userId || isSuperAdminUser(u));
       try {
         localStorage.setItem('siloka_users_data', JSON.stringify(filtered));
       } catch (e) {
         console.error('Error deleting user', e);
       }
       return filtered;
+    });
+  };
+
+  const handleDeleteAllExceptSuperAdmin = () => {
+    setAllUsers((prev) => {
+      const superAdmins = prev.filter((u) => isSuperAdminUser(u));
+      const finalUsers =
+        superAdmins.length > 0
+          ? superAdmins
+          : usersData.filter((u) => isSuperAdminUser(u));
+      try {
+        localStorage.setItem('siloka_users_data', JSON.stringify(finalUsers));
+      } catch (e) {
+        console.error('Error clearing non-super-admin users', e);
+      }
+      return finalUsers;
     });
   };
 
@@ -1268,6 +1285,7 @@ export default function App() {
             allUsers={allUsers}
             onUpdateUsers={handleUpdateUsers}
             onDeleteUser={handleDeleteUser}
+            onPurgeNonSuperAdmins={handleDeleteAllExceptSuperAdmin}
             showToast={showToast}
           />
         )}
