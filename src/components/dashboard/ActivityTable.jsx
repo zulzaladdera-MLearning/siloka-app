@@ -16,10 +16,7 @@ import {
   Check,
   Lock,
   Layers,
-  Trash2,
-  AlertTriangle,
-  X,
-  ShieldAlert
+  Trash2
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import unitKerjaList from '../../data/unitKerja.json';
@@ -44,10 +41,30 @@ export const ActivityTable = ({
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [copiedId, setCopiedId] = useState(null);
 
-  // State untuk Double Konfirmasi Penghapusan Naskah
-  const [letterToDelete, setLetterToDelete] = useState(null);
-  const [deleteStep, setDeleteStep] = useState(1);
-  const [confirmAgreement, setConfirmAgreement] = useState(false);
+  // Penanganan Hapus Riwayat Per-Item dengan Tulisan Dialog Web & Double Konfirmasi
+  const handleDeleteItem = (letter) => {
+    if (!letter || !onDeleteLetter) return;
+    if (currentUser?.role === 'PENGAWAS') {
+      window.alert('Akses Ditolak: Pengawas SPI berstatus peninjau (read-only) dan tidak berwenang menghapus surat.');
+      return;
+    }
+    if (letter.isLockedPermanen) {
+      window.alert('Akses Ditolak: Berkas ini berstatus Arsip Permanen dan dilindungi regulasi kearsipan.');
+      return;
+    }
+
+    // Konfirmasi 1 dari web (Tulisan dari web nya)
+    const konfirmasi1 = window.confirm('Apakah anda yakin untuk menghapus surat tersebut?');
+    if (!konfirmasi1) return;
+
+    // Konfirmasi 2 (Double Konfirmasi Melalui Sistem)
+    const konfirmasi2 = window.confirm(
+      `Konfirmasi Kedua: Naskah dinas "${letter.nomorSurat || letter.id}" akan dihapus secara permanen dari riwayat persuratan sistem.\n\nApakah Anda benar-benar yakin ingin melanjutkan?`
+    );
+    if (!konfirmasi2) return;
+
+    onDeleteLetter(letter);
+  };
 
   const categories = ['Semua', 'Surat Masuk', 'Surat Keluar', 'Nota Dinas'];
   const statuses = ['Semua', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'];
@@ -361,13 +378,12 @@ export const ActivityTable = ({
                   )}
                   {onDeleteLetter && currentUser?.role !== 'PENGAWAS' && !letter.isLockedPermanen && (
                     <button
-                      onClick={() => {
-                        setLetterToDelete(letter);
-                        setDeleteStep(1);
-                        setConfirmAgreement(false);
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteItem(letter);
                       }}
                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-95 transition"
-                      title="Hapus Naskah"
+                      title="Hapus Naskah Ini dari Riwayat"
                     >
                       <Trash2 className="w-3.5 h-3.5 text-rose-600" />
                       <span>Hapus</span>
@@ -545,10 +561,9 @@ export const ActivityTable = ({
                           </span>
                         ) : (
                           <button
-                            onClick={() => {
-                              setLetterToDelete(letter);
-                              setDeleteStep(1);
-                              setConfirmAgreement(false);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteItem(letter);
                             }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                             title="Hapus Naskah Ini dari Riwayat"
@@ -573,167 +588,6 @@ export const ActivityTable = ({
           <strong className="text-slate-700">{letters.length}</strong> entri surat aktif
         </span>
       </div>
-
-      {/* MODAL DOUBLE KONFIRMASI PENGHAPUSAN RIWAYAT NASKAH */}
-      {letterToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
-            {/* Header Modal */}
-            <div
-              className={`p-4 flex items-center justify-between text-white ${
-                deleteStep === 1
-                  ? 'bg-gradient-to-r from-slate-900 to-rose-950'
-                  : 'bg-gradient-to-r from-rose-950 via-rose-900 to-red-950'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
-                  {deleteStep === 1 ? (
-                    <Trash2 className="w-5 h-5 text-rose-300" />
-                  ) : (
-                    <AlertTriangle className="w-5 h-5 text-amber-300" />
-                  )}
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold leading-tight">
-                    {deleteStep === 1 ? 'Hapus Riwayat Naskah Dinas' : 'Konfirmasi Akhir Penghapusan'}
-                  </h3>
-                  <p className="text-[11px] text-slate-300">
-                    {deleteStep === 1 ? 'Tahap 1 dari 2 — Tinjau Naskah' : 'Tahap 2 dari 2 — Verifikasi Mutlak'}
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setLetterToDelete(null);
-                  setDeleteStep(1);
-                  setConfirmAgreement(false);
-                }}
-                className="p-1 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Konten Modal */}
-            <div className="p-5 space-y-4">
-              {/* Ringkasan Naskah Dinas */}
-              <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Nomor Naskah</span>
-                  <span className="font-mono font-bold text-slate-900">{letterToDelete.nomorSurat || 'Tanpa Nomor'}</span>
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-0.5">Perihal</span>
-                  <p className="font-semibold text-slate-800 line-clamp-2">{letterToDelete.perihal}</p>
-                </div>
-                <div className="flex items-center justify-between pt-1 border-t border-slate-200/60 text-[11px] text-slate-500">
-                  <span>{letterToDelete.kategori} • {letterToDelete.tanggal}</span>
-                  <span className="font-medium text-slate-700 truncate max-w-[180px]">{letterToDelete.pengirim}</span>
-                </div>
-              </div>
-
-              {deleteStep === 1 ? (
-                /* TAHAP 1 */
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex items-start gap-2.5">
-                    <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="block font-semibold">Perhatian:</strong>
-                      <span>Apakah Anda yakin ingin menghapus naskah dinas ini dari riwayat persuratan dan buku agenda?</span>
-                    </div>
-                  </div>
-                  <p className="text-[11px] text-slate-500 leading-relaxed">
-                    Penghapusan akan menyisihkan naskah ini dari operasional unit kerja. Klik tombol di bawah untuk melanjutkan ke tahap verifikasi akhir.
-                  </p>
-                </div>
-              ) : (
-                /* TAHAP 2 - DOUBLE CONFIRMATION */
-                <div className="space-y-3">
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex items-start gap-2.5">
-                    <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                    <div>
-                      <strong className="block font-bold">PERINGATAN KONFIRMASI KEDUA:</strong>
-                      <span>Tindakan ini <strong>bersifat permanen</strong> dan tidak dapat dipulihkan. Seluruh catatan riwayat disposisi serta jejak surat akan dihapus.</span>
-                    </div>
-                  </div>
-
-                  <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
-                    <input
-                      type="checkbox"
-                      checked={confirmAgreement}
-                      onChange={(e) => setConfirmAgreement(e.target.checked)}
-                      className="mt-0.5 w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
-                    />
-                    <span className="text-xs text-slate-700 leading-snug">
-                      Saya memahami sepenuhnya dan menyatakan bahwa penghapusan riwayat naskah ini telah sesuai dengan arahan serta bukan berkas arsip permanen.
-                    </span>
-                  </label>
-                </div>
-              )}
-            </div>
-
-            {/* Footer Modal */}
-            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between gap-3">
-              {deleteStep === 1 ? (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setLetterToDelete(null);
-                      setDeleteStep(1);
-                      setConfirmAgreement(false);
-                    }}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition"
-                  >
-                    Batalkan
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteStep(2)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 shadow-xs transition flex items-center gap-1.5"
-                  >
-                    <span>Lanjutkan ke Konfirmasi Akhir</span>
-                    <ChevronDown className="w-3.5 h-3.5 -rotate-90" />
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button
-                    type="button"
-                    onClick={() => setDeleteStep(1)}
-                    className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 bg-white border border-slate-200 hover:bg-slate-100 transition"
-                  >
-                    Kembali ke Tahap 1
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!confirmAgreement}
-                    onClick={() => {
-                      if (!confirmAgreement) return;
-                      if (onDeleteLetter) {
-                        onDeleteLetter(letterToDelete);
-                      }
-                      setLetterToDelete(null);
-                      setDeleteStep(1);
-                      setConfirmAgreement(false);
-                    }}
-                    className={`px-4 py-2 rounded-xl text-xs font-semibold text-white shadow-xs transition flex items-center gap-1.5 ${
-                      confirmAgreement
-                        ? 'bg-rose-700 hover:bg-rose-800 cursor-pointer'
-                        : 'bg-rose-300 cursor-not-allowed opacity-70'
-                    }`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Ya, Hapus Naskah Permanen</span>
-                  </button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
