@@ -22,7 +22,8 @@ import {
   CheckCheck,
   RotateCcw,
   AlertCircle,
-  Eye
+  Eye,
+  CheckSquare
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { generateForensicWatermark } from '../../utils/security';
@@ -651,27 +652,109 @@ export const LetterDetailModal = ({
           </div>
 
           {/* Disposisi Info if exists */}
-          {letter.disposisi && (
-            <div className="p-4 rounded-xl bg-amber-50/70 border border-amber-200/80">
-              <div className="flex items-center gap-2 text-amber-900 font-bold text-xs uppercase tracking-wider mb-1.5">
-                <SendHorizontal className="w-4 h-4 text-amber-700" />
-                Lembar Disposisi Aktif
+          {letter.disposisi ? (
+            <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2 text-amber-950 font-bold text-xs uppercase tracking-wider">
+                  <CheckSquare className="w-4 h-4 text-unsil-green-800" />
+                  <span>Arahan & Instruksi Disposisi Pimpinan</span>
+                </div>
+                {capabilities.canDispose && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      onOpenDisposisi(letter);
+                    }}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition shadow-2xs"
+                  >
+                    <span>Perbarui Arahan</span>
+                  </button>
+                )}
               </div>
-              <div className="text-xs text-slate-700 space-y-1">
-                <p>
-                  <strong className="text-slate-800">Diteruskan Kepada:</strong>{' '}
-                  {letter.disposisi.tujuanDisposisi}
-                </p>
-                <p>
-                  <strong className="text-slate-800">Instruksi Pimpinan:</strong>{' '}
-                  {letter.disposisi.instruksi}
-                </p>
-                <p className="text-amber-800 font-medium">
-                  <strong>Batas Waktu:</strong> {letter.disposisi.batasWaktu}
-                </p>
+              <div className="text-xs text-slate-700 space-y-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pb-1.5 border-b border-amber-200/60">
+                  <p>
+                    <span className="text-slate-500">Pemberi Arahan:</span>{' '}
+                    <strong className="text-slate-900">
+                      {letter.disposisi.pemberiDisposisi || 'Pimpinan Unit'}
+                    </strong>
+                    {letter.disposisi.jabatanPemberi && (
+                      <span className="text-slate-600 block text-[10px]">
+                        ({letter.disposisi.jabatanPemberi})
+                      </span>
+                    )}
+                  </p>
+                  <p>
+                    <span className="text-slate-500">Diteruskan Kepada:</span>{' '}
+                    <strong className="text-unsil-green-950 font-semibold block">
+                      {letter.disposisi.tujuanDisposisi}
+                    </strong>
+                  </p>
+                </div>
+
+                {letter.disposisi.actions && Array.isArray(letter.disposisi.actions) && letter.disposisi.actions.length > 0 ? (
+                  <div>
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
+                      Checklist Instruksi Tindak Lanjut (Untuk :)
+                    </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {letter.disposisi.actions.map((act, idx) => (
+                        <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-800 bg-white/90 p-1.5 rounded border border-amber-200/80">
+                          <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0 mt-0.5" />
+                          <span className="leading-tight font-medium">{act}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <p>
+                    <strong className="text-slate-800">Instruksi:</strong>{' '}
+                    {letter.disposisi.instruksi}
+                  </p>
+                )}
+
+                {letter.disposisi.customNote && (
+                  <div className="p-2 rounded bg-white/70 border border-amber-200/60 text-xs">
+                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Catatan Tambahan:</span>
+                    <p className="text-slate-800 italic mt-0.5">"{letter.disposisi.customNote}"</p>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-between text-[11px] text-amber-900 pt-1">
+                  <span>Tenggat Waktu: <strong>{letter.disposisi.batasWaktu}</strong></span>
+                  {letter.disposisi.sifatInstruksi && (
+                    <span className="font-semibold px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px]">
+                      Sifat: {letter.disposisi.sifatInstruksi}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
-          )}
+          ) : capabilities.canDispose && letter.kategori === 'Surat Masuk' ? (
+            <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h4 className="text-xs font-bold text-unsil-green-950 flex items-center gap-1.5">
+                  <CheckSquare className="w-4 h-4 text-unsil-green-800" />
+                  Surat Masuk Siap Didisposisikan
+                </h4>
+                <p className="text-[11px] text-slate-600 mt-0.5">
+                  Anda memiliki kewenangan pimpinan untuk memberikan arahan dan meneruskan disposisi naskah ini ke unit/staf bawahan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  onClose();
+                  onOpenDisposisi(letter);
+                }}
+                className="px-3.5 py-2 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 shadow-xs transition shrink-0 flex items-center gap-1.5 cursor-pointer"
+              >
+                <CheckSquare className="w-3.5 h-3.5 text-unsil-gold-300" />
+                <span>Beri Arahan Disposisi</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       )}
 

@@ -19,7 +19,7 @@ import { SystemSettingsView } from './components/admin/SystemSettingsView';
 import { PermissionManagementView } from './components/admin/PermissionManagementView';
 import { RoleManagementView } from './components/admin/RoleManagementView';
 import { Toast } from './components/ui/Toast';
-import { Inbox, Send, Plus, Trash2, Receipt, Users } from 'lucide-react';
+import { Inbox, Send, Plus, Trash2, Receipt, Users, CheckSquare } from 'lucide-react';
 import { BukuAgendaView } from './components/dashboard/BukuAgendaView';
 
 import initialLetters from './data/letters.json';
@@ -29,7 +29,7 @@ import { CreateLetterModal } from './components/dashboard/CreateLetterModal';
 import { initialAuditLogs, createAuditEntry } from './utils/security';
 import { DOCUMENT_TEMPLATES } from './components/documents/DocumentTemplates';
 import { ProcessMiningLogger, PROCESS_ACTIVITIES } from './domain';
-import { isLetterSignatureRequest } from './utils/letterActionPolicy';
+import { isLetterSignatureRequest, canUserRegisterIncomingLetter } from './utils/letterActionPolicy';
 import {
   isSuperAdminUser,
   canAccessBrankasDigital,
@@ -682,6 +682,16 @@ export default function App() {
       showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
       return;
     }
+    // Staf Tata Usaha & Operator Unit bertugas meregistrasi naskah, disposisi merupakan hak pimpinan
+    if (
+      currentUser?.role === 'STAF' ||
+      currentUser?.role === 'STAF_PERSURATAN' ||
+      currentUser?.role === 'OPERATOR_UNIT' ||
+      currentUser?.role === 'OPERATOR'
+    ) {
+      showToast('Akses Dibatasi: Staf bertugas meregistrasi naskah masuk. Pemberian instruksi disposisi merupakan wewenang pimpinan.', 'warning');
+      return;
+    }
     // STRICT BUSINESS RULE: Naskah permohonan TTE DILARANG KERAS didisposisikan
     if (isLetterSignatureRequest(letter)) {
       showToast('ATURAN KETAT: Naskah Permohonan Tanda Tangan (TTE) DILARANG didisposisikan.', 'warning');
@@ -820,10 +830,14 @@ export default function App() {
             statusTimestamp: `Didisposisikan kepada ${newDisposisi.targetUnit} (Tenggat: ${newDisposisi.dueDate})`,
             disposisi: {
               tujuanDisposisi: newDisposisi.targetUnit,
-              instruksi: newDisposisi.actions.join(', ') + (newDisposisi.customNote ? ' - ' + newDisposisi.customNote : ''),
+              actions: newDisposisi.actions || [],
+              instruksi: (newDisposisi.actions || []).join(', ') + (newDisposisi.customNote ? ' — Catatan: ' + newDisposisi.customNote : ''),
               batasWaktu: newDisposisi.dueDate,
-              pemberiDisposisi: currentUser?.name || 'Pimpinan Unit',
-              tanggalDisposisi: new Date().toISOString()
+              sifatInstruksi: newDisposisi.sifatInstruksi,
+              customNote: newDisposisi.customNote,
+              pemberiDisposisi: newDisposisi.pemberiName || currentUser?.nama_lengkap || currentUser?.name || 'Pimpinan Unit',
+              jabatanPemberi: newDisposisi.pemberiJabatan || currentUser?.jabatan || currentUser?.sotk_position_label || currentUser?.roleLabel || 'Pimpinan',
+              tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })
             },
           };
         }
@@ -1221,12 +1235,14 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
-                <button
-                  onClick={() => setIsQuickRegisterOpen(true)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-                >
-                  <span>Registrasi Cepat</span>
-                </button>
+                {canUserRegisterIncomingLetter(currentUser) && (
+                  <button
+                    onClick={() => setIsQuickRegisterOpen(true)}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+                  >
+                    <span>Registrasi Cepat</span>
+                  </button>
+                )}
                 <button
                   onClick={() => setIsCreateLetterOpen(true)}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
@@ -1311,13 +1327,24 @@ export default function App() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsQuickRegisterOpen(true)}
-                  className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Registrasi Surat Masuk</span>
-                </button>
+                {canUserRegisterIncomingLetter(currentUser) ? (
+                  <button
+                    onClick={() => setIsQuickRegisterOpen(true)}
+                    className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Registrasi Surat Masuk</span>
+                  </button>
+                ) : (
+                  <div className="px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-unsil-green-900 text-xs font-semibold flex items-center gap-2 shadow-2xs">
+                    <CheckSquare className="w-4 h-4 text-unsil-green-700 shrink-0" />
+                    <span>
+                      {currentUser?.is_pejabat || currentUser?.role === 'PEJABAT' || currentUser?.role === 'PIMPINAN'
+                        ? 'Mode Pimpinan: Penelaahan Naskah Masuk & Pemberian Disposisi'
+                        : 'Mode Pemantauan: Naskah Masuk & Pelaksanaan Disposisi'}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <ActivityTable

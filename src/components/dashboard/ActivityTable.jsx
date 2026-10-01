@@ -16,7 +16,8 @@ import {
   Check,
   Lock,
   Layers,
-  Trash2
+  Trash2,
+  CheckSquare
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import unitKerjaList from '../../data/unitKerja.json';
@@ -351,6 +352,16 @@ export const ActivityTable = ({
                 <SifatBadge sifat={letter.sifat} />
               </div>
 
+              {/* Arahan Disposisi Preview (Mobile) */}
+              {letter.disposisi && (
+                <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 mt-1">
+                  <CheckSquare className="w-3.5 h-3.5 text-unsil-green-700 shrink-0" />
+                  <span className="truncate">
+                    Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
+                  </span>
+                </div>
+              )}
+
               {/* Row 4: Aksi Cepat Mobile */}
               <div
                 className="pt-2 flex items-center justify-between border-t border-slate-100 mt-2"
@@ -371,8 +382,13 @@ export const ActivityTable = ({
                     <button
                       onClick={() => onOpenDisposisi(letter)}
                       className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 active:scale-95 transition"
+                      title={letter.kategori === 'Surat Masuk' ? 'Beri Arahan Disposisi' : 'Disposisi'}
                     >
-                      <SendHorizontal className="w-3.5 h-3.5 text-unsil-green-700" />
+                      {letter.kategori === 'Surat Masuk' ? (
+                        <CheckSquare className="w-3.5 h-3.5 text-unsil-green-700" />
+                      ) : (
+                        <SendHorizontal className="w-3.5 h-3.5 text-unsil-green-700" />
+                      )}
                       <span>Disposisi</span>
                     </button>
                   )}
@@ -511,6 +527,16 @@ export const ActivityTable = ({
                       <span className="text-slate-300">➔</span>
                       <span className="text-slate-500 truncate">{letter.tujuan}</span>
                     </div>
+
+                    {/* Arahan Disposisi Preview (Desktop) */}
+                    {letter.disposisi && (
+                      <div className="flex items-center gap-1.5 mt-1.5 p-1 px-1.5 rounded-md bg-emerald-50/90 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 max-w-sm truncate">
+                        <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0" />
+                        <span className="truncate">
+                          Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
+                        </span>
+                      </div>
+                    )}
                   </td>
 
                   {/* Column 3: Kategori */}
@@ -543,10 +569,14 @@ export const ActivityTable = ({
                       {canLetterBeDisposed(letter, currentUser) && (
                         <button
                           onClick={() => onOpenDisposisi(letter)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-amber-700 hover:bg-amber-50 transition-colors"
-                          title="Disposisi Surat Ini"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-800 hover:bg-emerald-50 transition-colors"
+                          title={letter.kategori === 'Surat Masuk' ? 'Beri Arahan Disposisi (Checklist Instruksi)' : 'Disposisi Surat Ini'}
                         >
-                          <SendHorizontal className="w-4 h-4" />
+                          {letter.kategori === 'Surat Masuk' ? (
+                            <CheckSquare className="w-4 h-4 text-unsil-green-800" />
+                          ) : (
+                            <SendHorizontal className="w-4 h-4" />
+                          )}
                         </button>
                       )}
 

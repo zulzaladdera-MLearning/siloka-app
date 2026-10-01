@@ -81,6 +81,61 @@ export const canLetterBeDisposed = (letter, currentUser) => {
 };
 
 /**
+ * Memeriksa apakah pengguna berwenang mengentri / meregistrasi surat masuk
+ * Aturan Birokrasi UNSIL:
+ * - Hanya Staf Tata Usaha, Staf Persuratan, dan Operator Unit yang bertugas di loket penerimaan naskah masuk.
+ * - Pimpinan (Rektor, Dekan, Kajur, Ka Lembaga) dan Pejabat Struktural DILARANG mengentri dari nol,
+ *   mereka fokus menerima, menelaah isi naskah, dan menerbitkan arahan disposisi berjenjang.
+ * - Dosen biasa dan Pengawas SPI bukan pengentri naskah masuk loket TU.
+ * - Super Admin diperbolehkan khusus untuk kebutuhan pengujian / simulasi sistem.
+ * 
+ * @param {object} currentUser 
+ * @returns {boolean}
+ */
+export const canUserRegisterIncomingLetter = (currentUser) => {
+  if (!currentUser) return false;
+
+  // Super Admin diperbolehkan untuk kebutuhan pengujian & simulasi
+  if (
+    currentUser?.is_super_admin === true ||
+    currentUser?.role === 'Super Admin' ||
+    currentUser?.role === 'SUPERADMIN'
+  ) {
+    return true;
+  }
+
+  // Pimpinan dan Pejabat Struktural DILARANG mengentri surat (fokus penelaahan & disposisi)
+  if (
+    currentUser?.is_pejabat === true ||
+    currentUser?.role === 'PEJABAT' ||
+    currentUser?.role === 'PIMPINAN' ||
+    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'))
+  ) {
+    return false;
+  }
+
+  // Pengawas SPI dan Dosen biasa bukan petugas loket penerimaan TU
+  if (
+    currentUser?.role === 'PENGAWAS' ||
+    currentUser?.role === 'DOSEN' ||
+    isDosenTanpaJabatan(currentUser)
+  ) {
+    return false;
+  }
+
+  // Staf Tata Usaha / Operator Unit
+  const isStaffOrOperator =
+    currentUser?.role === 'STAF' ||
+    currentUser?.role === 'STAF_PERSURATAN' ||
+    currentUser?.role === 'OPERATOR_UNIT' ||
+    currentUser?.role === 'OPERATOR' ||
+    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pelaksana')) ||
+    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('staf'));
+
+  return Boolean(isStaffOrOperator);
+};
+
+/**
  * Menghitung seluruh kapabilitas tindakan pengguna terhadap naskah dinas
  * @param {object} letter 
  * @param {object} currentUser 
