@@ -369,6 +369,12 @@ export const CreateLetterModal = ({
   // Mode Dokumen: 'surat-keluar' (Penyusunan naskah kedinasan) | 'surat-masuk' (Registrasi surat masuk eksternal)
   const [letterType, setLetterType] = useState(() => initialMode || 'surat-keluar');
 
+  useEffect(() => {
+    if (initialMode) {
+      setLetterType(initialMode);
+    }
+  }, [initialMode, isOpen]);
+
   // Tujuan Aksi Dokumen: 'DISPOSISI' vs 'TTD' (Permohonan Tanda Tangan)
   const [tujuanAksi, setTujuanAksi] = useState('DISPOSISI');
 
@@ -1244,13 +1250,17 @@ export const CreateLetterModal = ({
             </div>
             <div>
               <h2 className="text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 sm:gap-2">
-                <span className="truncate">Registrasi Surat</span>
+                <span className="truncate">
+                  {letterType === 'surat-masuk' ? 'Registrasi Surat Masuk' : 'Penyusunan Surat Keluar / Nota Dinas'}
+                </span>
                 <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-emerald-800 text-emerald-100 border border-emerald-700">
                   {activeUnitObj.singkatan}
                 </span>
               </h2>
               <p className="text-[10px] sm:text-[11px] text-emerald-200 hidden sm:block">
-                Formula Rumus Penomoran: [No]/UN58/[Unit]/[Klasifikasi]/[Tahun]
+                {letterType === 'surat-masuk'
+                  ? 'Pencatatan naskah masuk resmi dan penerusan instruksi disposisi pimpinan'
+                  : 'Formula Rumus Penomoran: [No]/UN58/[Unit]/[Klasifikasi]/[Tahun]'}
               </p>
             </div>
           </div>
@@ -1324,33 +1334,20 @@ export const CreateLetterModal = ({
           </div>
         </div>
 
-        {/* SEGMENTED MODE SWITCHER: SURAT KELUAR VS SURAT MASUK */}
+        {/* IDENTITAS JENIS NASKAH MODAL (FITUR TERPISAH SURAT KELUAR VS SURAT MASUK) */}
         <div className="px-4 sm:px-5 py-2 bg-slate-100/95 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-2 shrink-0">
           <div className="flex items-center gap-1.5 p-1 bg-white rounded-xl border border-slate-200 shadow-2xs">
-            <button
-              type="button"
-              onClick={() => setLetterType('surat-keluar')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                letterType === 'surat-keluar'
-                  ? 'bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Send className="w-3.5 h-3.5 text-unsil-gold-400" />
-              <span>📤 Surat Keluar / Nota Dinas</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setLetterType('surat-masuk')}
-              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                letterType === 'surat-masuk'
-                  ? 'bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900'
-                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
-              }`}
-            >
-              <Inbox className="w-3.5 h-3.5 text-emerald-400" />
-              <span>📥 Registrasi Surat Masuk</span>
-            </button>
+            {letterType === 'surat-masuk' ? (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900">
+                <Inbox className="w-3.5 h-3.5 text-emerald-400" />
+                <span>📥 Registrasi Surat Masuk</span>
+              </span>
+            ) : (
+              <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-unsil-green-800 text-white shadow-xs ring-1 ring-unsil-green-900">
+                <Send className="w-3.5 h-3.5 text-unsil-gold-400" />
+                <span>📤 Surat Keluar / Nota Dinas</span>
+              </span>
+            )}
           </div>
 
           {/* Sifat & Tujuan Aksi Selector: Disposisi vs Permohonan TTD */}

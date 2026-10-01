@@ -347,6 +347,7 @@ export default function App() {
   const [disposisiTargetLetter, setDisposisiTargetLetter] = useState(null);
   const [isCreateLetterOpen, setIsCreateLetterOpen] = useState(false);
   const [isQuickRegisterOpen, setIsQuickRegisterOpen] = useState(false);
+  const [isCreateSuratKeluarOpen, setIsCreateSuratKeluarOpen] = useState(false);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState('ALL');
 
   // Identitas Unit Kerja Pengguna Aktif
@@ -1264,7 +1265,11 @@ export default function App() {
             showToast('Akses Read-Only: Pengawas SPI tidak berwenang membuat surat baru.', 'warning');
             return;
           }
-          setIsCreateLetterOpen(true);
+          if (activeTab === 'surat-masuk') {
+            setIsQuickRegisterOpen(true);
+          } else {
+            setIsCreateSuratKeluarOpen(true);
+          }
         }}
         onOpenQuickDisposisi={() => {
           if (currentUser.role === 'PENGAWAS') {
@@ -1332,14 +1337,16 @@ export default function App() {
                     onClick={() => setIsQuickRegisterOpen(true)}
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
                   >
-                    <span>Registrasi Cepat</span>
+                    <Inbox className="w-3.5 h-3.5 text-emerald-700" />
+                    <span>Registrasi Surat Masuk</span>
                   </button>
                 )}
                 <button
-                  onClick={() => setIsCreateLetterOpen(true)}
+                  onClick={() => setIsCreateSuratKeluarOpen(true)}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
                 >
-                  <span>+ Buat Naskah</span>
+                  <Send className="w-3.5 h-3.5 text-unsil-gold-300" />
+                  <span>+ Surat Keluar / Nota Dinas</span>
                 </button>
               </div>
             </div>
@@ -1472,11 +1479,11 @@ export default function App() {
               </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setIsCreateModalOpen(true)}
+                  onClick={() => setIsCreateSuratKeluarOpen(true)}
                   className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
                 >
                   <Plus className="w-4 h-4" />
-                  <span>Buat Naskah Dinas Baru</span>
+                  <span>Buat Surat Keluar / Nota Dinas</span>
                 </button>
               </div>
             </div>
@@ -1600,12 +1607,23 @@ export default function App() {
           currentUser={currentUser}
         />
 
+        {/* Modal Registrasi Surat Masuk */}
         <CreateLetterModal
           isOpen={isQuickRegisterOpen}
           onClose={() => setIsQuickRegisterOpen(false)}
           onSaveLetter={handleSaveNewLetter}
           currentUser={currentUser}
           initialMode="surat-masuk"
+          allLetters={letters}
+        />
+
+        {/* Modal Pembuatan Surat Keluar / Nota Dinas */}
+        <CreateLetterModal
+          isOpen={isCreateSuratKeluarOpen}
+          onClose={() => setIsCreateSuratKeluarOpen(false)}
+          onSaveLetter={handleSaveNewLetter}
+          currentUser={currentUser}
+          initialMode="surat-keluar"
           allLetters={letters}
         />
 
