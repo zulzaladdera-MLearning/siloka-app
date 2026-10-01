@@ -425,7 +425,6 @@ export const CreateLetterModal = ({
   const [tujuanPejabatMode, setTujuanPejabatMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
   const [selectedPejabatMasukId, setSelectedPejabatMasukId] = useState(1); // Default ID 1: Rektor Universitas Siliwangi
   const [customTujuanMasuk, setCustomTujuanMasuk] = useState('');
-  const [previewMasukTab, setPreviewMasukTab] = useState('pdf'); // 'pdf' | 'agenda'
 
   const selectedPejabatObj = useMemo(() => {
     if (tujuanPejabatMode === 'MANUAL') return null;
@@ -486,8 +485,8 @@ export const CreateLetterModal = ({
 
   // Berkas Lampiran Pindaian Surat Masuk
   const [uploadedFileMasuk, setUploadedFileMasuk] = useState(null);
-  const [uploadedFileNameMasuk, setUploadedFileNameMasuk] = useState('Surat_Masuk_Eksternal.pdf');
-  const [uploadedFileSizeMasuk, setUploadedFileSizeMasuk] = useState('1.8 MB');
+  const [uploadedFileNameMasuk, setUploadedFileNameMasuk] = useState('');
+  const [uploadedFileSizeMasuk, setUploadedFileSizeMasuk] = useState('');
   const [uploadedFileUrlMasuk, setUploadedFileUrlMasuk] = useState(null);
   const [uploadedFileDataUrlMasuk, setUploadedFileDataUrlMasuk] = useState(null);
   const [isDraggingMasuk, setIsDraggingMasuk] = useState(false);
@@ -525,9 +524,6 @@ export const CreateLetterModal = ({
       };
       reader.readAsDataURL(file);
     }
-
-    // Otomatis beralih ke tab Live PDF Viewer di sisi kanan
-    setPreviewMasukTab('pdf');
   };
 
   const handleFileInputMasuk = (e) => {
@@ -1754,129 +1750,14 @@ export const CreateLetterModal = ({
                     />
                   </div>
 
-                  {/* Unggah Pindaian Dokumen PDF */}
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-700">
-                        Unggah Pindaian Surat Fisik (PDF Maks. 5MB)
-                      </label>
-                      {uploadedFileNameMasuk && (
-                        <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 font-semibold flex items-center gap-1">
-                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                          Berkas Terverifikasi
-                        </span>
-                      )}
-                    </div>
-
-                    <input
-                      type="file"
-                      ref={fileInputMasukRef}
-                      accept="application/pdf,.pdf"
-                      onChange={handleFileInputMasuk}
-                      className="hidden"
-                    />
-
-                    {uploadedFileNameMasuk ? (
-                      /* Kartu Berkas Pindaian PDF Aktif & Fungsional */
-                      <div className="border border-slate-200 bg-white rounded-xl p-3 shadow-xs hover:border-unsil-green-700/60 transition">
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <div className="w-9 h-9 rounded-lg bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 font-bold text-xs shrink-0">
-                              PDF
-                            </div>
-                            <div className="min-w-0">
-                              <p className="text-xs font-semibold text-slate-800 truncate" title={uploadedFileNameMasuk}>
-                                {uploadedFileNameMasuk}
-                              </p>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-500 mt-0.5">
-                                <span className="font-semibold text-slate-700">{uploadedFileSizeMasuk}</span>
-                                <span>•</span>
-                                <span className="text-emerald-700 font-medium">Keaslian digital terverifikasi</span>
-                              </div>
-                            </div>
-                          </div>
-
-                          <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-center">
-                            <button
-                              type="button"
-                              onClick={handlePreviewFileMasuk}
-                              title="Lihat Pratinjau Dokumen PDF"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
-                            >
-                              <Eye className="w-3.5 h-3.5 text-slate-600" />
-                              <span>Pratinjau</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => fileInputMasukRef.current?.click()}
-                              title="Ganti Berkas PDF"
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-unsil-green-800 bg-unsil-green-50 hover:bg-unsil-green-100 border border-unsil-green-200 transition"
-                            >
-                              <RefreshCw className="w-3.5 h-3.5 text-unsil-green-700" />
-                              <span>Ganti</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={handleRemoveFileMasuk}
-                              title="Hapus Berkas"
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      /* Area Dropzone Unggah Saat Kosong */
-                      <div
-                        onClick={() => fileInputMasukRef.current?.click()}
-                        onDragOver={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(true);
-                        }}
-                        onDragLeave={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(false);
-                        }}
-                        onDrop={(e) => {
-                          e.preventDefault();
-                          setIsDraggingMasuk(false);
-                          const file = e.dataTransfer.files?.[0];
-                          if (file) handleProcessFileMasuk(file);
-                        }}
-                        className={`border-2 border-dashed rounded-xl p-4 text-center cursor-pointer transition-all duration-200 ${
-                          isDraggingMasuk
-                            ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
-                            : 'border-slate-300 hover:border-unsil-green-700 bg-slate-50/50 hover:bg-slate-50'
-                        }`}
-                      >
-                        <UploadCloud className={`w-7 h-7 mx-auto mb-1.5 transition-colors ${isDraggingMasuk ? 'text-emerald-700' : 'text-unsil-green-800'}`} />
-                        <p className="text-xs font-semibold text-slate-800">
-                          {isDraggingMasuk ? 'Lepaskan Berkas PDF di Sini' : 'Klik untuk Memilih Berkas atau Seret PDF ke Sini'}
-                        </p>
-                        <p className="text-[10px] text-slate-500 mt-0.5">
-                          Format pindaian naskah dinas resmi (PDF Maks. 5MB)
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Alert Kesalahan Unggah */}
-                    {uploadErrorMasuk && (
-                      <div className="mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center justify-between gap-2 animate-in fade-in duration-200">
-                        <div className="flex items-center gap-1.5">
-                          <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-                          <span>{uploadErrorMasuk}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => setUploadErrorMasuk('')}
-                          className="text-rose-500 hover:text-rose-700 p-0.5"
-                        >
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  {/* Input Berkas PDF Tersembunyi (Pemicu Unggah Terintegrasi di Panel Pratinjau Kanan) */}
+                  <input
+                    type="file"
+                    ref={fileInputMasukRef}
+                    accept="application/pdf,.pdf"
+                    onChange={handleFileInputMasuk}
+                    className="hidden"
+                  />
 
                   {/* PANEL CHECKLIST INSTRUKSI DISPOSISI (UNTUK :) - FORMAT RESMI UNSIL CONTOH 21 */}
                   {tujuanAksi !== 'TTD' && (
@@ -2828,307 +2709,126 @@ export const CreateLetterModal = ({
             >
               {letterType === 'surat-masuk' ? (
                 /* ========================================================================= */
-                /* PRATINJAU LEMBAR AGENDA SURAT MASUK & LIVE PDF VIEWER                    */
+                /* PRATINJAU PINDAIAN BERKAS PDF SURAT MASUK (LIVE PDF VIEWER)               */
                 /* ========================================================================= */
                 <>
-                  <div className="w-full max-w-[210mm] mb-2.5 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-600 px-1">
-                    {/* Tab Switcher Pratinjau Surat Masuk */}
-                    <div className="flex items-center gap-1 p-1 bg-slate-300/80 rounded-lg shadow-2xs">
-                      <button
-                        type="button"
-                        onClick={() => setPreviewMasukTab('pdf')}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
-                          previewMasukTab === 'pdf'
-                            ? 'bg-white text-unsil-green-950 shadow-xs'
-                            : 'text-slate-700 hover:text-slate-900'
-                        }`}
-                      >
-                        <FileText className="w-3.5 h-3.5 text-rose-600" />
-                        <span>Dokumen PDF Asli</span>
-                        {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) && (
-                          <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Berkas PDF siap dipratinjau" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPreviewMasukTab('agenda')}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition cursor-pointer ${
-                          previewMasukTab === 'agenda'
-                            ? 'bg-white text-unsil-green-950 shadow-xs'
-                            : 'text-slate-700 hover:text-slate-900'
-                        }`}
-                      >
-                        <Eye className="w-3.5 h-3.5 text-unsil-green-800" />
-                        <span>Lembar Agenda & Disposisi A4</span>
-                      </button>
-                    </div>
-
+                  <div className="w-full max-w-[210mm] mb-2.5 flex items-center justify-between text-xs text-slate-600 px-1">
+                    <span className="font-bold uppercase tracking-wider text-[11px] text-slate-700 flex items-center gap-1.5">
+                      <FileText className="w-4 h-4 text-rose-600" />
+                      <span>Pratinjau Pindaian Berkas PDF Surat Masuk</span>
+                    </span>
                     <span className="px-2.5 py-1 rounded-full text-[10.5px] font-bold border shadow-xs flex items-center gap-1.5 bg-emerald-100 text-emerald-900 border-emerald-300">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-600" />
-                      {previewMasukTab === 'pdf' ? 'Tampilan: Berkas PDF Pindaian' : 'Tampilan: Format A4 Agenda'}
+                      <span>Live PDF Viewer</span>
                     </span>
                   </div>
 
-                  {/* 1. TAMPILAN LIVE PDF VIEWER (Jika tab 'pdf' dipilih) */}
-                  {previewMasukTab === 'pdf' && (
-                    <div className="w-full max-w-[210mm] flex-1 flex flex-col bg-white rounded-xl shadow-lg border border-slate-300 overflow-hidden min-h-[640px] mb-6 animate-in fade-in duration-200">
-                      {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) ? (
-                        <>
-                          {/* PDF Viewer Header Toolbar */}
-                          <div className="px-3.5 py-2 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800">
-                            <div className="flex items-center gap-2 truncate max-w-[65%]">
-                              <span className="p-1 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">PDF</span>
-                              <span className="font-semibold text-slate-100 truncate text-[11.5px]" title={uploadedFileNameMasuk}>
-                                {uploadedFileNameMasuk || 'Berkas_Surat_Masuk.pdf'}
-                              </span>
-                              {uploadedFileSizeMasuk && (
-                                <span className="text-[10px] text-slate-400 font-mono">({uploadedFileSizeMasuk})</span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={handlePreviewFileMasuk}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] font-medium text-slate-200 transition cursor-pointer"
-                                title="Buka PDF di Tab Baru"
-                              >
-                                <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
-                                <span>Tab Baru</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => fileInputMasukRef.current?.click()}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-[11px] font-semibold text-white transition cursor-pointer"
-                                title="Ganti Dokumen PDF"
-                              >
-                                <RefreshCw className="w-3 h-3 text-emerald-200" />
-                                <span>Ganti Berkas</span>
-                              </button>
-                            </div>
-                          </div>
-
-                          {/* Embedded PDF iframe */}
-                          <div className="flex-1 w-full bg-slate-100 min-h-[640px] relative">
-                            <iframe
-                              src={uploadedFileDataUrlMasuk || uploadedFileUrlMasuk}
-                              title="Pratinjau Dokumen PDF Surat Masuk"
-                              className="w-full h-full min-h-[640px] border-0"
-                            />
-                          </div>
-                        </>
-                      ) : (
-                        /* Empty State Saat Berkas Belum Diunggah */
-                        <div className="flex-1 p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[540px]">
-                          <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-unsil-green-800 flex items-center justify-center mb-4 border border-emerald-200 shadow-inner">
-                            <UploadCloud className="w-8 h-8" />
-                          </div>
-                          <h3 className="text-sm font-bold text-slate-800 mb-1">
-                            Belum Ada Dokumen Pindaian PDF yang Diunggah
-                          </h3>
-                          <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
-                            Unggah berkas pindaian surat masuk fisik untuk langsung melihat isi naskah di panel ini sambil memverifikasi data.
-                          </p>
-                          <button
-                            type="button"
-                            onClick={() => fileInputMasukRef.current?.click()}
-                            className="inline-flex items-center gap-2 px-4 py-2.5 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
-                          >
-                            <UploadCloud className="w-4 h-4 text-unsil-gold-400" />
-                            <span>Pilih Berkas PDF Surat Masuk</span>
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 2. TAMPILAN LEMBAR AGENDA & DISPOSISI A4 */}
-                  <div
-                    id="siloka-create-letter-a4-preview"
-                    data-paper-size="A4"
-                    className={`printable-document bg-white w-full max-w-[210mm] p-8 sm:p-12 shadow-2xl border border-slate-300 rounded-xs text-black font-serif text-[11.5px] leading-relaxed flex flex-col justify-between a4-sheet min-h-[297mm] ${
-                      previewMasukTab === 'agenda' ? 'block' : 'hidden'
-                    }`}
-                  >
-                    <div>
-                      {/* Kop Surat Resmi UNSIL */}
-                      <div className="mb-4 pb-0 text-black font-serif">
-                        <div className="flex items-center gap-3 sm:gap-4">
-                          <div className="w-20 h-20 sm:w-[88px] sm:h-[88px] shrink-0 flex items-center justify-center select-none protected-asset">
-                            <img
-                              src="/unsil-logo.png"
-                              alt="Logo Resmi Universitas Siliwangi"
-                              className="w-full h-full object-contain select-none pointer-events-none protected-asset"
-                              draggable="false"
-                            />
-                          </div>
-                          <div className="flex-1 text-center font-serif leading-tight pr-2">
-                            <p className="text-[11px] sm:text-[13px] font-bold uppercase tracking-normal text-black leading-snug">
-                              {kopConfig.kementerianText}
-                            </p>
-                            <h2 className="text-[12.5px] sm:text-[14.5px] font-bold uppercase tracking-normal text-black mt-0.5 leading-snug">
-                              {kopConfig.universitasText}
-                            </h2>
-                            <p className="text-[10px] sm:text-[11.5px] font-medium text-black mt-1 leading-snug">
-                              {kopConfig.alamatText}
-                            </p>
-                            <p className="text-[9.5px] sm:text-[10.5px] font-medium text-black leading-tight">
-                              Laman: {kopConfig.lamanText} | Pos-el: {kopConfig.emailText}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="mt-2 border-b-2 border-black" />
-                        <div className="mt-[1.5px] border-b border-black" />
-                      </div>
-
-                      {/* Judul Lembar Agenda */}
-                      <div className="text-center my-4">
-                        <h3 className="text-sm sm:text-base font-bold uppercase tracking-wider text-black underline">
-                          LEMBAR PENGENDALIAN & REGISTRASI SURAT MASUK
-                        </h3>
-                        <p className="text-xs font-mono font-bold mt-1 text-slate-800">
-                          Nomor Agenda: {previewNomorAgenda}
-                        </p>
-                      </div>
-
-                      {/* Tabel Rincian Surat Masuk */}
-                      <table className="w-full border-collapse border border-black text-xs mt-3 mb-4">
-                        <tbody>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100 w-1/3">Nomor Surat Asal</td>
-                            <td className="border border-black p-2 font-mono font-bold">{nomorSuratAsalMasuk || '[Nomor Asal Belum Diisi]'}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Tanggal Surat Asal</td>
-                            <td className="border border-black p-2">{tanggalSuratMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Tanggal Diterima</td>
-                            <td className="border border-black p-2">{tanggalTerimaMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Instansi Pengirim</td>
-                            <td className="border border-black p-2 font-semibold">{pengirimMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Ditujukan Kepada</td>
-                            <td className="border border-black p-2 font-semibold">{tujuanMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Klasifikasi Arsip</td>
-                            <td className="border border-black p-2 font-mono">{kodeKlasifikasi} - {klasifikasiList.find((k) => k.kode_klasifikasi === kodeKlasifikasi)?.keterangan_klasifikasi || 'Umum'}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100">Sifat / Keamanan</td>
-                            <td className="border border-black p-2">{sifatSuratMasuk} ({tingkatKeamanan === 'B' ? 'Biasa/Terbuka' : tingkatKeamanan === 'R' ? 'Rahasia' : 'Sangat Rahasia'})</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100 align-top">Perihal</td>
-                            <td className="border border-black p-2 font-bold leading-relaxed">{perihalMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100 align-top">Ringkasan / Catatan</td>
-                            <td className="border border-black p-2 leading-relaxed">{ringkasanMasuk || perihalMasuk}</td>
-                          </tr>
-                          <tr>
-                            <td className="border border-black p-2 font-bold bg-slate-100 align-top">Tujuan Aksi Naskah</td>
-                            <td className="border border-black p-2">
-                              {tujuanAksi === 'TTD' ? (
-                                <span className="font-bold text-amber-900 bg-amber-100 px-2 py-0.5 rounded border border-amber-300">
-                                  ✍️ JALUR KHUSUS PERMOHONAN TANDA TANGAN (Tujuan TTD) — Disposisi Dinonaktifkan
-                                </span>
-                              ) : (
-                                <span className="font-semibold text-emerald-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
-                                  📋 JALUR DISPOSISI PIMPINAN
-                                </span>
-                              )}
-                            </td>
-                          </tr>
-                        </tbody>
-                      </table>
-
-                      {/* Kotak Instruksi Pimpinan / Disposisi (Format Resmi UNSIL Lampiran Contoh 21) */}
-                      <div className="border border-black p-3 mt-3.5 rounded-xs font-serif">
-                        <div className="flex items-center justify-between font-bold uppercase text-[11px] mb-1.5 border-b border-black pb-1">
-                          <span>
-                            {tujuanAksi === 'TTD'
-                              ? 'CATATAN PERMOHONAN TANDA TANGAN ELEKTRONIK (TTE PEJABAT)'
-                              : 'LEMBAR DISPOSISI (UNTUK :)'}
-                          </span>
-                          {tujuanAksi !== 'TTD' && (
-                            <span className="text-[9.5px] font-sans font-normal text-slate-700">
-                              Diteruskan Kepada: <strong>{disposisiTargetUnit || tujuanMasuk || 'Pimpinan Unit'}</strong>
+                  {/* Panel Live PDF Viewer & Area Unggah Terintegrasi */}
+                  <div className="w-full max-w-[210mm] flex-1 flex flex-col bg-white rounded-xl shadow-lg border border-slate-300 overflow-hidden min-h-[640px] mb-6 animate-in fade-in duration-200">
+                    {(uploadedFileUrlMasuk || uploadedFileDataUrlMasuk) ? (
+                      <>
+                        {/* PDF Viewer Header Toolbar */}
+                        <div className="px-3.5 py-2 bg-slate-900 text-white flex flex-wrap items-center justify-between gap-2 text-xs border-b border-slate-800">
+                          <div className="flex items-center gap-2 truncate max-w-[65%]">
+                            <span className="p-1 rounded bg-rose-500/20 text-rose-400 font-bold text-[10px]">PDF</span>
+                            <span className="font-semibold text-slate-100 truncate text-[11.5px]" title={uploadedFileNameMasuk}>
+                              {uploadedFileNameMasuk || 'Berkas_Surat_Masuk.pdf'}
                             </span>
-                          )}
+                            {uploadedFileSizeMasuk && (
+                              <span className="text-[10px] text-slate-400 font-mono">({uploadedFileSizeMasuk})</span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={handlePreviewFileMasuk}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 rounded text-[11px] font-medium text-slate-200 transition cursor-pointer"
+                              title="Buka PDF di Tab Baru"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
+                              <span>Tab Baru</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => fileInputMasukRef.current?.click()}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-700 hover:bg-emerald-600 rounded text-[11px] font-semibold text-white transition cursor-pointer"
+                              title="Ganti Dokumen PDF"
+                            >
+                              <RefreshCw className="w-3 h-3 text-emerald-200" />
+                              <span>Ganti Berkas</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleRemoveFileMasuk}
+                              className="p-1 bg-slate-800 hover:bg-rose-900/60 text-slate-400 hover:text-rose-300 rounded transition cursor-pointer"
+                              title="Hapus Berkas PDF"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
 
-                        {tujuanAksi === 'TTD' ? (
-                          <p className="text-xs italic text-slate-700 leading-relaxed font-sans">
-                            Naskah ini diajukan secara khusus kepada Pejabat berwenang untuk dibubuhi Tanda Tangan Elektronik (TTE BSrE). Pejabat hanya berwenang Menandatangani atau Menolak/Minta Revisi naskah ini. Fitur disposisi staf ditiadakan.
-                          </p>
-                        ) : (
-                          <>
-                            <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-[9.5px] leading-tight font-sans">
-                              {/* Kolom Kiri */}
-                              <div className="space-y-0.5">
-                                {OFFICIAL_DISPOSISI_CHECKLIST_COL1.map((item) => {
-                                  const isChecked = disposisiActionsMasuk.includes(item.label);
-                                  return (
-                                    <div key={item.id} className="flex items-start gap-1.5">
-                                      <span className="font-mono font-bold">{isChecked ? '[✓]' : '[  ]'}</span>
-                                      <span className={isChecked ? 'font-bold text-black' : 'text-slate-700'}>{item.label}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-
-                              {/* Kolom Kanan */}
-                              <div className="space-y-0.5 border-l border-black/30 pl-3">
-                                {OFFICIAL_DISPOSISI_CHECKLIST_COL2.map((item) => {
-                                  const isChecked = disposisiActionsMasuk.includes(item.label);
-                                  let displayLabel = item.label;
-                                  if (item.id === 'koordinasikan_dengan') {
-                                    displayLabel = isChecked && disposisiKoordinasiDetail.trim()
-                                      ? `Koordinasikan dengan: ${disposisiKoordinasiDetail.trim()}`
-                                      : 'Koordinasikan dengan.....................';
-                                  } else if (item.id === 'lainnya') {
-                                    displayLabel = isChecked && disposisiLainnyaDetail.trim()
-                                      ? `Lainnya: ${disposisiLainnyaDetail.trim()}`
-                                      : '...................................................';
-                                  }
-                                  return (
-                                    <div key={item.id} className="flex items-start gap-1.5">
-                                      <span className="font-mono font-bold">{isChecked ? '[✓]' : '[  ]'}</span>
-                                      <span className={isChecked ? 'font-bold text-black' : 'text-slate-700'}>{displayLabel}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </div>
-
-                            {disposisiCatatanTambahan.trim() && (
-                              <div className="mt-2 pt-1 border-t border-dashed border-black/40 text-[9.5px] font-sans">
-                                <strong>Catatan:</strong> {disposisiCatatanTambahan.trim()}
-                              </div>
-                            )}
-                          </>
+                        {/* Embedded PDF iframe */}
+                        <div className="flex-1 w-full bg-slate-100 min-h-[640px] relative">
+                          <iframe
+                            src={uploadedFileDataUrlMasuk || uploadedFileUrlMasuk}
+                            title="Pratinjau Dokumen PDF Surat Masuk"
+                            className="w-full h-full min-h-[640px] border-0"
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      /* Area Dropzone Unggah Interaktif Saat Kosong */
+                      <div
+                        onClick={() => fileInputMasukRef.current?.click()}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(true);
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(false);
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          setIsDraggingMasuk(false);
+                          const file = e.dataTransfer.files?.[0];
+                          if (file) handleProcessFileMasuk(file);
+                        }}
+                        className={`flex-1 p-8 sm:p-12 text-center flex flex-col items-center justify-center min-h-[540px] border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200 ${
+                          isDraggingMasuk
+                            ? 'border-emerald-600 bg-emerald-50/80 scale-[0.99]'
+                            : 'border-slate-300 hover:border-unsil-green-700 bg-slate-50/50 hover:bg-slate-50'
+                        }`}
+                      >
+                        <div className="w-16 h-16 rounded-2xl bg-emerald-50 text-unsil-green-800 flex items-center justify-center mb-4 border border-emerald-200 shadow-inner">
+                          <UploadCloud className="w-8 h-8" />
+                        </div>
+                        <h3 className="text-sm font-bold text-slate-800 mb-1">
+                          {isDraggingMasuk ? 'Lepaskan Berkas PDF di Sini' : 'Belum Ada Dokumen Pindaian PDF yang Diunggah'}
+                        </h3>
+                        <p className="text-xs text-slate-500 max-w-sm mb-5 leading-relaxed">
+                          Pilih berkas atau seret dokumen PDF surat masuk fisik ke sini (Maks. 5MB) untuk langsung melihat isi naskah secara utuh di panel ini.
+                        </p>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            fileInputMasukRef.current?.click();
+                          }}
+                          className="inline-flex items-center gap-2 px-4 py-2.5 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-sm transition cursor-pointer"
+                        >
+                          <UploadCloud className="w-4 h-4 text-unsil-gold-400" />
+                          <span>Pilih Berkas PDF Surat Masuk</span>
+                        </button>
+                        {uploadErrorMasuk && (
+                          <div className="mt-4 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                            <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+                            <span>{uploadErrorMasuk}</span>
+                          </div>
                         )}
                       </div>
-                    </div>
-
-                    {/* Kaki Dokumen: QR Code Verifikasi */}
-                    <div className="pt-6 mt-6 border-t border-slate-300 flex items-center justify-between text-[10px] text-slate-500 font-sans">
-                      <div className="flex items-center gap-2">
-                        <QrCode className="w-9 h-9 text-slate-800" />
-                        <div>
-                          <p className="font-bold text-slate-800">SISTEM INFORMASI PERSURATAN & KEARSIPAN SILOKA</p>
-                          <p>Autentikasi Agenda: {previewNomorAgenda}</p>
-                        </div>
-                      </div>
-                      <div className="text-right font-mono">
-                        <p>Tanggal Cetak: {new Date().toLocaleDateString('id-ID')}</p>
-                        <p>BSSN Tier-4 Certified</p>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 </>
               ) : (
@@ -3352,16 +3052,18 @@ export const CreateLetterModal = ({
             >
               Batal
             </button>
-            <button
-              type="button"
-              onClick={handlePrint}
-              disabled={isSaving}
-              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors shadow-xs disabled:opacity-50"
-              title={letterType === 'surat-masuk' ? 'Cetak Lembar Agenda Surat Masuk' : `Cetak Pratinjau Kertas ${currentPaperInfo.code}`}
-            >
-              <Printer className="w-3.5 h-3.5 text-slate-600" />
-              <span>Cetak {letterType === 'surat-masuk' ? 'Agenda' : `(${currentPaperInfo.code})`}</span>
-            </button>
+            {letterType !== 'surat-masuk' && (
+              <button
+                type="button"
+                onClick={handlePrint}
+                disabled={isSaving}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-100 transition-colors shadow-xs disabled:opacity-50"
+                title={`Cetak Pratinjau Kertas ${currentPaperInfo.code}`}
+              >
+                <Printer className="w-3.5 h-3.5 text-slate-600" />
+                <span>Cetak ({currentPaperInfo.code})</span>
+              </button>
+            )}
 
             {letterType === 'surat-masuk' ? (
               <button
