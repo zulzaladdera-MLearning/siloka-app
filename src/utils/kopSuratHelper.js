@@ -5,7 +5,7 @@
  * 1. Pasal 30 ayat (2):
  *    "Format kop naskah dinas tingkat Universitas digunakan untuk naskah dinas yang
  *     ditetapkan atau ditandatangani oleh Rektor, Wakil Rektor, atau Kepala Biro."
- *    -> Baris 1: KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI
+ *    -> Baris 1: KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI
  *    -> Baris 2: UNIVERSITAS SILIWANGI
  *    -> Tanpa nama fakultas / biro di baris ketiga (Tingkat Universitas).
  * 
@@ -124,7 +124,7 @@ export const determineKopSurat = (userOrUnitInput = null) => {
       isTingkatUniversitas: true,
       isTingkatUnitKerja: false,
       regulasiPasal: 'Pasal 30 ayat (2) Peraturan Rektor No. 3/2023',
-      kementerianText: 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI',
+      kementerianText: 'KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI',
       universitasText: 'UNIVERSITAS SILIWANGI',
       namaUnitBarisTiga: null, // Tanpa nama fakultas/biro di baris ketiga [Pasal 30 (2)]
       alamatText: 'Jalan Siliwangi Nomor 24 Kota Tasikmalaya Kode Pos 46115',
@@ -149,7 +149,7 @@ export const determineKopSurat = (userOrUnitInput = null) => {
     isTingkatUniversitas: false,
     isTingkatUnitKerja: true,
     regulasiPasal: 'Pasal 31 ayat (1), (2), & (6) Peraturan Rektor No. 3/2023',
-    kementerianText: 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI',
+    kementerianText: 'KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI',
     universitasText: 'UNIVERSITAS SILIWANGI',
     namaUnitBarisTiga: barisTiga, // Muncul di baris ketiga dengan tulisan paling tebal
     alamatText: 'Jalan Siliwangi Nomor 24 Kota Tasikmalaya Kode Pos 46115',

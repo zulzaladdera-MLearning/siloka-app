@@ -1,7 +1,7 @@
 /**
  * Abstract Class: NaskahDinas
  * Fondasi polimorfisme untuk seluruh jenis surat dinas resmi di Universitas Siliwangi
- * Mengacu pada Peraturan Rektor No. 03 Tahun 2025 & Kaidah Kearsipan ANRI.
+ * Mengacu pada Peraturan Rektor No. 3 Tahun 2023 & Kaidah Kearsipan ANRI.
  */
 
 import { User } from '../entities/User';

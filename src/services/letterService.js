@@ -7,12 +7,12 @@
 
 import { getPejabatByUnit } from '../utils/pejabatHelper.js';
 import { JRA_MASTER_ITEMS } from '../config/jraMasterCatalog.js';
-import seedLetters from '../data/letters.json';
+import seedLetters from '../data/letters.json' with { type: 'json' };
 import {
   getRektoratOfficialSopProfile,
   getAuthorizedTemplates,
   normalizeUserRole
-} from '../config/documentFormats';
+} from '../config/documentFormats.js';
 
 const API_BASE =
   (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) ||
@@ -245,7 +245,7 @@ export const fetchPejabatByUnit = async (kodeUnit, sessionUser = null) => {
  */
 export const saveInboundLetter = async (payload, currentUser = null) => {
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 4000);
+  const timeoutId = setTimeout(() => controller.abort(), 1200);
   if (timeoutId.unref) timeoutId.unref();
 
   try {
@@ -265,13 +265,13 @@ export const saveInboundLetter = async (payload, currentUser = null) => {
       return result;
     }
   } catch (err) {
-    console.warn('[LETTER-SERVICE] Backend offline, menggunakan generator agenda surat masuk mandiri:', err.message);
+    console.warn('[LETTER-SERVICE] Backend offline/timeout, menggunakan generator agenda surat masuk mandiri:', err.message);
   } finally {
     clearTimeout(timeoutId);
   }
 
-  const currentYear = payload.tahun || new Date().getFullYear();
-  const unitCode = currentUser?.unit_kerja_id || payload.unit_kerja_id || 'UN58.6';
+  const currentYear = Number(payload.tahun) || new Date().getFullYear();
+  const unitCode = payload.target_unit_id || payload.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58';
   const seq = localSequenceCounter++;
   const agendaNumber = `AGD-${currentYear}/${unitCode}/${String(seq).padStart(4, '0')}`;
 
@@ -283,12 +283,16 @@ export const saveInboundLetter = async (payload, currentUser = null) => {
       id_surat: Date.now(),
       nomor_urut: seq,
       nomor_agenda: agendaNumber,
+      nomorAgenda: agendaNumber,
+      nomorSurat: agendaNumber,
       nomor_surat_asal: payload.nomor_surat_asal || '-',
+      nomorSuratAsal: payload.nomor_surat_asal || '-',
       tingkat_keamanan: payload.tingkat_keamanan || 'B',
-      kode_klasifikasi: payload.kode_klasifikasi || 'PP.00.03',
+      kode_klasifikasi: payload.kode_klasifikasi || 'KP',
       perihal: payload.perihal,
       pengirim: payload.pengirim,
       tujuan: payload.tujuan,
+      target_unit_id: payload.target_unit_id || unitCode,
       tujuan_aksi: payload.tujuan_aksi || 'DISPOSISI',
       tahun: currentYear,
       unit_kerja_id: unitCode,

@@ -42,7 +42,7 @@ export const ActivityTable = ({
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [copiedId, setCopiedId] = useState(null);
 
-  // Penanganan Hapus Riwayat Per-Item dengan Tulisan Dialog Web & Double Konfirmasi
+  // Penanganan Hapus Riwayat Per-Item (Konfirmasi Tunggal 1x)
   const handleDeleteItem = (letter) => {
     if (!letter || !onDeleteLetter) return;
     if (currentUser?.role === 'PENGAWAS') {
@@ -54,15 +54,9 @@ export const ActivityTable = ({
       return;
     }
 
-    // Konfirmasi 1 dari web (Tulisan dari web nya)
-    const konfirmasi1 = window.confirm('Apakah anda yakin untuk menghapus surat tersebut?');
-    if (!konfirmasi1) return;
-
-    // Konfirmasi 2 (Double Konfirmasi Melalui Sistem)
-    const konfirmasi2 = window.confirm(
-      `Konfirmasi Kedua: Naskah dinas "${letter.nomorSurat || letter.id}" akan dihapus secara permanen dari riwayat persuratan sistem.\n\nApakah Anda benar-benar yakin ingin melanjutkan?`
-    );
-    if (!konfirmasi2) return;
+    // Konfirmasi 1x sesuai permintaan sistem
+    const confirmed = window.confirm('Apakah anda yakin untuk menghapus surat tersebut?');
+    if (!confirmed) return;
 
     onDeleteLetter(letter);
   };

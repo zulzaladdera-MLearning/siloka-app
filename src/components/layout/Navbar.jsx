@@ -9,11 +9,9 @@ import {
   FileText,
   Clock,
   Shield,
-  Menu,
-  ArrowLeftRight,
-  GraduationCap,
-  Briefcase
+  Menu
 } from 'lucide-react';
+import { isDisposisiAuthorizedOfficial } from '../../utils/disposisiStandards';
 
 export const Navbar = ({
   user,
@@ -36,128 +34,6 @@ export const Navbar = ({
   const handleToggle = toggleSidebar || onToggleMobileSidebar;
 
   const isPejabat = user?.role === 'PEJABAT' || user?.role === 'PIMPINAN' || user?.is_pejabat === true;
-
-  // Mekanisme 5: Sakelar Profil (Context Switcher) untuk Dosen dengan Tugas Tambahan (Pejabat Akademik)
-  const dualRoleContext = useMemo(() => {
-    if (!user || user.role === 'SUPER_ADMIN' || user.role === 'STAF' || user.role === 'ADMIN_UNIT') {
-      return null;
-    }
-
-    const explicitDual = user.dual_role_profiles;
-    if (explicitDual && explicitDual.mode_pejabat_tugas_tambahan) {
-      const skInfo = user.rbac_five_mechanisms?.mekanisme_5_context_switcher_and_sk?.sk_auto_expiration || {};
-      return {
-        hasDualRole: true,
-        activeMode: user.active_context_mode || (isPejabat ? 'MODE_PEJABAT' : 'MODE_DOSEN'),
-        isSkExpired: Boolean(skInfo.is_expired),
-        skLabel: skInfo.status_label || 'SK Aktif',
-        nomorSk: skInfo.nomor_sk || 'SK Penugasan KP.04.04',
-        modeDosen: explicitDual.mode_dosen,
-        modePejabat: explicitDual.mode_pejabat_tugas_tambahan
-      };
-    }
-
-    // Default Dual-Mode untuk Pejabat Dosen UNSIL (Dekan, Rektor, Warek, Kepala Lembaga, Kajur)
-    if (isPejabat || user.saved_pejabat_snapshot) {
-      const snap = user.saved_pejabat_snapshot || {
-        role: user.role,
-        roleLabel: user.roleLabel,
-        jabatan: user.jabatan || user.roleLabel,
-        unit: user.unit,
-        unit_kerja_id: user.unit_kerja_id,
-        kode_unit: user.kode_unit,
-        signatureReady: user.signatureReady !== false,
-        permissions: user.permissions || [
-          'SIGN_SURAT_KELUAR_UNIT',
-          'DISPOSISI_SURAT_MASUK',
-          'VERIFY_PARAF_BERJENJANG',
-          'ACCESS_BRANKAS_DIGITAL',
-          'READ_SKKAAD_RAHASIA'
-        ]
-      };
-
-      return {
-        hasDualRole: true,
-        activeMode: user.active_context_mode || (isPejabat ? 'MODE_PEJABAT' : 'MODE_DOSEN'),
-        isSkExpired: false,
-        skLabel: 'SK Aktif (KP.04.04)',
-        nomorSk: 'SK Rektor UNSIL / OTK',
-        modeDosen: {
-          mode_id: 'MODE_DOSEN',
-          label: 'Mode Dosen (Tridharma)',
-          role: 'DOSEN',
-          roleLabel: 'Dosen Fungsional (Homebase)',
-          jabatan: 'Dosen Pengajar / Peneliti',
-          unit_kerja_id: snap.unit_kerja_id || 'UN58.13',
-          unit_nama: snap.unit || 'Fakultas Homebase',
-          is_pejabat: false,
-          signatureReady: false,
-          permissions: ['CREATE_DRAFT_SURAT', 'VIEW_PERSONAL_SURAT', 'SIGN_NOTA_DINAS_PRIBADI']
-        },
-        modePejabat: {
-          mode_id: 'MODE_PEJABAT',
-          label: `Mode ${snap.roleLabel || snap.jabatan}`,
-          role: snap.role || 'PEJABAT',
-          roleLabel: snap.roleLabel || snap.jabatan,
-          jabatan: snap.jabatan || snap.roleLabel,
-          unit_kerja_id: snap.unit_kerja_id,
-          unit_nama: snap.unit,
-          is_pejabat: true,
-          signatureReady: true,
-          permissions: snap.permissions
-        },
-        savedSnapshot: snap
-      };
-    }
-
-    return null;
-  }, [user, isPejabat]);
-
-  const handleToggleContextMode = (targetModeId) => {
-    if (!dualRoleContext || !onSwitchUser) return;
-    if (targetModeId === 'MODE_PEJABAT' && dualRoleContext.isSkExpired) return;
-
-    const snap = dualRoleContext.savedSnapshot || {
-      role: dualRoleContext.modePejabat.role,
-      roleLabel: dualRoleContext.modePejabat.roleLabel,
-      jabatan: dualRoleContext.modePejabat.jabatan,
-      unit: dualRoleContext.modePejabat.unit_nama || user.unit,
-      unit_kerja_id: dualRoleContext.modePejabat.unit_kerja_id || user.unit_kerja_id,
-      kode_unit: user.kode_unit,
-      signatureReady: true,
-      permissions: dualRoleContext.modePejabat.permissions
-    };
-
-    if (targetModeId === 'MODE_DOSEN') {
-      const md = dualRoleContext.modeDosen;
-      onSwitchUser({
-        ...user,
-        active_context_mode: 'MODE_DOSEN',
-        saved_pejabat_snapshot: snap,
-        role: 'DOSEN',
-        roleLabel: md.roleLabel || 'Dosen (Tridharma)',
-        jabatan: md.jabatan || 'Dosen Fungsional',
-        is_pejabat: false,
-        signatureReady: false,
-        permissions: md.permissions
-      });
-    } else {
-      const mp = dualRoleContext.modePejabat;
-      onSwitchUser({
-        ...user,
-        active_context_mode: 'MODE_PEJABAT',
-        saved_pejabat_snapshot: snap,
-        role: mp.role || 'PEJABAT',
-        roleLabel: mp.roleLabel || mp.jabatan,
-        jabatan: mp.jabatan || mp.roleLabel,
-        unit: mp.unit_nama || snap.unit,
-        unit_kerja_id: mp.unit_kerja_id || snap.unit_kerja_id,
-        is_pejabat: true,
-        signatureReady: true,
-        permissions: mp.permissions
-      });
-    }
-  };
 
   // Feature 8: Real-Time Dynamic Notifications Engine
   const notifications = useMemo(() => {
@@ -277,55 +153,17 @@ export const Navbar = ({
           <Plus className="w-4 h-4 text-unsil-gold-400" />
         </button>
 
-        {/* Mekanisme 5: Sakelar Profil (Context Switcher) di Pojok Kanan Atas untuk Dosen dengan Tugas Tambahan */}
-        {dualRoleContext?.hasDualRole && (
-          <div
-            className="hidden xl:flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-2xs"
-            title={`Ganti Peran Tampilan — ${dualRoleContext.nomorSk} (${dualRoleContext.skLabel})`}
-          >
-            <button
-              type="button"
-              onClick={() => handleToggleContextMode('MODE_DOSEN')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                dualRoleContext.activeMode === 'MODE_DOSEN'
-                  ? 'bg-white text-slate-900 shadow-xs ring-1 ring-slate-200'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <GraduationCap className="w-3.5 h-3.5 text-indigo-600" />
-              <span>Mode Dosen</span>
-            </button>
-            <button
-              type="button"
-              disabled={dualRoleContext.isSkExpired}
-              onClick={() => handleToggleContextMode('MODE_PEJABAT')}
-              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                dualRoleContext.isSkExpired
-                  ? 'opacity-50 cursor-not-allowed text-rose-700 bg-rose-50'
-                  : dualRoleContext.activeMode === 'MODE_PEJABAT'
-                  ? 'bg-unsil-green-900 text-unsil-gold-300 shadow-xs'
-                  : 'text-slate-600 hover:text-unsil-green-900'
-              }`}
-            >
-              <Briefcase className="w-3.5 h-3.5" />
-              <span className="truncate max-w-[130px]">
-                {dualRoleContext.isSkExpired
-                  ? 'SK Berakhir (Nonaktif)'
-                  : `Mode ${dualRoleContext.modePejabat.roleLabel || 'Pejabat'}`}
-              </span>
-            </button>
-          </div>
-        )}
-
         {/* Quick Action Buttons Desktop */}
         <div className="hidden lg:flex items-center gap-2">
-          <button
-            onClick={onOpenQuickDisposisi}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
-          >
-            <SendHorizontal className="w-3.5 h-3.5 text-unsil-green-700" />
-            <span>Disposisi Cepat</span>
-          </button>
+          {isDisposisiAuthorizedOfficial(user) && (
+            <button
+              onClick={onOpenQuickDisposisi}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors cursor-pointer"
+            >
+              <SendHorizontal className="w-3.5 h-3.5 text-unsil-green-700" />
+              <span>Disposisi Cepat</span>
+            </button>
+          )}
 
           <button
             onClick={onOpenCreateLetter}
@@ -463,60 +301,6 @@ export const Navbar = ({
                   )}
                 </div>
               </div>
-
-              {dualRoleContext?.hasDualRole && (
-                <div className="p-2.5 border-b border-slate-100 bg-emerald-50/40">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-unsil-green-900 flex items-center gap-1">
-                      <ArrowLeftRight className="w-3 h-3" /> Ganti Peran (Tugas Tambahan)
-                    </span>
-                    <span
-                      className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
-                        dualRoleContext.isSkExpired
-                          ? 'bg-rose-100 text-rose-800'
-                          : 'bg-emerald-100 text-emerald-800'
-                      }`}
-                    >
-                      {dualRoleContext.skLabel}
-                    </span>
-                  </div>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        handleToggleContextMode('MODE_DOSEN');
-                        setShowProfileMenu(false);
-                      }}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 border transition-all ${
-                        dualRoleContext.activeMode === 'MODE_DOSEN'
-                          ? 'bg-indigo-600 text-white border-indigo-700 shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <GraduationCap className="w-3.5 h-3.5" />
-                      <span>Mode Dosen</span>
-                    </button>
-                    <button
-                      type="button"
-                      disabled={dualRoleContext.isSkExpired}
-                      onClick={() => {
-                        handleToggleContextMode('MODE_PEJABAT');
-                        setShowProfileMenu(false);
-                      }}
-                      className={`px-2 py-1.5 rounded-lg text-[11px] font-bold flex items-center justify-center gap-1 border transition-all ${
-                        dualRoleContext.isSkExpired
-                          ? 'bg-rose-50 text-rose-500 border-rose-200 cursor-not-allowed'
-                          : dualRoleContext.activeMode === 'MODE_PEJABAT'
-                          ? 'bg-unsil-green-900 text-unsil-gold-300 border-unsil-green-950 shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
-                      }`}
-                    >
-                      <Briefcase className="w-3.5 h-3.5" />
-                      <span className="truncate">Mode Pejabat</span>
-                    </button>
-                  </div>
-                </div>
-              )}
 
               {onSwitchUser && (
                 <div className="p-2 border-b border-slate-100">

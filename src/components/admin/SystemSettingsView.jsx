@@ -22,10 +22,14 @@ import {
   EyeOff,
   User,
   IdCard,
-  Briefcase
+  Briefcase,
+  CheckSquare
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
+import { fetchUsersList, createUser, updateUser } from '../../services/adminService';
+import { matchesOfficialDisposisiPosition } from '../../utils/disposisiStandards';
+import { getPositionsByUnitAndRole, getUnitByCode } from '../../utils/unitJabatanOptions';
 import {
   getRolesCatalog,
   resolveUserRoleSlug,
@@ -33,6 +37,62 @@ import {
   getPermissionLabel,
   RBAC_CHANGE_EVENT
 } from '../../utils/rbacSyncService';
+
+/**
+ * Daftar Referensi Jabatan Struktural & Fungsional Resmi di Lingkungan UNSIL
+ */
+export const OFFICIAL_UNSIL_POSITIONS = [
+  'Rektor Universitas Siliwangi',
+  'Wakil Rektor Bidang Akademik',
+  'Wakil Rektor Bidang Keuangan dan Umum',
+  'Wakil Rektor Bidang Kemahasiswaan dan Alumni',
+  'Wakil Rektor Bidang Perencanaan, Kerja Sama, dan Sistem Informasi',
+  'Dekan Fakultas Keguruan dan Ilmu Pendidikan',
+  'Wakil Dekan Bidang Akademik FKIP',
+  'Wakil Dekan Bidang Keuangan dan Umum FKIP',
+  'Wakil Dekan Bidang Kemahasiswaan dan Alumni FKIP',
+  'Dekan Fakultas Ekonomi dan Bisnis',
+  'Wakil Dekan Bidang Akademik FEB',
+  'Wakil Dekan Bidang Keuangan dan Umum FEB',
+  'Wakil Dekan Bidang Kemahasiswaan dan Alumni FEB',
+  'Dekan Fakultas Pertanian',
+  'Dekan Fakultas Teknik',
+  'Wakil Dekan Bidang Akademik dan Kemahasiswaan FT',
+  'Wakil Dekan Bidang Keuangan dan Umum FT',
+  'Dekan Fakultas Ilmu Kesehatan',
+  'Dekan Fakultas Ilmu Sosial dan Ilmu Politik',
+  'Dekan Fakultas Agama Islam',
+  'Direktur Pascasarjana',
+  'Wakil Direktur Pascasarjana',
+  'Ketua LPPM',
+  'Sekretaris LPPM',
+  'Ketua LPMPP',
+  'Sekretaris LPMPP',
+  'Kepala Biro Akademik, Kemahasiswaan, Perencanaan, dan Kerja Sama',
+  'Kepala Biro Keuangan dan Umum',
+  'Kepala UPA Teknologi Informasi dan Komunikasi',
+  'Kepala UPA Perpustakaan',
+  'Kepala UPA Laboratorium Terpadu',
+  'Kepala UPA Bahasa',
+  'Kepala UPA Layanan Uji Kompetensi',
+  'Ketua Senat Universitas',
+  'Ketua Satuan Pengawas Internal',
+  'Sekretaris Satuan Pengawas Internal',
+  'Ketua Jurusan Teknik Sipil',
+  'Sekretaris Jurusan Teknik Sipil',
+  'Ketua Jurusan Teknik Elektro',
+  'Ketua Jurusan Informatika',
+  'Koordinator Program Studi',
+  'Dosen Fungsional (Tridharma)',
+  'Dosen Pengajar / Peneliti',
+  'Kepala Bagian Tata Usaha',
+  'Kepala Subbagian Umum & Kepegawaian',
+  'Pengadministrasi Persuratan / Loket TU',
+  'Arsiparis Ahli / Terampil',
+  'Pranata Komputer / Pengelola TI',
+  'Verifikator Naskah Dinas',
+  'Super Administrator'
+];
 
 /**
  * Helper untuk menentukan warna inisial avatar pengguna
@@ -157,7 +217,6 @@ export const SystemSettingsView = ({
   allUsers = [],
   onUpdateUsers,
   onDeleteUser,
-  onPurgeNonSuperAdmins,
   showToast = () => {}
 }) => {
   // Verifikasi Otorisasi Super Admin
@@ -199,32 +258,48 @@ export const SystemSettingsView = ({
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
 
+  // State Input Jabatan Kustom (Manual Input Mode)
+  const [isCustomJabatanEdit, setIsCustomJabatanEdit] = useState(false);
+  const [isCustomJabatanAdd, setIsCustomJabatanAdd] = useState(false);
+
   // State Edit User Form
   const [editFormData, setEditFormData] = useState({
     name: '',
     nip: '',
     email: '',
     unit: '',
-    unit_kerja_id: '',
+    unit_kerja_id: 'UN58',
     jabatan: '',
-    role_slug: 'drafter',
-    role: '',
+    role_slug: 'pimpinan',
+    role: 'PEJABAT',
     password: 'Siloka2026!',
     signatureReady: true,
     is_active: true
   });
 
   // State Tambah User Form
-  const [newUserData, setNewUserData] = useState({
-    name: '',
-    nip: '',
-    email: '',
-    unit_kerja_id: 'UN58.13',
-    role_slug: 'drafter',
-    role: 'DOSEN',
-    jabatan: 'Dosen',
-    password: 'Siloka2026!'
+  const [newUserData, setNewUserData] = useState(() => {
+    const defaultPositions = getPositionsByUnitAndRole('UN58.13', 'pimpinan');
+    return {
+      name: '',
+      nip: '',
+      email: '',
+      unit_kerja_id: 'UN58.13',
+      role_slug: 'pimpinan',
+      role: 'PEJABAT',
+      jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
+      password: 'Siloka2026!'
+    };
   });
+
+  // Pilihan Jabatan Dinamis Berdasarkan Unit Kerja & Peran
+  const editUnitPositions = useMemo(() => {
+    return getPositionsByUnitAndRole(editFormData.unit_kerja_id, editFormData.role_slug);
+  }, [editFormData.unit_kerja_id, editFormData.role_slug]);
+
+  const newUnitPositions = useMemo(() => {
+    return getPositionsByUnitAndRole(newUserData.unit_kerja_id, newUserData.role_slug);
+  }, [newUserData.unit_kerja_id, newUserData.role_slug]);
 
   // Role Display Badge Styling Helper
   const getRoleBadgeStyle = (displayRole = '') => {
@@ -301,19 +376,25 @@ export const SystemSettingsView = ({
     setSelectedUserForDetail(targetUser);
     const userRoleSlug = targetUser.role_slug || resolveUserRoleSlug(targetUser);
     const currentPassword = targetUser.raw_password || targetUser.password || 'Siloka2026!';
+    const userUnitId = targetUser.unit_kerja_id || 'UN58.13';
+    const userJabatan = resolveDisplayRole(targetUser);
+    const unitPositions = getPositionsByUnitAndRole(userUnitId, userRoleSlug);
+    const isStandardPosition = unitPositions.includes(userJabatan);
+
     setEditFormData({
       name: targetUser.nama_lengkap || targetUser.name || '',
       nip: targetUser.nip || targetUser.nip_nik || '',
       email: targetUser.email || targetUser.username || '',
       unit: resolveDisplayUnit(targetUser),
-      unit_kerja_id: targetUser.unit_kerja_id || 'UN58.13',
-      jabatan: resolveDisplayRole(targetUser),
+      unit_kerja_id: userUnitId,
+      jabatan: userJabatan,
       role_slug: userRoleSlug,
       role: targetUser.role || 'DOSEN',
       password: currentPassword,
       signatureReady: targetUser.signatureReady !== false,
       is_active: true
     });
+    setIsCustomJabatanEdit(!isStandardPosition && Boolean(userJabatan));
     setShowEditPassword(false);
     setIsDetailModalOpen(true);
   };
@@ -339,17 +420,46 @@ export const SystemSettingsView = ({
 
     const isSuper = selectedRole.slug === 'super_admin';
     const isPimpinan = selectedRole.slug === 'pimpinan';
-    const mappedRole = isSuper
-      ? 'Super Admin'
-      : isPimpinan
-      ? 'PEJABAT'
-      : selectedRole.slug === 'verifikator'
-      ? 'VERIFIKATOR'
-      : selectedRole.slug === 'admin_tu'
-      ? 'OPERATOR_UNIT'
-      : selectedRole.slug === 'auditor_spi'
-      ? 'PENGAWAS'
-      : 'DOSEN';
+    const isAdminTU = selectedRole.slug === 'admin_tu';
+    const isVerifikator = selectedRole.slug === 'verifikator';
+    const isAuditor = selectedRole.slug === 'auditor_spi';
+
+    const cleanJabatan = (editFormData.jabatan || selectedRole.name).trim();
+    const posLower = cleanJabatan.toLowerCase();
+    const hasStructuralKeyword = matchesOfficialDisposisiPosition(cleanJabatan);
+    const isExplicitlyNonPejabat =
+      posLower.includes('dosen fungsional') ||
+      posLower.includes('dosen pengajar') ||
+      posLower.includes('staf') ||
+      posLower.includes('operator') ||
+      posLower.includes('pengadministrasi') ||
+      posLower.includes('arsiparis') ||
+      (posLower.includes('auditor') && !posLower.includes('ketua'));
+
+    const isPejabat = isPimpinan || (hasStructuralKeyword && !isExplicitlyNonPejabat);
+
+    let mappedRole = 'DOSEN';
+    if (isSuper) {
+      mappedRole = 'Super Admin';
+    } else if (isPejabat) {
+      mappedRole = 'PEJABAT';
+    } else if (isVerifikator) {
+      mappedRole = 'VERIFIKATOR';
+    } else if (isAdminTU) {
+      mappedRole = 'STAF';
+    } else if (isAuditor) {
+      mappedRole = 'PENGAWAS';
+    } else {
+      mappedRole = 'DOSEN';
+    }
+
+    let userPermissions = [...(selectedRole.keySlugs || [])];
+    if (isPejabat) {
+      if (!userPermissions.includes('disposisi.create')) userPermissions.push('disposisi.create');
+      if (!userPermissions.includes('disposisi.forward')) userPermissions.push('disposisi.forward');
+    } else {
+      userPermissions = userPermissions.filter((p) => p !== 'disposisi.create' && p !== 'disposisi.forward');
+    }
 
     const updatedUser = {
       ...selectedUserForDetail,
@@ -363,19 +473,49 @@ export const SystemSettingsView = ({
       unit: unitObj ? unitObj.nama_unit : editFormData.unit,
       role_slug: selectedRole.slug,
       role: mappedRole,
-      roleLabel: editFormData.jabatan || selectedRole.name,
-      jabatan: editFormData.jabatan || selectedRole.name,
-      permissions: selectedRole.keySlugs || [],
-      is_pejabat:
-        isPimpinan ||
-        editFormData.jabatan.toLowerCase().includes('rektor') ||
-        editFormData.jabatan.toLowerCase().includes('dekan') ||
-        editFormData.jabatan.toLowerCase().includes('kepala biro'),
+      roleLevel: isSuper
+        ? 'Level 0: Administrator Sistem'
+        : isPejabat
+        ? 'Level 1: Pimpinan'
+        : isVerifikator
+        ? 'Level 2: Verifikator'
+        : isAdminTU
+        ? 'Level 3: Tata Usaha'
+        : 'Level 3: Dosen/Pegawai',
+      roleLabel: cleanJabatan,
+      jabatan: cleanJabatan,
+      permissions: userPermissions,
+      is_pejabat: isPejabat,
       is_super_admin: isSuper,
-      signatureReady: editFormData.signatureReady,
+      signatureReady: Boolean(editFormData.signatureReady),
       password: cleanPassword,
       raw_password: cleanPassword
     };
+
+    // Bersihkan seluruh atribut switcher agar user beroperasi dalam peran tunggal yang telah disetel oleh Super Admin
+    delete updatedUser.active_context_mode;
+    delete updatedUser.saved_pejabat_snapshot;
+    delete updatedUser.dual_role_profiles;
+
+    // Simpan ke database melalui backend API
+    updateUser(
+      selectedUserForDetail.id || selectedUserForDetail.nip,
+      {
+        id: selectedUserForDetail.id,
+        nip: updatedUser.nip,
+        nama: updatedUser.name,
+        email: updatedUser.email,
+        kode_unit: updatedUser.unit_kerja_id,
+        unit_kerja_id: updatedUser.unit_kerja_id,
+        jabatan: updatedUser.jabatan,
+        role: updatedUser.role,
+        password: cleanPassword,
+        password_baru: cleanPassword
+      },
+      user
+    ).catch((err) => {
+      console.warn('[MANAJEMEN-PENGGUNA] Gagal memperbarui user di database backend:', err.message);
+    });
 
     if (onUpdateUsers) {
       onUpdateUsers([updatedUser]);
@@ -383,12 +523,12 @@ export const SystemSettingsView = ({
 
     setIsDetailModalOpen(false);
     showToast(
-      `Peran dan data pengguna ${editFormData.name} berhasil diperbarui.`,
+      `Peran dan data pengguna ${editFormData.name} berhasil diperbarui sebagai [${cleanJabatan}].`,
       'success'
     );
   };
 
-  // Handler: Hapus Pengguna dari Sistem
+  // Handler: Hapus Pengguna dari Sistem (Konfirmasi Tunggal 1x)
   const handleDeleteUser = (targetUser) => {
     if (!targetUser) return;
     if (isSuperAdminUser(targetUser)) {
@@ -396,154 +536,238 @@ export const SystemSettingsView = ({
       return;
     }
     const name = targetUser.nama_lengkap || targetUser.name || 'Pengguna';
-    if (
-      window.confirm(
-        `Apakah Anda yakin ingin menghapus akun pengguna "${name}" dari sistem? Tindakan ini tidak dapat dibatalkan.`
-      )
-    ) {
+    if (window.confirm('Apakah anda yakin untuk menghapus user tersebut? Pengguna yang dihapus otomatis tidak dapat lagi mengakses sistem SILOKA.')) {
       if (onDeleteUser) {
-        onDeleteUser(targetUser.id);
+        onDeleteUser(targetUser);
       }
       setIsDetailModalOpen(false);
-      showToast(`Pengguna ${name} berhasil dihapus dari sistem.`, 'info');
-    }
-  };
-
-  // Handler: Hapus Seluruh Pengguna Kecuali Super Administrator
-  const handlePurgeNonSuperAdmins = () => {
-    const nonSuperAdmins = allUsers.filter((u) => !isSuperAdminUser(u));
-    if (nonSuperAdmins.length === 0) {
-      showToast('Seluruh pengguna non-admin telah dibersihkan. Hanya akun Super Administrator yang tersisa.', 'info');
-      return;
-    }
-
-    if (
-      window.confirm(
-        `Perhatian: Tindakan ini akan menghapus seluruh ${nonSuperAdmins.length} akun pengguna selain Super Administrator. Apakah Anda yakin ingin melanjutkan tindakan ini?`
-      )
-    ) {
-      if (onPurgeNonSuperAdmins) {
-        onPurgeNonSuperAdmins();
-      } else if (onDeleteUser) {
-        nonSuperAdmins.forEach((u) => onDeleteUser(u.id));
-      }
-      showToast('Seluruh akun pengguna selain Super Administrator berhasil dihapus dari sistem.', 'success');
+      showToast(`Pengguna ${name} berhasil dihapus dari sistem dan aksesnya telah dicabut.`, 'info');
     }
   };
 
   // Handler: Tambah User Manual
   const handleCreateUserManual = (e) => {
     e.preventDefault();
-    if (!newUserData.name.trim() || !newUserData.email.trim()) {
-      showToast('Mohon lengkapi nama dan email pengguna.', 'error');
-      return;
+    try {
+      if (!newUserData.name.trim() || !newUserData.email.trim()) {
+        showToast('Mohon lengkapi nama dan email pengguna.', 'error');
+        return;
+      }
+
+      if (!newUserData.password || newUserData.password.trim().length < 6) {
+        showToast('Kata sandi akun pengguna baru harus diisi minimal 6 karakter.', 'error');
+        return;
+      }
+
+      const cleanEmail = newUserData.email.trim().toLowerCase();
+
+      // Validasi pencegahan duplikasi email
+      const isEmailExist = allUsers.some(
+        (u) => (u.email && u.email.toLowerCase() === cleanEmail) || (u.username && u.username.toLowerCase() === cleanEmail)
+      );
+      if (isEmailExist) {
+        showToast(`Email [${cleanEmail}] sudah terdaftar di sistem. Mohon gunakan email unik lain.`, 'error');
+        return;
+      }
+
+      const unitObj = unitKerjaList.find(
+        (item) => item.kode_unit === newUserData.unit_kerja_id
+      );
+
+      const selectedRole = rolesCatalog.find(
+        (r) => (r.slug || r.id) === (newUserData.role_slug || newUserData.role)
+      ) || rolesCatalog.find((r) => r.slug === 'drafter') || rolesCatalog[0];
+
+      const isSuper = selectedRole.slug === 'super_admin';
+      const isPimpinan = selectedRole.slug === 'pimpinan';
+      const isAdminTU = selectedRole.slug === 'admin_tu';
+      const isVerifikator = selectedRole.slug === 'verifikator';
+      const isAuditor = selectedRole.slug === 'auditor_spi';
+
+      const cleanJabatan = (newUserData.jabatan || (isSuper ? 'Super Administrator' : selectedRole.name)).trim();
+      const posLower = cleanJabatan.toLowerCase();
+      const hasStructuralKeyword = matchesOfficialDisposisiPosition(cleanJabatan);
+      const isExplicitlyNonPejabat =
+        posLower.includes('dosen fungsional') ||
+        posLower.includes('dosen pengajar') ||
+        posLower.includes('staf') ||
+        posLower.includes('operator') ||
+        posLower.includes('pengadministrasi') ||
+        posLower.includes('arsiparis') ||
+        (posLower.includes('auditor') && !posLower.includes('ketua'));
+
+      const isPejabat = isPimpinan || (hasStructuralKeyword && !isExplicitlyNonPejabat);
+
+      let mappedRole = 'DOSEN';
+      if (isSuper) {
+        mappedRole = 'Super Admin';
+      } else if (isPejabat) {
+        mappedRole = 'PEJABAT';
+      } else if (selectedRole.slug === 'verifikator') {
+        mappedRole = 'VERIFIKATOR';
+      } else if (selectedRole.slug === 'admin_tu') {
+        mappedRole = 'STAF';
+      } else if (selectedRole.slug === 'auditor_spi') {
+        mappedRole = 'PENGAWAS';
+      } else {
+        mappedRole = 'DOSEN';
+      }
+
+      let userPermissions = [...(selectedRole.keySlugs || [])];
+      if (isPejabat) {
+        if (!userPermissions.includes('disposisi.create')) userPermissions.push('disposisi.create');
+        if (!userPermissions.includes('disposisi.forward')) userPermissions.push('disposisi.forward');
+      } else {
+        userPermissions = userPermissions.filter((p) => p !== 'disposisi.create' && p !== 'disposisi.forward');
+      }
+
+      const roleLabelText = isSuper
+        ? 'Super Administrator SILOKA UNSIL'
+        : cleanJabatan;
+
+      const newUser = {
+        id: `usr-custom-${Date.now()}`,
+        nama_lengkap: newUserData.name.trim(),
+        name: newUserData.name.trim(),
+        nip: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        nip_nik: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
+        email: cleanEmail,
+        username: cleanEmail,
+        password: newUserData.password.trim(),
+        raw_password: newUserData.password.trim(),
+        unit_kerja_id: newUserData.unit_kerja_id,
+        unit: unitObj
+          ? unitObj.nama_unit
+          : isSuper
+          ? 'Unit Penunjang Akademik Teknologi Informasi dan Komunikasi'
+          : 'Fakultas Teknik',
+        role_slug: selectedRole.slug,
+        role: mappedRole,
+        roleLevel: isSuper
+          ? 'Level 0: Administrator Sistem'
+          : isPejabat
+          ? 'Level 1: Pimpinan'
+          : selectedRole.slug === 'verifikator'
+          ? 'Level 2: Verifikator'
+          : selectedRole.slug === 'admin_tu'
+          ? 'Level 3: Tata Usaha'
+          : 'Level 3: Dosen/Pegawai',
+        roleLabel: roleLabelText,
+        jabatan: cleanJabatan,
+        permissions: userPermissions,
+        is_pejabat: isPejabat,
+        is_super_admin: isSuper,
+        signatureReady: isPejabat || isSuper,
+        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
+
+      // Hapus identifier pengguna dari blacklist lokal jika sebelumnya pernah terhapus
+      try {
+        const deletedStr = localStorage.getItem('siloka_deleted_user_ids');
+        if (deletedStr) {
+          const deletedArr = JSON.parse(deletedStr);
+          if (Array.isArray(deletedArr)) {
+            const idSet = new Set([
+              newUser.id.toLowerCase(),
+              newUser.nip.toLowerCase(),
+              cleanEmail.toLowerCase(),
+              cleanEmail.split('@')[0].toLowerCase()
+            ]);
+            const filtered = deletedArr.filter((item) => {
+              const clean = String(item).toLowerCase().trim();
+              return !idSet.has(clean);
+            });
+            localStorage.setItem('siloka_deleted_user_ids', JSON.stringify(filtered));
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // Simpan akun ke database melalui service/backend API
+      createUser(
+        {
+          nip: newUser.nip,
+          nama: newUser.name,
+          email: newUser.email,
+          kode_unit: newUser.unit_kerja_id,
+          unit_kerja_id: newUser.unit_kerja_id,
+          jabatan: cleanJabatan,
+          role: mappedRole,
+          password: newUser.password,
+          raw_password: newUser.password
+        },
+        user
+      )
+        .then((res) => {
+          const resData = res?.data || res?.user;
+          if (resData) {
+            const persisted = {
+              ...newUser,
+              ...resData,
+              unit: newUser.unit || resData.unit,
+              role_slug: newUser.role_slug || resData.role_slug,
+              roleLabel: newUser.roleLabel || resData.roleLabel || resData.role_label,
+              permissions: newUser.permissions || resData.permissions
+            };
+            if (onUpdateUsers) {
+              onUpdateUsers([persisted]);
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('[MANAJEMEN-PENGGUNA] Sinkronisasi backend gagal, menyimpan ke cache lokal:', err.message);
+        });
+
+      if (onUpdateUsers) {
+        onUpdateUsers([newUser]);
+      }
+
+      // Reset filter dan kata kunci pencarian agar pengguna baru langsung muncul seketika di tabel
+      setSelectedRoleFilter('ALL');
+      setSearchQuery('');
+
+      setIsAddUserModalOpen(false);
+      setNewUserData({
+        name: '',
+        nip: '',
+        email: '',
+        unit_kerja_id: 'UN58.13',
+        role_slug: 'drafter',
+        role: 'DOSEN',
+        jabatan: 'Dosen Fungsional (Tridharma)',
+        password: 'Siloka2026!'
+      });
+      setShowNewPassword(false);
+      showToast(`Pengguna baru [${newUser.name}] berhasil didaftarkan sebagai [${cleanJabatan}].`, 'success');
+    } catch (err) {
+      console.error('[MANAJEMEN-PENGGUNA] Gagal mendaftarkan pengguna baru:', err);
+      showToast('Terjadi kendala saat mendaftarkan pengguna baru. Silakan periksa kembali kelengkapan formulir.', 'error');
     }
-
-    if (!newUserData.password || newUserData.password.trim().length < 6) {
-      showToast('Kata sandi akun pengguna baru harus diisi minimal 6 karakter.', 'error');
-      return;
-    }
-
-    const cleanEmail = newUserData.email.trim().toLowerCase();
-
-    // Validasi pencegahan duplikasi email
-    const isEmailExist = allUsers.some(
-      (u) => (u.email && u.email.toLowerCase() === cleanEmail) || (u.username && u.username.toLowerCase() === cleanEmail)
-    );
-    if (isEmailExist) {
-      showToast(`Email [${cleanEmail}] sudah terdaftar di sistem. Mohon gunakan email unik lain.`, 'error');
-      return;
-    }
-
-    const unitObj = unitKerjaList.find(
-      (item) => item.kode_unit === newUserData.unit_kerja_id
-    );
-
-    const selectedRole = rolesCatalog.find(
-      (r) => (r.slug || r.id) === (newUserData.role_slug || newUserData.role)
-    ) || rolesCatalog.find((r) => r.slug === 'drafter') || rolesCatalog[0];
-
-    const isSuper = selectedRole.slug === 'super_admin';
-    const isPimpinan = selectedRole.slug === 'pimpinan';
-    const mappedRole = isSuper
-      ? 'Super Admin'
-      : isPimpinan
-      ? 'PEJABAT'
-      : selectedRole.slug === 'verifikator'
-      ? 'VERIFIKATOR'
-      : selectedRole.slug === 'admin_tu'
-      ? 'OPERATOR_UNIT'
-      : selectedRole.slug === 'auditor_spi'
-      ? 'PENGAWAS'
-      : 'DOSEN';
-
-    const roleLabelText = isSuper
-      ? 'Super Administrator SILOKA UNSIL'
-      : newUserData.jabatan || selectedRole.name;
-
-    const newUser = {
-      id: `usr-custom-${Date.now()}`,
-      nama_lengkap: newUserData.name.trim(),
-      name: newUserData.name.trim(),
-      nip: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-      nip_nik: newUserData.nip.trim() || `199${Math.floor(100000000000 + Math.random() * 900000000000)}`,
-      email: cleanEmail,
-      username: cleanEmail,
-      password: newUserData.password.trim(),
-      raw_password: newUserData.password.trim(),
-      unit_kerja_id: newUserData.unit_kerja_id,
-      unit: unitObj
-        ? unitObj.nama_unit
-        : isSuper
-        ? 'Unit Penunjang Akademik Teknologi Informasi dan Komunikasi'
-        : 'Fakultas Teknik',
-      role_slug: selectedRole.slug,
-      role: mappedRole,
-      roleLevel: isSuper
-        ? 'Level 0: Administrator Sistem'
-        : isPimpinan
-        ? 'Level 1: Pimpinan'
-        : selectedRole.slug === 'verifikator'
-        ? 'Level 2: Verifikator'
-        : 'Level 3: Dosen/Staf',
-      roleLabel: roleLabelText,
-      jabatan: newUserData.jabatan || (isSuper ? 'Super Administrator' : selectedRole.name),
-      permissions: selectedRole.keySlugs || [],
-      is_pejabat: isPimpinan || (newUserData.jabatan && newUserData.jabatan.toLowerCase().includes('dekan')),
-      is_super_admin: isSuper,
-      signatureReady: true,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-    };
-
-    if (onUpdateUsers) {
-      onUpdateUsers([newUser]);
-    }
-
-    setIsAddUserModalOpen(false);
-    setNewUserData({
-      name: '',
-      nip: '',
-      email: '',
-      unit_kerja_id: 'UN58.13',
-      role_slug: 'drafter',
-      role: 'DOSEN',
-      jabatan: 'Dosen',
-      password: 'Siloka2026!'
-    });
-    setShowNewPassword(false);
-    showToast(`Pengguna baru [${newUser.name}] berhasil ditambahkan dengan role ${selectedRole.name}.`, 'success');
   };
 
-  // Handler: Simulasi Sinkronisasi Data Pegawai
-  const handleSyncSSO = () => {
+  // Handler: Sinkronisasi Data Pegawai dari Basis Data
+  const handleSyncSSO = async () => {
     setIsSyncingSSO(true);
-    setTimeout(() => {
+    try {
+      const fetched = await fetchUsersList(user);
+      if (Array.isArray(fetched) && fetched.length > 0) {
+        if (onUpdateUsers) {
+          onUpdateUsers(fetched);
+        }
+        showToast(
+          `Sinkronisasi berhasil: ${fetched.length} akun pengguna telah disinkronkan langsung dengan basis data kepegawaian UNSIL.`,
+          'success'
+        );
+      } else {
+        showToast(`Sinkronisasi selesai: ${allUsers.length} akun pengguna aktif terverifikasi.`, 'info');
+      }
+    } catch (err) {
+      console.error('Error syncing users:', err);
+      showToast('Gagal melakukan sinkronisasi dengan basis data. Menggunakan data lokal.', 'error');
+    } finally {
       setIsSyncingSSO(false);
-      showToast(
-        `Pembaruan data berhasil: ${allUsers.length} akun pengguna aktif telah disinkronkan dengan data kepegawaian UNSIL.`,
-        'success'
-      );
-    }, 600);
+    }
   };
 
   return (
@@ -562,19 +786,6 @@ export const SystemSettingsView = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-          {/* Tombol Hapus Semua Kecuali Super Admin (Muncul jika terdapat akun non-super-admin) */}
-          {allUsers.some((u) => !isSuperAdminUser(u)) && (
-            <button
-              type="button"
-              onClick={handlePurgeNonSuperAdmins}
-              className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100 hover:border-rose-300 transition cursor-pointer shadow-2xs active:scale-95"
-              title="Hapus seluruh akun pengguna selain Super Administrator"
-            >
-              <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-              <span>Hapus Semua Kecuali Super Admin</span>
-            </button>
-          )}
-
           {/* Tombol Sinkron Data Pegawai */}
           <button
             type="button"
@@ -591,16 +802,20 @@ export const SystemSettingsView = ({
           <button
             type="button"
             onClick={() => {
+              const defaultUnit = 'UN58.13';
+              const defaultSlug = 'pimpinan';
+              const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug);
               setNewUserData({
                 name: '',
                 nip: '',
                 email: '',
-                unit_kerja_id: 'UN58.13',
-                role_slug: 'drafter',
-                role: 'DOSEN',
-                jabatan: 'Dosen',
+                unit_kerja_id: defaultUnit,
+                role_slug: defaultSlug,
+                role: 'PEJABAT',
+                jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
                 password: 'Siloka2026!'
               });
+              setIsCustomJabatanAdd(false);
               setShowNewPassword(false);
               setIsAddUserModalOpen(true);
             }}
@@ -911,7 +1126,26 @@ export const SystemSettingsView = ({
                   </label>
                   <select
                     value={editFormData.unit_kerja_id}
-                    onChange={(e) => setEditFormData({ ...editFormData, unit_kerja_id: e.target.value })}
+                    onChange={(e) => {
+                      const nextUnitId = e.target.value;
+                      const unitObj = unitKerjaList.find((u) => u.kode_unit === nextUnitId);
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, editFormData.role_slug);
+                      let updatedJabatan = editFormData.jabatan;
+
+                      if (editFormData.role_slug === 'pimpinan') {
+                        updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
+                        setIsCustomJabatanEdit(false);
+                      } else if (!isCustomJabatanEdit && unitPositions.length > 0) {
+                        updatedJabatan = unitPositions[0];
+                      }
+
+                      setEditFormData((prev) => ({
+                        ...prev,
+                        unit_kerja_id: nextUnitId,
+                        unit: unitObj?.nama_unit || prev.unit,
+                        jabatan: updatedJabatan
+                      }));
+                    }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                   >
                     {unitKerjaList.map((unit) => (
@@ -940,10 +1174,16 @@ export const SystemSettingsView = ({
                       onChange={(e) => {
                         const newSlug = e.target.value;
                         const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
+                        const unitPositions = getPositionsByUnitAndRole(editFormData.unit_kerja_id, newSlug);
+                        const updatedTte = newSlug === 'pimpinan' || newSlug === 'super_admin';
+                        const updatedJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        setIsCustomJabatanEdit(false);
+
                         setEditFormData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
-                          jabatan: prev.jabatan || roleObj?.name || ''
+                          jabatan: updatedJabatan,
+                          signatureReady: updatedTte
                         }));
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
@@ -956,16 +1196,92 @@ export const SystemSettingsView = ({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 block">
-                      Jabatan Struktural / Peran Institusi
-                    </label>
-                    <input
-                      type="text"
-                      value={editFormData.jabatan}
-                      onChange={(e) => setEditFormData({ ...editFormData, jabatan: e.target.value })}
-                      placeholder="Contoh: Dekan Fakultas Teknik"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        Jabatan Struktural / Peran Institusi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomJabatanEdit((prev) => !prev)}
+                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-medium underline cursor-pointer"
+                      >
+                        {isCustomJabatanEdit ? 'Pilih dari Daftar Unit' : 'Ketik Manual'}
+                      </button>
+                    </div>
+                    {!isCustomJabatanEdit ? (
+                      <select
+                        value={editFormData.jabatan}
+                        onChange={(e) => {
+                          if (e.target.value === '__CUSTOM__') {
+                            setIsCustomJabatanEdit(true);
+                          } else {
+                            setEditFormData({ ...editFormData, jabatan: e.target.value });
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                      >
+                        {editFormData.jabatan && !editUnitPositions.includes(editFormData.jabatan) && (
+                          <option value={editFormData.jabatan}>{editFormData.jabatan}</option>
+                        )}
+                        {editUnitPositions.map((pos) => (
+                          <option key={pos} value={pos}>
+                            {pos}
+                          </option>
+                        ))}
+                        <option value="__CUSTOM__">✍️ Ketik Jabatan Lainnya (Kustom)...</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        list="unsil-structural-positions-list"
+                        value={editFormData.jabatan}
+                        onChange={(e) => setEditFormData({ ...editFormData, jabatan: e.target.value })}
+                        placeholder="Contoh: Dekan Fakultas Teknik / Dosen Fungsional"
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                      />
+                    )}
+                    <div className="text-[10px] text-slate-500">
+                      {editFormData.role_slug === 'pimpinan'
+                        ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(editFormData.unit_kerja_id)?.nama_unit || editFormData.unit_kerja_id}`
+                        : `Menyesuaikan unit kerja: ${getUnitByCode(editFormData.unit_kerja_id)?.singkatan || editFormData.unit_kerja_id}`}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel Ringkasan Wewenang Peran yang Dipilih */}
+                <div className="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-200/80 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
+                  <div className="text-[11px] text-slate-700 leading-relaxed">
+                    {editFormData.role_slug === 'pimpinan' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Pejabat Struktural &amp; Penandatangan:</strong> Memiliki hak sah pengesahan TTE BSrE resmi, penerbitan butir instruksi E-Disposisi berjenjang, dan akses naskah dinas unit kerja.
+                      </span>
+                    )}
+                    {editFormData.role_slug === 'drafter' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Dosen &amp; Drafter Fungsional:</strong> Berfokus pada penyusunan konsep naskah tridharma, pembuatan surat tugas mandiri, dan telaah staf tanpa wewenang penerbitan butir disposisi struktural.
+                      </span>
+                    )}
+                    {editFormData.role_slug === 'admin_tu' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Administrator Tata Usaha:</strong> Bertugas di loket registrasi surat masuk, penomoran agenda, penerusan berkas ke pejabat tujuan, dan kearsipan unit.
+                      </span>
+                    )}
+                    {editFormData.role_slug === 'verifikator' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Verifikator Naskah:</strong> Bertugas memeriksa keabsahan draf naskah dinas dan membubuhkan paraf hierarki sebelum naskah diajukan ke pimpinan.
+                      </span>
+                    )}
+                    {editFormData.role_slug === 'super_admin' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Super Administrator:</strong> Pemegang wewenang tertinggi tata kelola akun, pengaturan peran pengguna, sinkronisasi unit, dan konfigurasi sistem.
+                      </span>
+                    )}
+                    {editFormData.role_slug === 'auditor_spi' && (
+                      <span>
+                        <strong className="text-unsil-green-950 font-semibold">Pengawas Internal:</strong> Hak peninjauan audit kepatuhan tata naskah dan kearsipan persuratan universitas.
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -1008,20 +1324,36 @@ export const SystemSettingsView = ({
                 );
                 const roleSlugs = currentRoleObj?.keySlugs || [];
                 const hasRahasia = roleSlugs.includes('arsip.view_rahasia');
+                const hasDisposisi =
+                  editFormData.role_slug === 'super_admin' ||
+                  editFormData.role_slug === 'pimpinan' ||
+                  matchesOfficialDisposisiPosition(editFormData.jabatan);
 
                 return (
                   <div className="p-3.5 bg-gradient-to-br from-emerald-50/40 to-slate-50 border border-emerald-100 rounded-xl space-y-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                       <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
                         Daftar Hak Akses ({roleSlugs.length} Wewenang)
                       </span>
-                      {hasRahasia && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                          <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                          Akses Brankas Digital
-                        </span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {hasDisposisi ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs">
+                            <CheckSquare className="w-3 h-3 text-blue-700" />
+                            Wewenang Disposisi Aktif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            Tanpa Hak Disposisi
+                          </span>
+                        )}
+                        {hasRahasia && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                            Akses Brankas Digital
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
                       {currentRoleObj?.description || 'Hak akses otomatis disesuaikan dengan peran yang dipilih.'}
@@ -1194,9 +1526,24 @@ export const SystemSettingsView = ({
                   </label>
                   <select
                     value={newUserData.unit_kerja_id}
-                    onChange={(e) =>
-                      setNewUserData({ ...newUserData, unit_kerja_id: e.target.value })
-                    }
+                    onChange={(e) => {
+                      const nextUnitId = e.target.value;
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, newUserData.role_slug);
+                      let updatedJabatan = newUserData.jabatan;
+
+                      if (newUserData.role_slug === 'pimpinan') {
+                        updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
+                        setIsCustomJabatanAdd(false);
+                      } else if (!isCustomJabatanAdd && unitPositions.length > 0) {
+                        updatedJabatan = unitPositions[0];
+                      }
+
+                      setNewUserData((prev) => ({
+                        ...prev,
+                        unit_kerja_id: nextUnitId,
+                        jabatan: updatedJabatan
+                      }));
+                    }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                   >
                     {unitKerjaList.map((unit) => (
@@ -1225,16 +1572,15 @@ export const SystemSettingsView = ({
                       onChange={(e) => {
                         const newSlug = e.target.value;
                         const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
+                        const unitPositions = getPositionsByUnitAndRole(newUserData.unit_kerja_id, newSlug);
+                        const defaultJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        setIsCustomJabatanAdd(false);
+
                         setNewUserData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
-                          role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'OPERATOR_UNIT' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
-                          jabatan:
-                            newSlug === 'super_admin'
-                              ? 'Super Administrator'
-                              : prev.jabatan === 'Super Administrator'
-                              ? roleObj?.name || 'Dosen'
-                              : prev.jabatan || roleObj?.name || 'Dosen',
+                          role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'STAF' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
+                          jabatan: defaultJabatan,
                           unit_kerja_id:
                             newSlug === 'super_admin' && prev.unit_kerja_id === 'UN58.13'
                               ? 'UN58.32'
@@ -1251,20 +1597,59 @@ export const SystemSettingsView = ({
                     </select>
                   </div>
                   <div className="space-y-1">
-                    <label className="text-xs font-semibold text-slate-700 block">
-                      Jabatan Struktural / Peran Institusi
-                    </label>
-                    <input
-                      type="text"
-                      value={newUserData.jabatan}
-                      onChange={(e) => setNewUserData({ ...newUserData, jabatan: e.target.value })}
-                      placeholder={
-                        newUserData.role_slug === 'super_admin'
-                          ? 'Super Administrator'
-                          : 'Contoh: Dosen Teknik Informatika'
-                      }
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
-                    />
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        Jabatan Struktural / Peran Institusi
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsCustomJabatanAdd((prev) => !prev)}
+                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-medium underline cursor-pointer"
+                      >
+                        {isCustomJabatanAdd ? 'Pilih dari Daftar Unit' : 'Ketik Manual'}
+                      </button>
+                    </div>
+                    {!isCustomJabatanAdd ? (
+                      <select
+                        value={newUserData.jabatan}
+                        onChange={(e) => {
+                          if (e.target.value === '__CUSTOM__') {
+                            setIsCustomJabatanAdd(true);
+                          } else {
+                            setNewUserData({ ...newUserData, jabatan: e.target.value });
+                          }
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                      >
+                        {newUserData.jabatan && !newUnitPositions.includes(newUserData.jabatan) && (
+                          <option value={newUserData.jabatan}>{newUserData.jabatan}</option>
+                        )}
+                        {newUnitPositions.map((pos) => (
+                          <option key={pos} value={pos}>
+                            {pos}
+                          </option>
+                        ))}
+                        <option value="__CUSTOM__">✍️ Ketik Jabatan Lainnya (Kustom)...</option>
+                      </select>
+                    ) : (
+                      <input
+                        type="text"
+                        list="unsil-structural-positions-list"
+                        value={newUserData.jabatan}
+                        onChange={(e) => setNewUserData({ ...newUserData, jabatan: e.target.value })}
+                        placeholder={
+                          newUserData.role_slug === 'super_admin'
+                            ? 'Super Administrator'
+                            : 'Contoh: Dekan Fakultas Teknik / Dosen Fungsional'
+                        }
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition shadow-2xs font-medium"
+                      />
+                    )}
+                    <div className="text-[10px] text-slate-500">
+                      {newUserData.role_slug === 'pimpinan'
+                        ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(newUserData.unit_kerja_id)?.nama_unit || newUserData.unit_kerja_id}`
+                        : `Menyesuaikan unit kerja: ${getUnitByCode(newUserData.unit_kerja_id)?.singkatan || newUserData.unit_kerja_id}`}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1307,20 +1692,36 @@ export const SystemSettingsView = ({
                 );
                 const roleSlugs = currentRoleObj?.keySlugs || [];
                 const hasRahasia = roleSlugs.includes('arsip.view_rahasia');
+                const hasDisposisi =
+                  newUserData.role_slug === 'super_admin' ||
+                  newUserData.role_slug === 'pimpinan' ||
+                  matchesOfficialDisposisiPosition(newUserData.jabatan);
 
                 return (
                   <div className="p-3.5 bg-gradient-to-br from-emerald-50/40 to-slate-50 border border-emerald-100 rounded-xl space-y-2.5">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
                       <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wide flex items-center gap-1.5">
                         <Layers className="w-3.5 h-3.5 text-unsil-green-800" />
                         Daftar Hak Akses ({roleSlugs.length} Wewenang)
                       </span>
-                      {hasRahasia && (
-                        <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
-                          <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                          Akses Brankas Digital
-                        </span>
-                      )}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {hasDisposisi ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 border border-blue-300 shadow-2xs">
+                            <CheckSquare className="w-3 h-3 text-blue-700" />
+                            Wewenang Disposisi Aktif
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200">
+                            Tanpa Hak Disposisi
+                          </span>
+                        )}
+                        {hasRahasia && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300 shadow-2xs">
+                            <ShieldCheck className="w-3 h-3 text-emerald-700" />
+                            Akses Brankas Digital
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[11px] text-slate-600 leading-relaxed">
                       {currentRoleObj?.description || 'Hak akses otomatis disesuaikan dengan peran yang dipilih.'}
@@ -1353,6 +1754,12 @@ export const SystemSettingsView = ({
               <button
                 type="submit"
                 form="add-user-form"
+                onClick={(e) => {
+                  const form = document.getElementById('add-user-form');
+                  if (form && !form.checkValidity()) {
+                    form.reportValidity();
+                  }
+                }}
                 className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-sm active:scale-98"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -1362,6 +1769,12 @@ export const SystemSettingsView = ({
           </div>
         </div>
       )}
+      {/* Datalist Saran Jabatan Struktural & Fungsional Resmi UNSIL */}
+      <datalist id="unsil-structural-positions-list">
+        {OFFICIAL_UNSIL_POSITIONS.map((pos) => (
+          <option key={pos} value={pos} />
+        ))}
+      </datalist>
     </div>
   );
 };

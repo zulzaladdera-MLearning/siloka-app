@@ -23,13 +23,23 @@ export const transformLettersToAgenda = (letters = [], unitName = 'Universitas S
       ? `AGD-M/${new Date(letter.tanggal || Date.now()).getFullYear()}/${String(index + 1).padStart(4, '0')}`
       : `AGD-K/${new Date(letter.tanggal || Date.now()).getFullYear()}/${String(index + 1).padStart(4, '0')}`;
 
+    const nomorAgendaFinal =
+      letter.nomorAgenda ||
+      (letter.nomorSurat && String(letter.nomorSurat).startsWith('AGD-') ? letter.nomorSurat : null) ||
+      defaultAgendaNum;
+
+    const nomorSuratFinal =
+      isMasuk && (letter.nomorSuratAsal || letter.nomor_surat_asal) && (letter.nomorSuratAsal !== '-' && letter.nomor_surat_asal !== '-')
+        ? (letter.nomorSuratAsal || letter.nomor_surat_asal)
+        : (letter.nomorSurat || letter.nomor_surat || '-');
+
     return {
       id: letter.id || `agd-${index}`,
       originalLetter: letter,
-      nomorAgenda: letter.nomorAgenda || defaultAgendaNum,
-      nomorSurat: letter.nomorSurat || letter.nomor_surat || '-',
-      tanggalTerima: letter.tanggalRegistrasi || letter.tanggal || '2026-09-29',
-      tanggalSurat: letter.tanggal || '2026-09-28',
+      nomorAgenda: nomorAgendaFinal,
+      nomorSurat: nomorSuratFinal,
+      tanggalTerima: letter.tanggalTerima || letter.tanggalRegistrasi || letter.tanggal || new Date().toISOString().slice(0, 10),
+      tanggalSurat: letter.tanggal || letter.tanggalTerima || new Date().toISOString().slice(0, 10),
       jenis: isMasuk ? 'MASUK' : 'KELUAR',
       kategori: letter.kategori || (isMasuk ? 'Surat Masuk' : 'Surat Keluar'),
       pengirim: letter.pengirim || letter.asal_surat || unitName,
@@ -101,7 +111,7 @@ export const BukuAgendaView = ({
     const htmlContent = `
       <div style="font-family: Arial, sans-serif; padding: 20px; color: #1e293b;">
         <div style="text-align: center; border-bottom: 2px solid #064e3b; padding-bottom: 12px; margin-bottom: 16px;">
-          <h2 style="margin: 0; color: #064e3b; font-size: 18px; text-transform: uppercase;">KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI</h2>
+          <h2 style="margin: 0; color: #064e3b; font-size: 18px; text-transform: uppercase;">KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI</h2>
           <h3 style="margin: 4px 0; color: #0f172a; font-size: 16px;">UNIVERSITAS SILIWANGI</h3>
           <p style="margin: 0; font-size: 12px; color: #64748b;">BUKU AGENDA NASKAH DINAS & EKSPEDISI RESMI</p>
           <p style="margin: 2px 0 0 0; font-size: 11px; color: #475569;">Unit Kerja: ${currentUnit.nama_unit} (${currentUnit.singkatan})</p>

@@ -20,6 +20,7 @@ export const TAB_PATH_MAP = {
   'brankas-digital': '/brankas-digital',
   settings: '/manajemen-pengguna',
   'manajemen-user': '/manajemen-pengguna',
+  'manajemen-unit': '/manajemen-unit-kerja',
   'manajemen-role': '/manajemen-peran',
   'manajemen-permission': '/hak-akses'
 };
@@ -39,6 +40,8 @@ export const PATH_TAB_MAP = {
   '/manajemen-pengguna': 'manajemen-user',
   '/manajemen-user': 'manajemen-user',
   '/settings': 'manajemen-user',
+  '/manajemen-unit-kerja': 'manajemen-unit',
+  '/manajemen-unit': 'manajemen-unit',
   '/manajemen-peran': 'manajemen-role',
   '/manajemen-role': 'manajemen-role',
   '/hak-akses': 'manajemen-permission',

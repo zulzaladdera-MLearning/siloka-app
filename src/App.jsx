@@ -16,6 +16,7 @@ import {
   BrankasDigitalView,
 } from './components/dashboard/ModuleViews';
 import { SystemSettingsView } from './components/admin/SystemSettingsView';
+import { UnitManagementView } from './components/admin/UnitManagementView';
 import { PermissionManagementView } from './components/admin/PermissionManagementView';
 import { RoleManagementView } from './components/admin/RoleManagementView';
 import { Toast } from './components/ui/Toast';
@@ -38,8 +39,10 @@ import {
   isLetterOwnedByUser,
   isMandiriPersonalDocument
 } from './utils/authGuards';
+import { isDisposisiAuthorizedOfficial } from './utils/disposisiStandards';
 import { sanitizeUiText, sanitizeErrorMessage } from './utils/antiSlopGuard';
 import { incrementSequenceSession } from './services/letterService';
+import { fetchUsersList, deleteUser } from './services/adminService';
 import {
   getTabFromPathname,
   getPathFromTab,
@@ -67,6 +70,29 @@ export default function App() {
       if (authToken && savedUser) {
         const parsed = JSON.parse(savedUser);
         if (parsed && (parsed.email || parsed.username || parsed.id)) {
+          // CEK OTORISASI: Jika user telah dihapus oleh Super Administrator, putus sesi seketika
+          try {
+            const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+            if (Array.isArray(deletedList) && deletedList.length > 0) {
+              const deletedSet = new Set(deletedList.map((x) => String(x).toLowerCase().trim()));
+              const isRevoked =
+                deletedSet.has(String(parsed.id || '').toLowerCase()) ||
+                deletedSet.has(String(parsed.nip || parsed.nip_nik || '').toLowerCase()) ||
+                deletedSet.has(String(parsed.email || '').toLowerCase()) ||
+                deletedSet.has(String(parsed.username || '').toLowerCase());
+
+              if (isRevoked && !isSuperAdminUser(parsed)) {
+                localStorage.removeItem('siloka_auth_token');
+                localStorage.removeItem('siloka_active_user');
+                sessionStorage.removeItem('siloka_auth_token');
+                sessionStorage.removeItem('siloka_active_user');
+                return null;
+              }
+            }
+          } catch (errRevoke) {
+            // ignore
+          }
+
           const emailLower = String(parsed.email || parsed.username || '').toLowerCase();
           const nameLower = String(parsed.nama_lengkap || parsed.nama || parsed.name || '').toLowerCase();
           const posLower = String(parsed.jabatan || parsed.roleLabel || parsed.role_label || '').toLowerCase();
@@ -129,28 +155,71 @@ export default function App() {
     return initialLetters;
   });
 
+  // Daftar ID surat/item yang telah dihapus agar efek scope berbasis seed personal tetap tersembunyi
+  const [deletedLetterIds, setDeletedLetterIds] = useState(() => {
+    try {
+      const saved = localStorage.getItem('siloka_deleted_letter_ids');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
   const [auditLogs, setAuditLogs] = useState(initialAuditLogs);
 
+  // Helper untuk membaca daftar identifier user yang telah dihapus
+  const getDeletedUserSet = () => {
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+      if (Array.isArray(deletedList)) {
+        return new Set(deletedList.map((x) => String(x).toLowerCase().trim()));
+      }
+    } catch (e) {
+      // ignore
+    }
+    return new Set();
+  };
+
+  // Helper untuk mencabut status user terhapus jika didaftarkan kembali oleh Super Admin
+  const unblacklistUserIdentifiers = (identifiers = []) => {
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+      if (Array.isArray(deletedList) && deletedList.length > 0) {
+        const idSet = new Set(identifiers.filter(Boolean).map((x) => String(x).toLowerCase().trim()));
+        const updatedList = deletedList.filter((item) => {
+          const clean = String(item).toLowerCase().trim();
+          const prefix = clean.includes('@') ? clean.split('@')[0] : clean;
+          return !idSet.has(clean) && !idSet.has(prefix);
+        });
+        localStorage.setItem('siloka_deleted_user_ids', JSON.stringify(updatedList));
+      }
+    } catch (e) {
+      console.warn('Gagal mencabut status deleted user:', e);
+    }
+  };
+
   // State master users yang dapat dimutasi dan diperbarui via modul Manajemen Pengguna
-  // Kebijakan: Hanya mempertahankan akun Super Administrator, menghapus seluruh pengguna non-super-admin
+  // Menyimpan seluruh akun pegawai resmi institusi hasil sinkronisasi basis data & CRUD
   const [allUsers, setAllUsers] = useState(() => {
+    const deletedSet = getDeletedUserSet();
+
     try {
       const savedUsers = localStorage.getItem('siloka_users_data');
       if (savedUsers) {
-        let parsed = JSON.parse(savedUsers);
+        const parsed = JSON.parse(savedUsers);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          // Hanya pertahankan Super Administrator asli sistem
-          const superAdminsOnly = parsed.filter(
+          const cleaned = parsed.filter(
             (u) =>
-              isSuperAdminUser(u) &&
               u.id !== 'usr-admin-01' &&
               u.id !== 'usr-00' &&
-              !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+              !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+              !deletedSet.has(String(u.id || '').toLowerCase()) &&
+              !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
+              !deletedSet.has(String(u.email || '').toLowerCase()) &&
+              !deletedSet.has(String(u.username || '').toLowerCase())
           );
-
-          if (superAdminsOnly.length > 0) {
-            localStorage.setItem('siloka_users_data', JSON.stringify(superAdminsOnly));
-            return superAdminsOnly;
+          if (cleaned.length > 0) {
+            return cleaned;
           }
         }
       }
@@ -158,27 +227,190 @@ export default function App() {
       console.error('Error loading saved users', e);
     }
 
-    // Default: Ambil hanya akun Super Administrator dari seed usersData
-    const defaultSuperAdmins = usersData.filter(
+    // Default: Muat dataset resmi usersData (tanpa artefak dummy test user dan tanpa user yang telah dihapus)
+    const initialUsers = usersData.filter(
       (u) =>
-        isSuperAdminUser(u) &&
         u.id !== 'usr-admin-01' &&
         u.id !== 'usr-00' &&
-        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+        !deletedSet.has(String(u.id || '').toLowerCase()) &&
+        !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
+        !deletedSet.has(String(u.email || '').toLowerCase()) &&
+        !deletedSet.has(String(u.username || '').toLowerCase())
     );
 
     try {
-      localStorage.setItem('siloka_users_data', JSON.stringify(defaultSuperAdmins));
+      localStorage.setItem('siloka_users_data', JSON.stringify(initialUsers));
     } catch (e) {
-      console.error('Error saving initial super admin', e);
+      console.error('Error saving initial users', e);
     }
-    return defaultSuperAdmins;
+    return initialUsers;
   });
 
-  const handleDeleteUser = (userId) => {
+  // Real-time access revocation: Deteksi jika akun pengguna aktif telah dihapus oleh Super Admin
+  useEffect(() => {
+    const verifyUserNotRevoked = () => {
+      if (!currentUser || isSuperAdminUser(currentUser)) return;
+      const deletedSet = getDeletedUserSet();
+      if (deletedSet.size > 0) {
+        const isRevoked =
+          deletedSet.has(String(currentUser.id || '').toLowerCase()) ||
+          deletedSet.has(String(currentUser.nip || currentUser.nip_nik || '').toLowerCase()) ||
+          deletedSet.has(String(currentUser.email || '').toLowerCase()) ||
+          deletedSet.has(String(currentUser.username || '').toLowerCase());
+
+        if (isRevoked) {
+          localStorage.removeItem('siloka_auth_token');
+          localStorage.removeItem('siloka_active_user');
+          sessionStorage.removeItem('siloka_auth_token');
+          sessionStorage.removeItem('siloka_active_user');
+          setCurrentUser(null);
+          showToast(
+            'Akses Dicabut: Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator.',
+            'error'
+          );
+        }
+      }
+    };
+
+    verifyUserNotRevoked();
+
+    const handleUserDeleted = () => verifyUserNotRevoked();
+    window.addEventListener('siloka:user-deleted', handleUserDeleted);
+    window.addEventListener('storage', handleUserDeleted);
+    return () => {
+      window.removeEventListener('siloka:user-deleted', handleUserDeleted);
+      window.removeEventListener('storage', handleUserDeleted);
+    };
+  }, [currentUser]);
+
+  // Sinkronisasi data pengguna dari basis data PostgreSQL ke state allUsers saat Super Admin aktif
+  useEffect(() => {
+    if (!currentUser || !isSuperAdminUser(currentUser)) return;
+    let isMounted = true;
+    fetchUsersList(currentUser)
+      .then((users) => {
+        if (isMounted && Array.isArray(users) && users.length > 0) {
+          const deletedSet = getDeletedUserSet();
+          const cleanUsers = users.filter(
+            (u) =>
+              !deletedSet.has(String(u.id || '').toLowerCase()) &&
+              !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
+              !deletedSet.has(String(u.email || '').toLowerCase()) &&
+              !deletedSet.has(String(u.username || '').toLowerCase())
+          );
+
+          setAllUsers((prevUsers) => {
+            // Gabungkan data dari database dengan user lokal yang dibuat Super Admin yang belum terhapus
+            const merged = [...cleanUsers];
+            (prevUsers || []).forEach((prevU) => {
+              const uId = String(prevU.id || '').toLowerCase();
+              const uNip = String(prevU.nip || prevU.nip_nik || '').toLowerCase();
+              const uEmail = String(prevU.email || '').toLowerCase();
+
+              // Jika user ini sah ada di deletedSet, jangan masukkan
+              if (
+                deletedSet.has(uId) ||
+                (uNip && deletedSet.has(uNip)) ||
+                (uEmail && deletedSet.has(uEmail))
+              ) {
+                return;
+              }
+
+              const existsInMerged = merged.some(
+                (m) =>
+                  m.id === prevU.id ||
+                  (prevU.nip && (m.nip === prevU.nip || m.nip_nik === prevU.nip)) ||
+                  (prevU.email && m.email && m.email.toLowerCase() === prevU.email.toLowerCase())
+              );
+
+              if (!existsInMerged) {
+                merged.push(prevU);
+              }
+            });
+
+            try {
+              localStorage.setItem('siloka_users_data', JSON.stringify(merged));
+            } catch (e) {
+              console.error('Error persisting fetched users', e);
+            }
+            return merged;
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn('Gagal memuat pengguna dari basis data:', err.message);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [currentUser]);
+
+  const handleDeleteUser = (targetUserOrId) => {
+    const userId =
+      typeof targetUserOrId === 'object' && targetUserOrId !== null
+        ? targetUserOrId.id
+        : targetUserOrId;
+
+    const targetObj =
+      typeof targetUserOrId === 'object' && targetUserOrId !== null
+        ? targetUserOrId
+        : allUsers.find(
+            (u) =>
+              u.id === userId ||
+              u.nip === userId ||
+              u.nip_nik === userId ||
+              u.email === userId ||
+              u.username === userId
+          );
+
+    // Kumpulkan seluruh data pengenal pengguna (id, nip, email, username)
+    const idsToBlacklist = new Set();
+    if (userId) idsToBlacklist.add(String(userId).toLowerCase());
+    if (targetObj) {
+      if (targetObj.id) idsToBlacklist.add(String(targetObj.id).toLowerCase());
+      if (targetObj.nip) idsToBlacklist.add(String(targetObj.nip).toLowerCase());
+      if (targetObj.nip_nik) idsToBlacklist.add(String(targetObj.nip_nik).toLowerCase());
+      if (targetObj.email) {
+        const em = String(targetObj.email).toLowerCase();
+        idsToBlacklist.add(em);
+        if (em.includes('@')) idsToBlacklist.add(em.split('@')[0]);
+      }
+      if (targetObj.username) idsToBlacklist.add(String(targetObj.username).toLowerCase());
+    }
+
+    // Daftarkan ke blacklist permanen di localStorage 'siloka_deleted_user_ids'
+    let currentDeletedList = [];
+    try {
+      currentDeletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+      if (!Array.isArray(currentDeletedList)) currentDeletedList = [];
+    } catch (e) {
+      currentDeletedList = [];
+    }
+    const updatedDeletedList = Array.from(
+      new Set([...currentDeletedList, ...Array.from(idsToBlacklist)])
+    );
+    try {
+      localStorage.setItem('siloka_deleted_user_ids', JSON.stringify(updatedDeletedList));
+    } catch (e) {
+      console.error('Error saving deleted user identifiers:', e);
+    }
+
     setAllUsers((prev) => {
       // Proteksi mutlak: Akun Super Administrator sistem tidak boleh dihapus
-      const filtered = prev.filter((u) => u.id !== userId || isSuperAdminUser(u));
+      const filtered = prev.filter((u) => {
+        if (isSuperAdminUser(u)) return true;
+        const uId = String(u.id || '').toLowerCase();
+        const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+        const uEmail = String(u.email || '').toLowerCase();
+        const uUser = String(u.username || '').toLowerCase();
+        return (
+          !idsToBlacklist.has(uId) &&
+          !idsToBlacklist.has(uNip) &&
+          !idsToBlacklist.has(uEmail) &&
+          !idsToBlacklist.has(uUser)
+        );
+      });
       try {
         localStorage.setItem('siloka_users_data', JSON.stringify(filtered));
       } catch (e) {
@@ -186,25 +418,55 @@ export default function App() {
       }
       return filtered;
     });
-  };
 
-  const handleDeleteAllExceptSuperAdmin = () => {
-    setAllUsers((prev) => {
-      const superAdmins = prev.filter((u) => isSuperAdminUser(u));
-      const finalUsers =
-        superAdmins.length > 0
-          ? superAdmins
-          : usersData.filter((u) => isSuperAdminUser(u));
-      try {
-        localStorage.setItem('siloka_users_data', JSON.stringify(finalUsers));
-      } catch (e) {
-        console.error('Error clearing non-super-admin users', e);
-      }
-      return finalUsers;
-    });
+    if (currentUser && isSuperAdminUser(currentUser)) {
+      deleteUser(userId, currentUser).catch((e) => {
+        console.warn('Gagal menghapus user dari database backend:', e.message);
+      });
+    }
+
+    // Broadcast event real-time
+    window.dispatchEvent(
+      new CustomEvent('siloka:user-deleted', {
+        detail: { identifiers: Array.from(idsToBlacklist) }
+      })
+    );
+
+    // Jika pengguna yang dihapus adalah pengguna yang sedang aktif saat ini:
+    if (
+      currentUser &&
+      (idsToBlacklist.has(String(currentUser.id || '').toLowerCase()) ||
+        idsToBlacklist.has(String(currentUser.nip || currentUser.nip_nik || '').toLowerCase()) ||
+        idsToBlacklist.has(String(currentUser.email || '').toLowerCase()) ||
+        idsToBlacklist.has(String(currentUser.username || '').toLowerCase()))
+    ) {
+      localStorage.removeItem('siloka_auth_token');
+      localStorage.removeItem('siloka_active_user');
+      sessionStorage.removeItem('siloka_auth_token');
+      sessionStorage.removeItem('siloka_active_user');
+      setCurrentUser(null);
+      showToast(
+        'Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator. Akses sistem dicabut.',
+        'error'
+      );
+    }
   };
 
   const handleUpdateUsers = (updatedOrNewUsers) => {
+    // Cabut dari blacklist jika pengguna yang didaftarkan/diupdate pernah tercatat di daftar terhapus
+    const toUnblacklist = [];
+    (updatedOrNewUsers || []).forEach((u) => {
+      if (!u) return;
+      if (u.id) toUnblacklist.push(u.id);
+      if (u.nip) toUnblacklist.push(u.nip);
+      if (u.nip_nik) toUnblacklist.push(u.nip_nik);
+      if (u.email) toUnblacklist.push(u.email);
+      if (u.username) toUnblacklist.push(u.username);
+    });
+    if (toUnblacklist.length > 0) {
+      unblacklistUserIdentifiers(toUnblacklist);
+    }
+
     setAllUsers((prev) => {
       const copy = [...prev];
       updatedOrNewUsers.forEach((newU) => {
@@ -216,6 +478,9 @@ export default function App() {
         );
         if (existingIdx !== -1) {
           copy[existingIdx] = { ...copy[existingIdx], ...newU };
+          delete copy[existingIdx].active_context_mode;
+          delete copy[existingIdx].saved_pejabat_snapshot;
+          delete copy[existingIdx].dual_role_profiles;
         } else {
           copy.unshift(newU);
         }
@@ -227,7 +492,13 @@ export default function App() {
             (currentUser.nip && currentUser.nip === newU.nip) ||
             (currentUser.email && currentUser.email === newU.email))
         ) {
-          setCurrentUser((curr) => ({ ...curr, ...newU }));
+          setCurrentUser((curr) => {
+            const updated = { ...curr, ...newU };
+            delete updated.active_context_mode;
+            delete updated.saved_pejabat_snapshot;
+            delete updated.dual_role_profiles;
+            return updated;
+          });
         }
       });
       try {
@@ -292,6 +563,14 @@ export default function App() {
     }
   }, [letters]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('siloka_deleted_letter_ids', JSON.stringify(deletedLetterIds));
+    } catch (e) {
+      console.error('Failed to persist deleted letter ids', e);
+    }
+  }, [deletedLetterIds]);
+
   // Sinkronisasi navigasi tombol Back/Forward (popstate) browser dengan activeTab
   useEffect(() => {
     const handlePopState = () => {
@@ -323,6 +602,7 @@ export default function App() {
     if (
       (activeTab === 'settings' ||
         activeTab === 'manajemen-user' ||
+        activeTab === 'manajemen-unit' ||
         activeTab === 'manajemen-role' ||
         activeTab === 'manajemen-permission') &&
       !isSuperAdminUser(currentUser)
@@ -536,7 +816,9 @@ export default function App() {
             }
           ];
 
-      return [...ownedLetters, ...personalSeedDrafts];
+      return [...ownedLetters, ...personalSeedDrafts].filter(
+        (l) => !deletedLetterIds.includes(String(l.id))
+      );
     }
 
     // Multi-Tenancy, Perutean Surat Masuk Langsung ke Akun Pejabat, & Strict Personal Isolation
@@ -546,91 +828,228 @@ export default function App() {
 
     return letters.filter((letter) => {
       // =========================================================================
-      // 1. FILTER KHUSUS SURAT MASUK (DIRECT PEJABAT INBOX ROUTING)
+      // 1. FILTER KHUSUS SURAT MASUK (DIRECT PEJABAT INBOX ROUTING & UNIT SCOPING)
       // =========================================================================
       if (letter.kategori === 'Surat Masuk') {
-        // Super Admin dan Pengawas SPI berwenang memantau seluruh surat masuk
-        if (isSuperAdminUser(currentUser) || currentUser?.role === 'PENGAWAS') {
-          if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
-            return letter.unit_kerja_id === selectedUnitFilter;
+        const letterUnit = String(letter.unit_kerja_id || '').toUpperCase();
+        const targetUnit = String(letter.target_unit_id || '').toUpperCase();
+        const loketUnit = String(letter.loket_unit_id || '').toUpperCase();
+        const currentUnitId = String(currentUser?.unit_kerja_id || currentUser?.kode_unit || currentUnit?.kode_unit || '').toUpperCase();
+        const letterTujuanLower = String(letter.target_jabatan || letter.tujuan || '').toLowerCase().trim();
+        const currentRoleLabel = String(currentUser?.jabatan || currentUser?.roleLabel || currentUser?.nama_jabatan || '').toLowerCase().trim();
+
+        // 1. Pengecekan Filter Unit Kerja Dropdown (Pimpinan / Super Admin / Pengawas)
+        if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
+          const filterUnit = String(selectedUnitFilter).toUpperCase();
+          const matchesDirectUnit =
+            letterUnit === filterUnit ||
+            targetUnit === filterUnit ||
+            loketUnit === filterUnit;
+
+          let matchesContext = false;
+          // Khusus Rektorat UNSIL (UN58 / UNSIL)
+          if (filterUnit === 'UN58' || filterUnit === 'UNSIL') {
+            if (
+              letterTujuanLower.includes('rektor') ||
+              letterTujuanLower.includes('warek') ||
+              letterTujuanLower.includes('universitas') ||
+              letterUnit === 'UN58' ||
+              targetUnit === 'UN58'
+            ) {
+              matchesContext = true;
+            }
+          } else if (filterUnit === 'UN58.6') {
+            if (letterTujuanLower.includes('bku') || letterTujuanLower.includes('keuangan dan umum')) {
+              matchesContext = true;
+            }
+          } else if (filterUnit === 'UN58.5') {
+            if (letterTujuanLower.includes('bakpk') || letterTujuanLower.includes('akademik')) {
+              matchesContext = true;
+            }
+          } else if (filterUnit === 'UN58.10') {
+            if (letterTujuanLower.includes('fkip') || letterTujuanLower.includes('keguruan')) {
+              matchesContext = true;
+            }
+          } else if (filterUnit === 'UN58.13') {
+            if (letterTujuanLower.includes('teknik') || letterTujuanLower.includes('ft')) {
+              matchesContext = true;
+            }
           }
+
+          if (!matchesDirectUnit && !matchesContext) {
+            return false;
+          }
+        }
+
+        // 2. Hak Akses Global: Super Admin dan Pengawas SPI berwenang memantau seluruh surat masuk
+        if (isSuperAdminUser(currentUser) || currentUser?.role === 'PENGAWAS') {
           return true;
         }
 
-        // Staf pembuat / pendaftar surat di loket TU selalu berhak melihat riwayat agenda yang didaftarkannya
+        // 3. Staf Pembuat / Pendaftar Surat di loket TU selalu berhak melihat riwayat agenda yang didaftarkannya
+        const currentUserId = String(currentUser?.id || currentUser?.id_user || '');
         const isCreator =
-          (letter.created_by_user_id && String(letter.created_by_user_id) === String(currentUser?.id || currentUser?.id_user)) ||
-          (letter.creator_id && String(letter.creator_id) === String(currentUser?.id || currentUser?.id_user));
+          (letter.created_by_user_id && String(letter.created_by_user_id) === currentUserId) ||
+          (letter.creator_id && String(letter.creator_id) === currentUserId);
         if (isCreator) return true;
 
-        // Jika surat telah didisposisikan, target disposisi berhak melihat
+        // 4. Jika surat telah didisposisikan, target disposisi berhak melihat
         if (letter.disposisi) {
           const dispTarget = String(letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || '').toLowerCase();
-          const userRoleLabel = String(currentUser?.roleLabel || currentUser?.jabatan || '').toLowerCase();
           const userUnitName = String(currentUnit?.nama_unit || '').toLowerCase();
           const userUnitShort = String(currentUnit?.singkatan || '').toLowerCase();
-          if (userRoleLabel && dispTarget.includes(userRoleLabel)) return true;
+          if (currentRoleLabel && (dispTarget.includes(currentRoleLabel) || currentRoleLabel.includes(dispTarget))) return true;
           if (userUnitName && dispTarget.includes(userUnitName)) return true;
           if (userUnitShort && dispTarget.includes(userUnitShort)) return true;
         }
 
-        // Jika ditujukan langsung ke akun user (Direct User ID / NIP Match)
+        // 5. DIRECT TARGET MATCH: Berdasarkan ID Pengguna, Email, atau NIP Akun
         if (
           letter.target_user_id &&
-          String(letter.target_user_id) === String(currentUser?.id || currentUser?.id_user)
+          currentUserId &&
+          String(letter.target_user_id) === currentUserId
         ) {
           return true;
         }
+        if (
+          letter.target_user_email &&
+          currentUser?.email &&
+          letter.target_user_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+        ) {
+          return true;
+        }
+        const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
         if (
           letter.target_pejabat_nip &&
-          (letter.target_pejabat_nip === currentUser?.nip_nik || letter.target_pejabat_nip === currentUser?.nip)
+          currentNip &&
+          String(letter.target_pejabat_nip).trim() === currentNip
         ) {
           return true;
         }
 
-        // Cek kecocokan jabatan spesifik pejabat
-        const letterTujuanLower = String(letter.tujuan || '').toLowerCase();
-        const currentRoleLabel = String(currentUser?.roleLabel || currentUser?.jabatan || '').toLowerCase();
+        // 6. DIRECT JABATAN STRUKTURAL ROUTING KE AKUN PEJABAT TERKAIT
+        const isCurrentUserPejabat =
+          currentUser?.is_pejabat === true ||
+          currentUser?.role === 'PEJABAT' ||
+          currentUser?.role === 'PIMPINAN' ||
+          currentUser?.role_slug === 'pimpinan' ||
+          isDisposisiAuthorizedOfficial(currentUser, allUsers);
 
-        // Khusus Rektor: Hanya akun Rektor asli (bukan Wakil Rektor atau Dekan)
-        if (
-          letterTujuanLower.includes('rektor') &&
-          !letterTujuanLower.includes('wakil rektor') &&
-          !letterTujuanLower.includes('warek')
-        ) {
-          return currentRoleLabel.includes('rektor') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('warek');
+        if (isCurrentUserPejabat) {
+          if (currentRoleLabel && letterTujuanLower) {
+            // Kecocokan Sama Persis
+            if (currentRoleLabel === letterTujuanLower) return true;
+
+            // Khusus Rektor: Hanya akun Rektor asli (bukan Wakil Rektor atau Dekan)
+            if (
+              letterTujuanLower.includes('rektor') &&
+              !letterTujuanLower.includes('wakil') &&
+              !letterTujuanLower.includes('warek')
+            ) {
+              if (currentRoleLabel.includes('rektor') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('warek')) {
+                return true;
+              }
+            }
+
+            // Khusus Wakil Rektor I (Bidang Akademik)
+            if (letterTujuanLower.includes('akademik') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+              if (currentRoleLabel.includes('akademik') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
+                return true;
+              }
+            }
+
+            // Khusus Wakil Rektor II (Bidang Keuangan dan Umum)
+            if (letterTujuanLower.includes('keuangan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+              if (currentRoleLabel.includes('keuangan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
+                return true;
+              }
+            }
+
+            // Khusus Wakil Rektor III (Bidang Kemahasiswaan dan Alumni)
+            if (letterTujuanLower.includes('kemahasiswaan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+              if (currentRoleLabel.includes('kemahasiswaan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
+                return true;
+              }
+            }
+
+            // Khusus Wakil Rektor IV (Bidang Perencanaan, Kerja Sama, dan SI)
+            if ((letterTujuanLower.includes('perencanaan') || letterTujuanLower.includes('kerja sama')) && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
+              if ((currentRoleLabel.includes('perencanaan') || currentRoleLabel.includes('kerja sama')) && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
+                return true;
+              }
+            }
+
+            // Khusus Dekan Fakultas
+            if (letterTujuanLower.includes('dekan') && !letterTujuanLower.includes('wakil') && !letterTujuanLower.includes('wadek')) {
+              if (currentRoleLabel.includes('dekan') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('wadek')) {
+                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                  return true;
+                }
+              }
+            }
+
+            // Khusus Wakil Dekan (Wadek)
+            if (letterTujuanLower.includes('wakil dekan') || letterTujuanLower.includes('wadek')) {
+              if (currentRoleLabel.includes('wakil dekan') || currentRoleLabel.includes('wadek')) {
+                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId) {
+                  return true;
+                }
+              }
+            }
+
+            // Khusus Ketua Jurusan (Kajur) / Koordinator Program Studi (Kaprodi)
+            if (letterTujuanLower.includes('jurusan') || letterTujuanLower.includes('kajur') || letterTujuanLower.includes('prodi')) {
+              if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                return true;
+              }
+            }
+
+            // Khusus Kepala Biro (Kepala BAKPK, Kepala BKU)
+            if (letterTujuanLower.includes('kepala biro') || letterTujuanLower.includes('kabiro')) {
+              if (currentRoleLabel.includes('kepala biro') || currentRoleLabel.includes('kabiro')) {
+                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                  return true;
+                }
+              }
+            }
+
+            // Khusus Kepala Bagian (Kabag)
+            if (letterTujuanLower.includes('kepala bagian') || letterTujuanLower.includes('kabag')) {
+              if (currentRoleLabel.includes('kepala bagian') || currentRoleLabel.includes('kabag')) {
+                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId) {
+                  return true;
+                }
+              }
+            }
+
+            // Khusus Ketua/Kepala LPPM, LPMPP, dan UPA
+            if (letterTujuanLower.includes('lppm') || letterTujuanLower.includes('lpmpp') || letterTujuanLower.includes('upa') || letterTujuanLower.includes('perpustakaan') || letterTujuanLower.includes('tik')) {
+              if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                return true;
+              }
+            }
+
+            // Khusus Ketua Senat & Ketua SPI
+            if (letterTujuanLower.includes('senat') || letterTujuanLower.includes('spi')) {
+              if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                return true;
+              }
+            }
+          }
+
+          // Jika surat masuk ditujukan umum ke unit kerja (misal: Fakultas Teknik / Rektorat)
+          if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
+            return true;
+          }
         }
 
-        // Khusus Wakil Rektor I (Bidang Akademik):
-        if (letterTujuanLower.includes('akademik') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
-          return currentRoleLabel.includes('akademik') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
+        // 7. Staf Tata Usaha / Operator Unit Penerima Surat Masuk
+        // Seluruh staf di unit kerja tujuan (misal Rektorat UN58, BKU UN58.6, FKIP UN58.10) berhak melihat surat masuk unitnya
+        if (currentUnitId && (targetUnit === currentUnitId || letterUnit === currentUnitId)) {
+          return true;
         }
 
-        // Khusus Wakil Rektor II (Bidang Keuangan dan Umum):
-        if (letterTujuanLower.includes('keuangan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
-          return currentRoleLabel.includes('keuangan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
-        }
-
-        // Khusus Wakil Rektor III (Bidang Kemahasiswaan dan Alumni):
-        if (letterTujuanLower.includes('kemahasiswaan') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
-          return currentRoleLabel.includes('kemahasiswaan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'));
-        }
-
-        // Khusus Dekan Fakultas / Direktur Pascasarjana / Kepala Biro:
-        if (letter.target_unit_id && letter.target_unit_id === currentUser?.unit_kerja_id && currentUser?.role === 'PEJABAT') {
-          if (letterTujuanLower.includes('dekan') && currentRoleLabel.includes('dekan')) return true;
-          if (letterTujuanLower.includes('direktur') && currentRoleLabel.includes('direktur')) return true;
-          if (letterTujuanLower.includes('kepala biro') && currentRoleLabel.includes('kepala biro')) return true;
-          if (letterTujuanLower.includes('ketua') && currentRoleLabel.includes('ketua')) return true;
-        }
-
-        // Jika surat masuk ditujukan umum ke unit kerja (misal: Fakultas Teknik)
-        const userUnitShort = (currentUnit?.singkatan || '').toLowerCase();
-        const userUnitName = (currentUnit?.nama_unit || '').toLowerCase();
-        if (userUnitShort && letterTujuanLower.includes(userUnitShort) && currentUser?.role === 'PEJABAT') return true;
-        if (userUnitName && letterTujuanLower.includes(userUnitName) && currentUser?.role === 'PEJABAT') return true;
-
-        // Selain kriteria di atas, surat masuk tidak dikirim ke akun ini (isolasi akun pejabat)
+        // Selain kriteria di atas, surat masuk tidak dikirim ke akun ini (isolasi akun dinas)
         return false;
       }
 
@@ -665,8 +1084,8 @@ export default function App() {
       if (userUnitName && letterTujuan.includes(userUnitName)) return true;
 
       return false;
-    });
-  }, [letters, currentUser, currentUnit, isUniversityWideAccess, selectedUnitFilter]);
+    }).filter((l) => !deletedLetterIds.includes(String(l.id)));
+  }, [letters, currentUser, currentUnit, isUniversityWideAccess, selectedUnitFilter, deletedLetterIds]);
 
   // Toast feedback (guarded by anti-slop copy/error filter)
   const [toast, setToast] = useState(null);
@@ -771,18 +1190,9 @@ export default function App() {
   };
 
   const handleOpenDisposisiForLetter = (letter) => {
-    if (currentUser?.role === 'PENGAWAS') {
-      showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
-      return;
-    }
-    // Staf Tata Usaha & Operator Unit bertugas meregistrasi naskah, disposisi merupakan hak pimpinan
-    if (
-      currentUser?.role === 'STAF' ||
-      currentUser?.role === 'STAF_PERSURATAN' ||
-      currentUser?.role === 'OPERATOR_UNIT' ||
-      currentUser?.role === 'OPERATOR'
-    ) {
-      showToast('Akses Dibatasi: Staf bertugas meregistrasi naskah masuk. Pemberian instruksi disposisi merupakan wewenang pimpinan.', 'warning');
+    // STRICT ACCESS CONTROL: Hanya pejabat sah SOTK UNSIL yang berwenang
+    if (!isDisposisiAuthorizedOfficial(currentUser, allUsers)) {
+      showToast('Akses Dibatasi: Fitur disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
       return;
     }
     // STRICT BUSINESS RULE: Naskah permohonan TTE DILARANG KERAS didisposisikan
@@ -790,6 +1200,7 @@ export default function App() {
       showToast('ATURAN KETAT: Naskah Permohonan Tanda Tangan (TTE) DILARANG didisposisikan.', 'warning');
       return;
     }
+    setSelectedLetter(null);
     setDisposisiTargetLetter(letter);
     setIsDisposisiOpen(true);
   };
@@ -807,6 +1218,7 @@ export default function App() {
     }
 
     setLetters((prev) => prev.filter((l) => l.id !== letterToDelete.id));
+    setDeletedLetterIds((prev) => Array.from(new Set([...prev, String(letterToDelete.id)])));
     showToast(`Naskah ${letterToDelete.nomorSurat || 'dinas'} berhasil dihapus dari riwayat.`, 'success');
 
     handleLogAction({
@@ -965,10 +1377,12 @@ export default function App() {
     const activeCreatorName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Pengguna SILOKA';
     const activeCreatorNip = currentUser?.nip_nik || currentUser?.nip || '-';
     const activeCreatorEmail = currentUser?.email || '';
+    const isSuratMasuk = newLetter.kategori === 'Surat Masuk';
 
     const letterWithAudit = {
       ...newLetter,
-      unit_kerja_id: newLetter.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
+      unit_kerja_id: newLetter.unit_kerja_id || (isSuratMasuk ? (newLetter.target_unit_id || 'UN58') : (currentUser?.unit_kerja_id || 'UN58.6')),
+      target_unit_id: newLetter.target_unit_id || newLetter.unit_kerja_id || 'UN58',
       creator_id: newLetter.creator_id || activeCreatorId,
       created_by_user_id: newLetter.created_by_user_id || activeCreatorId,
       creator_nip: newLetter.creator_nip || activeCreatorNip,
@@ -989,12 +1403,13 @@ export default function App() {
     );
 
     recordAuditLog({
-      action: 'LETTER_REGISTERED',
-      details: `Registrasi surat dinas baru: ${letterWithAudit.nomorSurat} (${letterWithAudit.perihal.slice(0, 50)}...) oleh ${activeCreatorName} [Unit: ${currentUnit.singkatan}]`
+      action: isSuratMasuk ? 'REGISTRASI_SURAT_MASUK' : 'LETTER_REGISTERED',
+      details: isSuratMasuk
+        ? `Registrasi Surat Masuk Eksternal: No. Asal ${letterWithAudit.nomorSuratAsal || '-'} dari ${letterWithAudit.pengirim} [No. Agenda: ${letterWithAudit.nomorSurat}] Tujuan: ${letterWithAudit.tujuan}`
+        : `Registrasi surat dinas baru: ${letterWithAudit.nomorSurat} (${letterWithAudit.perihal.slice(0, 50)}...) oleh ${activeCreatorName} [Unit: ${currentUnit.singkatan}]`
     });
 
     // Injeksi Asinkron Process Mining: Registrasi Surat Masuk vs Pengajuan Draf Surat
-    const isSuratMasuk = letterWithAudit.kategori === 'Surat Masuk';
     ProcessMiningLogger.getInstance().recordEvent(
       letterWithAudit.id || letterWithAudit.nomorSurat,
       isSuratMasuk ? PROCESS_ACTIVITIES.INBOUND_REGISTRATION : PROCESS_ACTIVITIES.DRAFT_SUBMISSION,
@@ -1242,7 +1657,7 @@ export default function App() {
         }
         setActiveTab={(tab) => {
           if (
-            (tab === 'settings' || tab === 'manajemen-user' || tab === 'manajemen-role' || tab === 'manajemen-permission') &&
+            (tab === 'settings' || tab === 'manajemen-user' || tab === 'manajemen-unit' || tab === 'manajemen-role' || tab === 'manajemen-permission') &&
             !isSuperAdminUser(currentUser)
           ) {
             showToast('Akses Ditolak: Modul Manajemen Pengaturan hanya boleh diakses oleh Super Admin.', 'error');
@@ -1265,6 +1680,7 @@ export default function App() {
             showToast('Akses Read-Only: Pengawas SPI tidak berwenang membuat surat baru.', 'warning');
             return;
           }
+          // Saat di tab Surat Masuk, tombol "Buat Surat" mengarah ke Modal Registrasi Surat Masuk
           if (activeTab === 'surat-masuk') {
             setIsQuickRegisterOpen(true);
           } else {
@@ -1272,8 +1688,8 @@ export default function App() {
           }
         }}
         onOpenQuickDisposisi={() => {
-          if (currentUser.role === 'PENGAWAS') {
-            showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
+          if (!isDisposisiAuthorizedOfficial(currentUser)) {
+            showToast('Akses Dibatasi: Fitur disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
             return;
           }
           const firstDisposable = scopedLetters.find((l) => !isLetterSignatureRequest(l));
@@ -1391,10 +1807,11 @@ export default function App() {
         {activeTab === 'disposisi' && (
           <DisposisiView
             letters={scopedLetters}
+            currentUser={currentUser}
             onSelectLetter={(letter) => setSelectedLetter(letter)}
             onOpenNewDisposisi={() => {
-              if (currentUser.role === 'PENGAWAS') {
-                showToast('Akses Read-Only: Pengawas SPI tidak berwenang menerbitkan disposisi.', 'warning');
+              if (!isDisposisiAuthorizedOfficial(currentUser, allUsers)) {
+                showToast('Akses Dibatasi: Fitur penerbitan disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
                 return;
               }
               setDisposisiTargetLetter(scopedLetters[0] || null);
@@ -1425,8 +1842,8 @@ export default function App() {
                   Pencatatan, verifikasi, dan tindak lanjut disposisi naskah dinas masuk dari instansi eksternal maupun antar-unit kerja UNSIL.
                 </p>
               </div>
-              <div className="flex items-center gap-2">
-                {canUserRegisterIncomingLetter(currentUser) ? (
+              {canUserRegisterIncomingLetter(currentUser) && (
+                <div className="flex items-center gap-2">
                   <button
                     onClick={() => setIsQuickRegisterOpen(true)}
                     className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -1434,17 +1851,8 @@ export default function App() {
                     <Plus className="w-4 h-4" />
                     <span>Registrasi Surat Masuk</span>
                   </button>
-                ) : (
-                  <div className="px-3.5 py-2 rounded-lg bg-emerald-50 border border-emerald-200 text-unsil-green-900 text-xs font-semibold flex items-center gap-2 shadow-2xs">
-                    <CheckSquare className="w-4 h-4 text-unsil-green-700 shrink-0" />
-                    <span>
-                      {currentUser?.is_pejabat || currentUser?.role === 'PEJABAT' || currentUser?.role === 'PIMPINAN'
-                        ? 'Mode Pimpinan: Penelaahan Naskah Masuk & Pemberian Disposisi'
-                        : 'Mode Pemantauan: Naskah Masuk & Pelaksanaan Disposisi'}
-                    </span>
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             <ActivityTable
               letters={scopedLetters}
@@ -1561,7 +1969,14 @@ export default function App() {
             allUsers={allUsers}
             onUpdateUsers={handleUpdateUsers}
             onDeleteUser={handleDeleteUser}
-            onPurgeNonSuperAdmins={handleDeleteAllExceptSuperAdmin}
+            showToast={showToast}
+          />
+        )}
+
+        {activeTab === 'manajemen-unit' && isSuperAdminUser(currentUser) && (
+          <UnitManagementView
+            currentUser={currentUser}
+            allUsers={allUsers}
             showToast={showToast}
           />
         )}
@@ -1585,64 +2000,82 @@ export default function App() {
         )}
 
         {/* Modals */}
-        <LetterDetailModal
-          letter={selectedLetter}
-          isOpen={!!selectedLetter}
-          onClose={() => setSelectedLetter(null)}
-          onOpenDisposisi={handleOpenDisposisiForLetter}
-          onSignTte={handleInitiateTte}
-          onArchiveLetter={handleArchiveLetter}
-          onApproveLetter={handleApproveLetter}
-          onRejectLetter={handleRejectLetter}
-          currentUser={currentUser}
-          onLogAction={recordAuditLog}
-        />
+        {selectedLetter && (
+          <LetterDetailModal
+            letter={selectedLetter}
+            isOpen={true}
+            onClose={() => setSelectedLetter(null)}
+            onOpenDisposisi={handleOpenDisposisiForLetter}
+            onSignTte={handleInitiateTte}
+            onArchiveLetter={handleArchiveLetter}
+            onApproveLetter={handleApproveLetter}
+            onRejectLetter={handleRejectLetter}
+            currentUser={currentUser}
+            onLogAction={recordAuditLog}
+          />
+        )}
 
-        <QuickDisposisiModal
-          letter={disposisiTargetLetter}
-          isOpen={isDisposisiOpen}
-          onClose={() => setIsDisposisiOpen(false)}
-          onSubmitDisposisi={handleSaveDisposisi}
-          allLetters={scopedLetters}
-          currentUser={currentUser}
-        />
+        {isDisposisiOpen && (
+          <QuickDisposisiModal
+            letter={disposisiTargetLetter}
+            isOpen={true}
+            onClose={() => {
+              setIsDisposisiOpen(false);
+              setDisposisiTargetLetter(null);
+            }}
+            onSubmitDisposisi={handleSaveDisposisi}
+            allLetters={scopedLetters}
+            currentUser={currentUser}
+            allUsers={allUsers}
+          />
+        )}
 
         {/* Modal Registrasi Surat Masuk */}
-        <CreateLetterModal
-          isOpen={isQuickRegisterOpen}
-          onClose={() => setIsQuickRegisterOpen(false)}
-          onSaveLetter={handleSaveNewLetter}
-          currentUser={currentUser}
-          initialMode="surat-masuk"
-          allLetters={letters}
-        />
+        {isQuickRegisterOpen && (
+          <CreateLetterModal
+            isOpen={true}
+            onClose={() => setIsQuickRegisterOpen(false)}
+            onSaveLetter={handleSaveNewLetter}
+            currentUser={currentUser}
+            initialMode="surat-masuk"
+            allLetters={letters}
+            allUsers={allUsers}
+          />
+        )}
 
         {/* Modal Pembuatan Surat Keluar / Nota Dinas */}
-        <CreateLetterModal
-          isOpen={isCreateSuratKeluarOpen}
-          onClose={() => setIsCreateSuratKeluarOpen(false)}
-          onSaveLetter={handleSaveNewLetter}
-          currentUser={currentUser}
-          initialMode="surat-keluar"
-          allLetters={letters}
-        />
+        {isCreateSuratKeluarOpen && (
+          <CreateLetterModal
+            isOpen={true}
+            onClose={() => setIsCreateSuratKeluarOpen(false)}
+            onSaveLetter={handleSaveNewLetter}
+            currentUser={currentUser}
+            initialMode="surat-keluar"
+            allLetters={letters}
+            allUsers={allUsers}
+          />
+        )}
 
-        <DocumentBuilderModal
-          isOpen={isCreateLetterOpen}
-          onClose={() => setIsCreateLetterOpen(false)}
-          onSaveLetter={handleSaveNewLetter}
-          currentUser={currentUser}
-          allLetters={letters}
-        />
+        {isCreateLetterOpen && (
+          <DocumentBuilderModal
+            isOpen={true}
+            onClose={() => setIsCreateLetterOpen(false)}
+            onSaveLetter={handleSaveNewLetter}
+            currentUser={currentUser}
+            allLetters={letters}
+          />
+        )}
 
         {/* TTE BSrE Passphrase Security Modal */}
-        <TtePassphraseModal
-          isOpen={!!tteTargetLetter}
-          letter={tteTargetLetter}
-          user={currentUser}
-          onClose={() => setTteTargetLetter(null)}
-          onConfirmSignature={handleConfirmTteSignature}
-        />
+        {tteTargetLetter && (
+          <TtePassphraseModal
+            isOpen={true}
+            letter={tteTargetLetter}
+            user={currentUser}
+            onClose={() => setTteTargetLetter(null)}
+            onConfirmSignature={handleConfirmTteSignature}
+          />
+        )}
 
         {/* Toast Feedback */}
         {toast && (

@@ -1,5 +1,4 @@
 import React from 'react';
-import { ShieldCheck, CheckCircle2, QrCode } from 'lucide-react';
 import { determineKopSurat } from '../../utils/kopSuratHelper';
 
 /**
@@ -7,6 +6,12 @@ import { determineKopSurat } from '../../utils/kopSuratHelper';
  * - Format Tingkat Universitas [Pasal 30 (2)]: Rektor / Wakil Rektor / Biro (tanpa nama fakultas/biro di baris ketiga)
  * - Format Tingkat Unit Kerja [Pasal 31 (1, 2, 6)]: Dekan / Dosen / Operator Fakultas / Lembaga / UPA
  *   (nama Fakultas/Lembaga/UPA dimunculkan di baris ketiga dengan tulisan paling tebal)
+ * 
+ * Format sesuai contoh dokumen:
+ * - RATA KANAN (text-right)
+ * - Baris Kementerian: Times New Roman 16pt, 2 baris (baris 2 indent)
+ * - Baris Universitas/Unit: Times New Roman 14pt Bold
+ * - Baris Alamat: Times New Roman 12pt
  */
 export const KopSuratUnsil = ({
   compact = false,
@@ -16,14 +21,19 @@ export const KopSuratUnsil = ({
 }) => {
   const kopConfig = determineKopSurat(unit || kodeUnit || currentUser);
 
+  // Pecah teks kementerian menjadi 2 baris sesuai format dokumen
+  const kementerianParts = kopConfig.kementerianText.split(', ');
+  const baris1 = kementerianParts[0] ? `${kementerianParts[0]},` : '';
+  const baris2 = kementerianParts.slice(1).join(', ') || 'RISET, DAN TEKNOLOGI';
+
   return (
     <div
       data-kop-naskah-dinas="true"
       data-kop-border-distance="4.5cm"
-      className={`kop-surat-unsil mb-[1.25em] pb-0 text-black font-serif ${compact ? 'scale-95 origin-top' : ''}`}
+      className={`kop-surat-unsil mb-[1.25em] pb-0 text-black ${compact ? 'scale-95 origin-top' : ''}`}
     >
-      <div className="flex items-center gap-3 sm:gap-4">
-        {/* Logo UNSIL Resmi */}
+      <div className="flex items-start gap-3 sm:gap-4">
+        {/* Logo UNSIL Resmi - di kiri */}
         <div className="w-20 h-20 sm:w-[94px] sm:h-[94px] shrink-0 flex items-center justify-center select-none protected-asset">
           <img
             src="/unsil-logo.png"
@@ -34,40 +44,46 @@ export const KopSuratUnsil = ({
           />
         </div>
 
-        {/* Header Teks Dinamis Sesuai Peraturan Rektor UNSIL No. 3/2023 (Pasal 43–48 & Bab II):
-            - Baris Kementerian: Times New Roman ukuran 16 (Kapital)
-            - Baris Nama Universitas / Unit Kerja: Times New Roman ukuran 14 (Kapital, Bold)
-            - Baris Alamat & Kontak: Times New Roman ukuran 12 */}
-        <div className="flex-1 text-center font-serif leading-tight pr-2 sm:pr-4 text-black">
-          <p className="kop-baris-kementerian uppercase text-black leading-snug">
-            {kopConfig.kementerianText}
+        {/* Header Teks RATA KANAN Sesuai Peraturan Rektor UNSIL No. 3/2023 (Pasal 30, 31, 43-48 & Bab II):
+            - Baris Kementerian: Times New Roman 16pt (Kapital), 2 baris, baris ke-2 indent
+            - Baris Universitas/Unit: Times New Roman 14pt Bold (Kapital)
+            - Baris Alamat: Times New Roman 12pt */}
+        <div className="flex-1 text-right pr-2 sm:pr-4">
+          {/* Baris 1: Kementerian - 2 baris */}
+          <p className="kop-baris-kementerian uppercase">
+            {baris1}
+            <br />
+            <span className="indent-8">{baris2}</span>
           </p>
-          <h2 className="kop-baris-universitas font-bold uppercase text-black mt-0.5 leading-snug">
+          
+          {/* Baris 2: Universitas / Unit Kerja - Times New Roman 14pt Bold */}
+          <h2 className="kop-baris-universitas uppercase">
             {kopConfig.universitasText}
           </h2>
 
-          {/* Baris Ketiga: Hanya untuk Tingkat Unit Kerja (Fakultas / Lembaga / UPA) dengan TULISAN TEBAL 14pt [Pasal 31 (6)] */}
+          {/* Baris 3: Nama Unit Kerja (untuk tingkat unit kerja) - Times New Roman 14pt Bold */}
           {kopConfig.isTingkatUnitKerja && kopConfig.namaUnitBarisTiga && (
-            <h1 className="kop-baris-unit font-bold uppercase text-black mt-0.5 leading-snug">
+            <h1 className="kop-baris-unit uppercase">
               {kopConfig.namaUnitBarisTiga}
             </h1>
           )}
 
-          <p className="kop-baris-alamat text-black font-normal mt-1 leading-tight">
+          {/* Baris Alamat & Kontak: Times New Roman 12pt */}
+          <p className="kop-baris-alamat">
             {kopConfig.alamatText}
           </p>
-          <p className="kop-baris-alamat text-black font-normal mt-0.5 leading-tight">
+          <p className="kop-baris-alamat">
             {kopConfig.kontakText}
           </p>
-          <p className="kop-baris-alamat text-black font-normal mt-0.5 leading-tight">
+          <p className="kop-baris-alamat">
             {kopConfig.webText}
           </p>
         </div>
       </div>
 
       {/* Garis Pembatas Ganda Kop Resmi (Berjarak 4,5 cm dari tepi atas kertas) */}
-      <div>
-        <div className="mt-2 border-b-[2.5px] border-black w-full" />
+      <div className="mt-2">
+        <div className="border-b-[2.5px] border-black w-full" />
         <div className="mt-0.5 border-b-[0.8px] border-black w-full" />
       </div>
     </div>
@@ -118,7 +134,7 @@ export const PosTemplateView = ({ data }) => {
     dasarHukum = [
       'Undang-Undang Nomor 17 Tahun 2003 tentang Keuangan Negara',
       'Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi Nomor 24 Tahun 2024 tentang Statuta Universitas Siliwangi',
-      'Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Kelola Kearsipan dan Naskah Dinas Elektronik'
+      'Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi'
     ],
     kualifikasiPelaksana = [
       'Pendidikan minimal D3 / S1 Akuntansi atau Manajemen Keuangan',
@@ -178,11 +194,8 @@ export const PosTemplateView = ({ data }) => {
     >
       <div className="naskah-judul-block mb-6">
         <h2 className="text-center font-bold text-sm sm:text-base uppercase tracking-wider text-black mb-1">
-          PROSEDUR OPERASIONAL STANDAR (POS)
+          FORMAT PROSEDUR OPERASIONAL STANDAR (POS)
         </h2>
-        <p className="text-center text-xs text-black font-medium">
-          Standar Pelayanan Operasional Biro Perencanaan, Keuangan, dan Umum - Universitas Siliwangi
-        </p>
       </div>
 
       {/* Bagian a. Bagian Identitas (Sesuai Gambar 1) */}
@@ -373,7 +386,7 @@ export const SuratEdaranTemplateView = ({ data }) => {
       'Kepala Biro, Ketua Lembaga, dan Kepala UPT',
       'Koordinator dan Subkoordinator di Lingkungan BKU'
     ],
-    dasarHukum = 'Berdasarkan Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Pedoman Tata Naskah Dinas Elektronik serta percepatan transformasi birokrasi digital kampus, dengan ini kami sampaikan ketentuan teknis persuratan dinas sebagai berikut:',
+    dasarHukum = 'Berdasarkan Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi serta percepatan transformasi birokrasi digital kampus, dengan ini kami sampaikan ketentuan teknis persuratan dinas sebagai berikut:',
     isiSurat = [
       '1. Seluruh persuratan kedinasan, lembar disposisi, dan pertanggungjawaban anggaran wajib dicatat secara terpusat melalui Sistem Informasi SILOKA BKU UNSIL.',
       '2. Mulai tanggal 1 Oktober 2026, dokumen dinas resmi diterbitkan menggunakan Tanda Tangan Elektronik (TTE) tersertifikasi BSrE BSSN dan tidak lagi menggunakan cap basah stempel fisik.',
@@ -487,7 +500,7 @@ export const KeputusanTemplateView = ({ data }) => {
       'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;',
       'Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;',
       'Peraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi dan Pengelolaan Perguruan Tinggi;',
-      'Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Naskah Dinas Elektronik.'
+      'Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi.'
     ],
     menetapkan = 'KEPUTUSAN REKTOR UNIVERSITAS SILIWANGI TENTANG PENETAPAN TIM KERJA REFORMASI BIROKRASI DAN TATA KELOLA KEARSIPAN DIGITAL BKU.',
     diktum = [
@@ -739,7 +752,7 @@ export const SuratPerintahTemplateView = ({ data }) => {
     dasar = [
       'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;',
       'Peraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi;',
-      'Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Kelola Kearsipan dan Naskah Dinas Elektronik.'
+      'Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi.'
     ],
     kepada = [
       'Dr. Nana Sujana, Drs., M.Si. / NIP. 196808301989031004 / Kepala Biro Umum dan Keuangan;'
@@ -3413,8 +3426,8 @@ export const LaporanTemplateView = ({ data }) => {
   const {
     nomorSurat = '091/UN58/TI.01/2026',
     tentang = 'PELAKSANAAN AUDIT KESIAPAN TEKNOLOGI DAN IMPLEMENTASI TATA NASKAH DINAS ELEKTRONIK APLIKASI SILOKA UNIVERSITAS SILIWANGI TAHUN 2026',
-    latarBelakang = 'Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 03 Tahun 2025, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.',
-    dasar = '1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\n2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\n3. Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Naskah Dinas Elektronik;\n4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.',
+    latarBelakang = 'Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 3 Tahun 2023, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.',
+    dasar = '1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\n2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\n3. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi;\n4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.',
     ruangLingkup = 'Ruang lingkup pelaksanaan kegiatan meliputi pengujian 20 format naskah dinas resmi, integrasi Tanda Tangan Elektronik (TTE) tersertifikasi BSrE BSSN, keandalan server basis data surat dinas, serta pelatihan operasional bagi staf pengadministrasi persuratan.',
     kegiatanDilaksanakan = '1. Melakukan validasi kesesuaian layout visual 20 format naskah dinas dengan pedoman tata naskah dinas resmi UNSIL.\n2. Melaksanakan uji coba penerbitan TTE BSrE dengan enkripsi hash dokumen dan stempel QR-Code verifikasi dinas.\n3. Menyelenggarakan bimbingan teknis (Bimtek) administrasi naskah dinas elektronik kepada seluruh perwakilan fakultas dan unit kerja.',
     hasilDicapai = '1. Sebanyak 20 format naskah dinas resmi berhasil diintegrasikan dengan sempurna ke dalam aplikasi SILOKA.\n2. Tingkat kepatuhan format persuratan kedinasan mencapai 100% dan siap dioperasikan penuh pada semester ganjil TA 2026/2027.\n3. Telah tersertifikasi secara elektronik dan aman dari risiko pemalsuan dokumen kedinasan.',

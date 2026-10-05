@@ -19,10 +19,18 @@ const VALID_ROLES = [
   'OPERATOR_UNIT',
   'STAF_PERSURATAN',
   'PENGAWAS',
-  'Super Admin'
+  'Super Admin',
+  'SUPER_ADMIN',
+  'STAF',
+  'VERIFIKATOR'
 ];
 
-import { mutateUserJobAssignment, storeNewUser } from '../services/userManagementService.js';
+import {
+  mutateUserJobAssignment,
+  storeNewUser,
+  getAllUsersFromDatabase,
+  deleteUserById
+} from '../services/userManagementService.js';
 
 export const mutateUserJob = async (req, res) => {
   try {
@@ -79,7 +87,11 @@ export const mutateUserJob = async (req, res) => {
     }
 
     // 2. Validasi kesesuaian unit kerja dengan statuta UNSIL
-    if (!VALID_UNSIL_UNITS.includes(targetUnit)) {
+    const isUnitValid =
+      VALID_UNSIL_UNITS.includes(targetUnit) ||
+      targetUnit.startsWith('UN58') ||
+      ['BKU', 'BAKPK', 'FT', 'FKIP'].includes(targetUnit);
+    if (!isUnitValid) {
       return res.status(422).json({
         status: 422,
         success: false,
@@ -164,7 +176,9 @@ export const storeUser = async (req, res) => {
       id_unit,
       jabatan,
       tugas_tambahan,
-      role
+      role,
+      password,
+      raw_password
     } = req.body;
 
     const targetNip = String(nip || nip_nik || '').trim();
@@ -217,7 +231,9 @@ export const storeUser = async (req, res) => {
       email,
       kode_unit: targetUnit,
       jabatan: targetJabatan,
-      role
+      role,
+      password,
+      raw_password
     });
 
     // 4. Kembalikan respons 201 Created dengan flash message spesifik
@@ -236,6 +252,54 @@ export const storeUser = async (req, res) => {
       error: 'CreateUserFailed',
       message: 'Gagal membuat akun pengguna baru.',
       details: error.message
+    });
+  }
+};
+
+/**
+ * Controller: Ambil Seluruh Data Pengguna Resmi (GET /api/admin/users)
+ */
+export const getAllStaffUsers = async (req, res) => {
+  try {
+    const users = await getAllUsersFromDatabase();
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: 'Daftar seluruh data pengguna kepegawaian resmi berhasil dimuat.',
+      total: users.length,
+      data: users
+    });
+  } catch (error) {
+    console.error('[GET-USERS-ERROR]', error);
+    return res.status(500).json({
+      status: 500,
+      success: false,
+      error: 'FetchUsersFailed',
+      message: 'Gagal memuat data pengguna dari basis data.',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * Controller: Hapus Pengguna dari Sistem (DELETE /api/admin/users/:id)
+ */
+export const deleteStaffUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await deleteUserById(id);
+    return res.status(200).json({
+      status: 200,
+      success: true,
+      message: result.message
+    });
+  } catch (error) {
+    console.error('[DELETE-USER-ERROR]', error);
+    return res.status(400).json({
+      status: 400,
+      success: false,
+      error: 'DeleteUserFailed',
+      message: error.message || 'Gagal menghapus pengguna dari sistem.'
     });
   }
 };

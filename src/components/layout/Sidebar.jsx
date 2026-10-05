@@ -22,7 +22,8 @@ import {
   Receipt,
   Users,
   KeyRound,
-  Mail
+  Mail,
+  Building2
 } from 'lucide-react';
 import { canAccessBrankasDigital, isSuperAdminUser } from '../../utils/authGuards';
 import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
@@ -184,6 +185,11 @@ export const buildSidebarMenuItems = ({
                 icon: Users,
               },
               {
+                id: 'manajemen-unit',
+                label: 'Manajemen Unit Kerja',
+                icon: Building2,
+              },
+              {
                 id: 'manajemen-role',
                 label: 'Manajemen Peran',
                 icon: Shield,
@@ -241,6 +247,7 @@ export const Sidebar = ({
     if (
       activeTab === 'settings' ||
       activeTab === 'manajemen-user' ||
+      activeTab === 'manajemen-unit' ||
       activeTab === 'manajemen-role' ||
       activeTab === 'manajemen-permission'
     ) {

@@ -13,7 +13,8 @@ import {
   isLetterOwnedByUser,
   isMandiriPersonalDocument,
   isSuperAdminUser
-} from './authGuards';
+} from './authGuards.js';
+import { isDisposisiAuthorizedOfficial } from './disposisiStandards.js';
 
 /**
  * Menentukan apakah naskah dinas merupakan permohonan tanda tangan (Tujuan TTD)
@@ -41,43 +42,26 @@ export const isLetterSignatureRequest = (letter) => {
  * @param {object} currentUser 
  * @returns {boolean}
  */
-export const canLetterBeDisposed = (letter, currentUser) => {
+export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) => {
   if (!letter || !currentUser) return false;
 
-  // 1. Super Admin, Pengawas SPI, Staf, Operator, dan Dosen Tanpa Jabatan tidak berwenang menerbitkan lembar disposisi pimpinan (Pasal 55)
-  if (
-    isSuperAdminUser(currentUser) ||
-    currentUser?.role === 'PENGAWAS' ||
-    currentUser?.role === 'STAF' ||
-    currentUser?.role === 'OPERATOR' ||
-    currentUser?.role === 'OPERATOR_UNIT' ||
-    isDosenTanpaJabatan(currentUser)
-  ) {
-    return false;
-  }
-
-  // 2. Hanya Pimpinan Unit / Pejabat Struktural yang berwenang menerbitkan disposisi
-  const isPimpinanStruktural =
-    currentUser?.role === 'PEJABAT' ||
-    currentUser?.role === 'PIMPINAN' ||
-    currentUser?.is_pejabat === true ||
-    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'));
-
-  if (!isPimpinanStruktural) {
-    return false;
-  }
-
-  // 3. STRICT RULE: Surat berstatus Permohonan Tanda Tangan (TTD) DILARANG KERAS didisposisikan!
+  // 1. STRICT RULE: Surat berstatus Permohonan Tanda Tangan (TTD) DILARANG KERAS didisposisikan!
   if (isLetterSignatureRequest(letter)) {
     return false;
   }
 
-  // 4. Naskah yang sudah diarsipkan ke JRA tidak dapat didisposisikan kembali
+  // 2. Naskah yang sudah diarsipkan ke JRA tidak dapat didisposisikan kembali
   if (letter.status === 'Diarsipkan') {
     return false;
   }
 
-  return true;
+  // 3. Super Admin adalah Administrator Sistem IT, bukan pejabat pemberi disposisi
+  if (isSuperAdminUser(currentUser)) {
+    return false;
+  }
+
+  // 4. Hanya Pejabat Struktural / Pimpinan (33 Pejabat di Contoh 21 + Rektor) yang berwenang
+  return isDisposisiAuthorizedOfficial(currentUser, allUsersList);
 };
 
 /**

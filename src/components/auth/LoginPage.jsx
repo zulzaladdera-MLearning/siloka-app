@@ -1,6 +1,24 @@
-import React, { useState } from 'react';
-import { Lock, User, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Building2, KeyRound, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import {
+  Lock,
+  User,
+  Mail,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  ArrowRight,
+  Building2,
+  KeyRound,
+  AlertCircle,
+  Sparkles,
+  Search,
+  CheckCircle2,
+  RefreshCw,
+  UserCheck,
+  ChevronDown
+} from 'lucide-react';
 import usersData from '../../data/users.json';
+import { isSuperAdminUser } from '../../utils/authGuards';
 
 export const LoginPage = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
@@ -9,6 +27,298 @@ export const LoginPage = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Helper untuk membaca daftar ID/email yang telah dihapus Super Admin
+  const getDeletedSet = () => {
+    if (typeof window === 'undefined') return new Set();
+    try {
+      const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+      if (Array.isArray(deletedList)) {
+        return new Set(deletedList.map((x) => String(x).toLowerCase().trim()));
+      }
+    } catch (err) {
+      // ignore
+    }
+    return new Set();
+  };
+
+  // State sinkronisasi akun demo dinamis dari CRUD Super Admin & Database (Inisialisasi Cepat & Reaktif)
+  const [allDemoUsers, setAllDemoUsers] = useState(() => {
+    let initial = Array.isArray(usersData) ? [...usersData] : [];
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('siloka_users_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            initial = [...parsed, ...initial];
+          }
+        }
+      } catch (e) {
+        // ignore
+      }
+    }
+
+    const deletedSet = getDeletedSet();
+    const seen = new Set();
+    const unique = [];
+
+    initial.forEach((u) => {
+      const key = String(u.id || u.email || u.nip || '').toLowerCase();
+      if (key && !seen.has(key)) {
+        seen.add(key);
+        const uId = String(u.id || '').toLowerCase();
+        const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+        const uEmail = String(u.email || '').toLowerCase();
+        const isDeleted = deletedSet.has(uId) || deletedSet.has(uNip) || deletedSet.has(uEmail);
+        const isActive = u.is_active !== false && u.is_aktif !== false && u.status_aktif !== false;
+        if (!isDeleted && isActive) {
+          unique.push(u);
+        }
+      }
+    });
+
+    return unique;
+  });
+
+  const [selectedDemoUserNotice, setSelectedDemoUserNotice] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const searchDropdownRef = useRef(null);
+
+  // Muat dan selaraskan seluruh akun (dari backend, localStorage CRUD, dan dataset awal)
+  const refreshDemoAccounts = async () => {
+    const deletedSet = getDeletedSet();
+    let merged = [];
+
+    // 1. Baca dari localStorage (hasil mutasi CRUD Super Admin)
+    try {
+      const stored = localStorage.getItem('siloka_users_data');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          merged = [...parsed];
+        }
+      }
+    } catch (e) {
+      console.warn('[LOGIN] Gagal memuat siloka_users_data dari localStorage:', e);
+    }
+
+    // 2. Jika backend API aktif, sinkronkan data pengguna terkini
+    try {
+      const res = await fetch('/api/admin/users', {
+        headers: { Accept: 'application/json' }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && json.data && Array.isArray(json.data) && json.data.length > 0) {
+          const apiMap = new Map();
+          json.data.forEach((u) => {
+            const key = String(u.id || u.email || u.nip || '').toLowerCase();
+            if (key) apiMap.set(key, u);
+          });
+          // Update / timpa dengan data API terbaru
+          merged = merged.map((u) => {
+            const key = String(u.id || u.email || u.nip || '').toLowerCase();
+            return apiMap.get(key) || u;
+          });
+          // Tambahkan user API yang belum ada
+          json.data.forEach((u) => {
+            const key = String(u.id || u.email || u.nip || '').toLowerCase();
+            if (key && !merged.some((m) => String(m.id || m.email || m.nip || '').toLowerCase() === key)) {
+              merged.push(u);
+            }
+          });
+        }
+      }
+    } catch (e) {
+      // Backend offline: gunakan data localStorage & fallback usersData
+    }
+
+    // 3. Gabungkan dengan data bawaan usersData jika belum ada
+    usersData.forEach((u) => {
+      const key = String(u.id || u.email || u.nip || '').toLowerCase();
+      if (key && !merged.some((m) => String(m.id || m.email || m.nip || '').toLowerCase() === key)) {
+        merged.push(u);
+      }
+    });
+
+    // 4. Bersihkan akun yang telah dihapus Super Admin dan akun yang dinonaktifkan
+    const activeUsers = merged.filter((u) => {
+      const uId = String(u.id || '').toLowerCase();
+      const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+      const uEmail = String(u.email || '').toLowerCase();
+      const uUser = String(u.username || '').toLowerCase();
+
+      const isDeleted =
+        deletedSet.has(uId) ||
+        deletedSet.has(uNip) ||
+        deletedSet.has(uEmail) ||
+        deletedSet.has(uUser);
+
+      const isActive = u.is_active !== false && u.is_aktif !== false && u.status_aktif !== false;
+      return !isDeleted && isActive;
+    });
+
+    setAllDemoUsers(activeUsers);
+  };
+
+  useEffect(() => {
+    refreshDemoAccounts();
+  }, []);
+
+  // Tutup dropdown saat klik di luar
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (searchDropdownRef.current && !searchDropdownRef.current.contains(e.target)) {
+        setIsSearchOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideClick);
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, []);
+
+  // Helper untuk memilih akun demo dengan satu klik
+  const handleSelectDemoAccount = (userObj) => {
+    if (!userObj) return;
+    const finalUsername = userObj.email || userObj.username || userObj.nip || '';
+    const finalPassword = userObj.raw_password || userObj.password || 'Siloka2026!';
+
+    setUsername(finalUsername);
+    setPassword(finalPassword);
+    setErrorMsg('');
+
+    const displayName = userObj.nama_lengkap || userObj.nama || userObj.name || finalUsername;
+    const displayRole = userObj.jabatan || userObj.role_label || userObj.roleLabel || userObj.role || 'Pengguna';
+    setSelectedDemoUserNotice({ name: displayName, role: displayRole });
+    setIsSearchOpen(false);
+  };
+
+  // Identifikasi Akun Hasil Penambahan CRUD Baru oleh Super Admin
+  const newlyCreatedUsers = useMemo(() => {
+    const defaultIds = new Set(usersData.map((u) => String(u.id || '').toLowerCase()));
+    return allDemoUsers.filter((u) => {
+      const id = String(u.id || '').toLowerCase();
+      const isCustomId = !defaultIds.has(id);
+      const isNewFlag = u.is_new === true || u.must_change_password === true;
+      return isCustomId || isNewFlag;
+    });
+  }, [allDemoUsers]);
+
+  // Resolusi Akun Demo Utama secara Dinamis (ter-update otomatis jika profil diedit di CRUD)
+  const resolvedPresetAccounts = useMemo(() => {
+    const findUser = (predicate) => allDemoUsers.find(predicate) || null;
+
+    const superAdmin =
+      findUser((u) => isSuperAdminUser(u) || String(u.email || '').toLowerCase().includes('dedegunawan')) || {
+        nama_lengkap: 'Dede Gunawan, S.Kom., M.Kom.',
+        email: 'dedegunawan@unsil.ac.id',
+        jabatan: 'Super Administrator SILOKA',
+        roleLabel: 'Super Admin'
+      };
+
+    const kepalaBku =
+      findUser(
+        (u) =>
+          String(u.jabatan || '').toLowerCase().includes('kepala biro keuangan') ||
+          String(u.email || '').toLowerCase().includes('nana.sujana')
+      ) || findUser((u) => String(u.jabatan || '').toLowerCase().includes('kepala biro')) || null;
+
+    const stafBku =
+      findUser(
+        (u) =>
+          String(u.email || '').toLowerCase().includes('siti.rohmah') ||
+          String(u.nama_lengkap || u.nama || '').toLowerCase().includes('siti rohmah')
+      ) || findUser((u) => u.unit_kerja_id === 'UN58.6' && !u.is_pejabat) || null;
+
+    const dekanFkip =
+      findUser(
+        (u) =>
+          String(u.jabatan || u.roleLabel || u.role_label || '').toLowerCase().includes('dekan') &&
+          (String(u.jabatan || u.roleLabel || u.role_label || '').toLowerCase().includes('keguruan') ||
+            String(u.unit || '').includes('Keguruan') ||
+            String(u.unit || '').includes('FKIP') ||
+            String(u.email || '').includes('cucu'))
+      ) ||
+      findUser((u) => String(u.jabatan || u.roleLabel || u.role_label || '').toLowerCase().includes('dekan')) || {
+        nama_lengkap: 'Dr. H. Cucu Suherman, M.Pd.',
+        email: 'cucu.suherman@unsil.ac.id',
+        jabatan: 'Dekan FKIP'
+      };
+
+    const stafFkip =
+      findUser(
+        (u) =>
+          String(u.email || '').toLowerCase().includes('dian.fkip') ||
+          (String(u.unit_kerja_id || '') === 'UN58.10' && !u.is_pejabat && String(u.email || '').includes('dian'))
+      ) || {
+        nama_lengkap: 'Dian Fitriani, S.Pd.',
+        email: 'dian.fkip@unsil.ac.id',
+        jabatan: 'Staf TU FKIP'
+      };
+
+    const rektorat =
+      findUser(
+        (u) =>
+          String(u.jabatan || '').toLowerCase() === 'rektor' ||
+          String(u.jabatan || '').toLowerCase().includes('rektor universitas siliwangi') ||
+          String(u.email || '').toLowerCase().includes('rektor')
+      ) || null;
+
+    const pengawasSpi =
+      findUser(
+        (u) =>
+          String(u.jabatan || '').toLowerCase().includes('spi') ||
+          String(u.role || '').toUpperCase() === 'PENGAWAS' ||
+          String(u.email || '').toLowerCase().includes('spi')
+      ) || null;
+
+    const kepalaTik =
+      findUser(
+        (u) =>
+          String(u.jabatan || '').toLowerCase().includes('kepala upa tik') ||
+          String(u.email || '').toLowerCase().includes('kepala.tik')
+      ) || null;
+
+    const stafTik =
+      findUser(
+        (u) =>
+          String(u.email || '').toLowerCase().includes('operator.tik') ||
+          String(u.nama_lengkap || u.nama || '').toLowerCase().includes('gilang')
+      ) || null;
+
+    return {
+      superAdmin,
+      kepalaBku,
+      stafBku,
+      dekanFkip,
+      stafFkip,
+      rektorat,
+      pengawasSpi,
+      kepalaTik,
+      stafTik
+    };
+  }, [allDemoUsers]);
+
+  // Daftar user yang difilter untuk dropdown pencarian cepat
+  const filteredSearchUsers = useMemo(() => {
+    if (!searchQuery.trim()) return allDemoUsers.slice(0, 15);
+    const q = searchQuery.toLowerCase().trim();
+    return allDemoUsers.filter((u) => {
+      const nama = String(u.nama_lengkap || u.nama || u.name || '').toLowerCase();
+      const email = String(u.email || '').toLowerCase();
+      const nip = String(u.nip || u.nip_nik || '').toLowerCase();
+      const jabatan = String(u.jabatan || u.role_label || u.roleLabel || '').toLowerCase();
+      const unit = String(u.unit || u.unit_kerja_id || '').toLowerCase();
+      return (
+        nama.includes(q) ||
+        email.includes(q) ||
+        nip.includes(q) ||
+        jabatan.includes(q) ||
+        unit.includes(q)
+      );
+    });
+  }, [allDemoUsers, searchQuery]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -31,6 +341,32 @@ export const LoginPage = ({ onLoginSuccess }) => {
     const withoutDomain = rawInput.includes('@') ? rawInput.split('@')[0] : rawInput;
     const withDomain = rawInput.includes('@') ? rawInput : `${rawInput}@unsil.ac.id`;
 
+    // 1b. CEK OTORISASI: Jika akun telah dihapus oleh Super Admin, tolak seketika
+    const getDeletedSet = () => {
+      try {
+        const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+        if (Array.isArray(deletedList)) {
+          return new Set(deletedList.map((x) => String(x).toLowerCase().trim()));
+        }
+      } catch (err) {
+        // ignore
+      }
+      return new Set();
+    };
+
+    const deletedSet = getDeletedSet();
+    if (
+      deletedSet.has(rawInput) ||
+      deletedSet.has(withDomain) ||
+      deletedSet.has(withoutDomain)
+    ) {
+      setIsLoading(false);
+      setErrorMsg(
+        'Gagal Masuk: Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator. Akses ke sistem SILOKA tidak lagi tersedia.'
+      );
+      return;
+    }
+
     // 2. HELPER ENGINE: PENCARIAN PENGGUNA FLEKSIBEL (usersData + localStorage)
     const findLocalUser = () => {
       let candidateUsers = [...usersData];
@@ -45,6 +381,20 @@ export const LoginPage = ({ onLoginSuccess }) => {
       } catch (err) {
         console.warn('[LOGIN] Gagal memuat siloka_users_data dari localStorage:', err);
       }
+
+      // Filter mutlak: keluarkan semua user yang telah dihapus oleh Super Admin
+      candidateUsers = candidateUsers.filter((u) => {
+        const uId = String(u.id || '').toLowerCase();
+        const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+        const uEmail = String(u.email || '').toLowerCase();
+        const uUser = String(u.username || '').toLowerCase();
+        return (
+          !deletedSet.has(uId) &&
+          !deletedSet.has(uNip) &&
+          !deletedSet.has(uEmail) &&
+          !deletedSet.has(uUser)
+        );
+      });
 
       return candidateUsers.find((u) => {
         const uEmail = u.email ? String(u.email).trim().toLowerCase() : '';
@@ -121,7 +471,17 @@ export const LoginPage = ({ onLoginSuccess }) => {
           return;
         }
 
-        // B. Backend Menolak Kata Sandi (401)
+        // B. Backend Menolak: Akun telah dihapus oleh Super Administrator (403)
+        if (response.status === 403 || data?.error === 'AccountDeleted') {
+          setIsLoading(false);
+          setErrorMsg(
+            data?.message ||
+              'Gagal Masuk: Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator. Akses ke sistem SILOKA dicabut sepenuhnya.'
+          );
+          return;
+        }
+
+        // C. Backend Menolak Kata Sandi (401)
         if (response.status === 401) {
           // Periksa apakah akun lokal di localStorage memiliki password berbeda (misal hasil Tambah User / Mutasi)
           const localUser = findLocalUser();
@@ -350,109 +710,249 @@ export const LoginPage = ({ onLoginSuccess }) => {
 
           {/* Quick Demo Preset Accounts */}
           <div className="mt-6 pt-5 border-t border-slate-800">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Pilihan Akun Masuk (Uji Coba):
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Pilihan Akun Masuk (Uji Coba):
+              </p>
+              <button
+                type="button"
+                onClick={refreshDemoAccounts}
+                className="text-[10px] text-slate-400 hover:text-unsil-gold-400 flex items-center gap-1 transition cursor-pointer"
+                title="Sinkronkan data akun terkini dari Manajemen Pengguna & Basis Data"
+              >
+                <RefreshCw className="w-3 h-3" />
+                <span>Sinkron Data</span>
+              </button>
+            </div>
+
+            {/* Banner feedback jika akun demo dipilih */}
+            {selectedDemoUserNotice && (
+              <div className="mb-2 p-1.5 px-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] flex items-center justify-between animate-in fade-in duration-150">
+                <span className="truncate">
+                  ✓ Terpilih: <strong className="text-white">{selectedDemoUserNotice.name}</strong> ({selectedDemoUserNotice.role})
+                </span>
+                <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0 ml-1">
+                  Siap Masuk
+                </span>
+              </div>
+            )}
+
+            {/* Grid Preset Akun Utama Berjenjang SOTK UNSIL */}
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+              {/* Staf BKU */}
+              {resolvedPresetAccounts.stafBku && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.stafBku)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Staf Operator BKU"
+                >
+                  <span className="font-semibold text-unsil-gold-300">Staf BKU:</span>{' '}
+                  {resolvedPresetAccounts.stafBku.nama_lengkap?.split(',')[0] || 'Siti Rohmah'}
+                </button>
+              )}
+
+              {/* Kepala BKU */}
+              {resolvedPresetAccounts.kepalaBku && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.kepalaBku)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Kepala Biro Keuangan dan Umum"
+                >
+                  <span className="font-semibold text-emerald-400">Kepala BKU:</span>{' '}
+                  {resolvedPresetAccounts.kepalaBku.nama_lengkap?.split(',')[0] || 'Dr. Nana S.'}
+                </button>
+              )}
+
+              {/* Super Admin SILOKA */}
+              {resolvedPresetAccounts.superAdmin && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.superAdmin)}
+                  className="p-1.5 rounded bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 text-left border border-unsil-gold-500/50 transition truncate col-span-2 shadow-xs cursor-pointer"
+                  title="Super Administrator SILOKA"
+                >
+                  <span className="font-bold text-unsil-gold-400">★ Super Admin:</span>{' '}
+                  {resolvedPresetAccounts.superAdmin.nama_lengkap || 'Dede Gunawan'} ({resolvedPresetAccounts.superAdmin.email || 'dedegunawan@unsil.ac.id'})
+                </button>
+              )}
+
+              {/* Staf FKIP */}
+              {resolvedPresetAccounts.stafFkip && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.stafFkip)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Staf Tata Usaha FKIP"
+                >
+                  <span className="font-semibold text-unsil-gold-300">Staf FKIP:</span>{' '}
+                  {resolvedPresetAccounts.stafFkip.nama_lengkap?.split(',')[0] || 'Dian Fitriani'}
+                </button>
+              )}
+
+              {/* Dekan FKIP */}
+              {resolvedPresetAccounts.dekanFkip && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.dekanFkip)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Dekan FKIP (Pejabat Struktural)"
+                >
+                  <span className="font-semibold text-emerald-400">Dekan FKIP:</span>{' '}
+                  {resolvedPresetAccounts.dekanFkip.nama_lengkap?.split(',')[0] || 'Dr. Cucu S.'}
+                </button>
+              )}
+
+              {/* Rektorat */}
+              {resolvedPresetAccounts.rektorat && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.rektorat)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Pimpinan Rektorat Universitas Siliwangi"
+                >
+                  <span className="font-semibold text-amber-300">Rektorat:</span>{' '}
+                  {resolvedPresetAccounts.rektorat.nama_lengkap?.split(',')[0] || 'Prof. Aripin'}
+                </button>
+              )}
+
+              {/* Pengawas SPI */}
+              {resolvedPresetAccounts.pengawasSpi && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.pengawasSpi)}
+                  className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate cursor-pointer"
+                  title="Pengawas Satuan Pengawas Internal (SPI)"
+                >
+                  <span className="font-semibold text-rose-300">Pengawas:</span>{' '}
+                  {resolvedPresetAccounts.pengawasSpi.nama_lengkap?.split(',')[0] || 'Hendra (SPI)'}
+                </button>
+              )}
+
+              {/* Kepala TIK */}
+              {resolvedPresetAccounts.kepalaTik && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.kepalaTik)}
+                  className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1 cursor-pointer"
+                  title="Kepala UPA TIK (Pejabat & Otoritas Sistem)"
+                >
+                  <span className="font-semibold text-indigo-300">Kepala TIK:</span>{' '}
+                  {resolvedPresetAccounts.kepalaTik.nama_lengkap?.split(',')[0] || 'Alam R.'}
+                </button>
+              )}
+
+              {/* Staf TIK */}
+              {resolvedPresetAccounts.stafTik && (
+                <button
+                  type="button"
+                  onClick={() => handleSelectDemoAccount(resolvedPresetAccounts.stafTik)}
+                  className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1 cursor-pointer"
+                  title="Staf Pengelola Sistem UPA TIK"
+                >
+                  <span className="font-semibold text-indigo-300">Staf TIK:</span>{' '}
+                  {resolvedPresetAccounts.stafTik.nama_lengkap?.split(',')[0] || 'Gilang R.'}
+                </button>
+              )}
+            </div>
+
+            {/* SECTION DINAMIS: Akun Baru Hasil Penambahan (CRUD Super Admin) */}
+            {newlyCreatedUsers.length > 0 && (
+              <div className="mt-2.5 pt-2 border-t border-slate-800/80">
+                <div className="flex items-center justify-between mb-1.5">
+                  <span className="text-[10.5px] font-bold text-unsil-gold-400 flex items-center gap-1">
+                    <Sparkles className="w-3.5 h-3.5 text-unsil-gold-400" />
+                    Akun Baru Hasil CRUD Super Admin:
+                  </span>
+                  <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-unsil-gold-500/20 text-unsil-gold-300 font-mono font-bold">
+                    {newlyCreatedUsers.length} Akun
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-36 overflow-y-auto pr-0.5">
+                  {newlyCreatedUsers.map((newUser) => (
+                    <button
+                      key={newUser.id || newUser.nip || newUser.email}
+                      type="button"
+                      onClick={() => handleSelectDemoAccount(newUser)}
+                      className="p-1.5 rounded bg-emerald-950/60 hover:bg-emerald-900/70 border border-emerald-500/40 text-left transition truncate group cursor-pointer"
+                      title={`Klik untuk uji coba login sebagai ${newUser.nama_lengkap || newUser.nama} (${newUser.jabatan || newUser.role})`}
+                    >
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-[9.5px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-300 shrink-0">
+                          {newUser.jabatan || newUser.roleLabel || 'Baru'}
+                        </span>
+                        <span className="text-[11px] text-white font-medium truncate group-hover:text-unsil-gold-300">
+                          {newUser.nama_lengkap || newUser.nama || newUser.name}
+                        </span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Selector Pencarian Cepat Seluruh Akun Pegawai */}
+            <div className="mt-2.5 relative" ref={searchDropdownRef}>
               <button
                 type="button"
-                onClick={() => {
-                  setUsername('siti.rohmah@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Staf Operator BKU"
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className="w-full p-1.5 px-2.5 rounded-lg bg-slate-800/70 hover:bg-slate-700/70 border border-slate-700/70 text-slate-300 text-[11px] flex items-center justify-between transition cursor-pointer"
               >
-                <span className="font-semibold text-unsil-gold-300">Staf BKU:</span> Siti Rohmah
+                <span className="flex items-center gap-1.5 text-slate-300 truncate">
+                  <Search className="w-3.5 h-3.5 text-unsil-gold-400 shrink-0" />
+                  <span className="truncate">Cari & Pilih Akun Demo Lainnya ({allDemoUsers.length} Pegawai)...</span>
+                </span>
+                <ChevronDown
+                  className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 shrink-0 ${
+                    isSearchOpen ? 'rotate-180 text-unsil-gold-400' : ''
+                  }`}
+                />
               </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('nana.sujana@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Kepala Biro BKU (Pejabat)"
-              >
-                <span className="font-semibold text-emerald-400">Kepala BKU:</span> Dr. Nana S.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('dedegunawan@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 text-left border border-unsil-gold-500/50 transition truncate col-span-2 shadow-xs"
-                title="Super Administrator SILOKA (Dede Gunawan, S.Kom., M.Kom.)"
-              >
-                <span className="font-bold text-unsil-gold-400">★ Super Admin:</span> Dede Gunawan (dedegunawan@unsil.ac.id)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('dian.fkip@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Staf TU FKIP"
-              >
-                <span className="font-semibold text-unsil-gold-300">Staf FKIP:</span> Dian Fitriani
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('cucu.suherman@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Dekan FKIP (Pejabat)"
-              >
-                <span className="font-semibold text-emerald-400">Dekan FKIP:</span> Dr. Cucu S.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('aripin.rektor@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Rektor Universitas Siliwangi"
-              >
-                <span className="font-semibold text-amber-300">Rektorat:</span> Prof. Aripin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('hendra.spi@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Ketua SPI (Pengawas)"
-              >
-                <span className="font-semibold text-rose-300">Pengawas:</span> Hendra (SPI)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('kepala.tik@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Kepala UPA TIK (Pejabat & Otoritas Sistem)"
-              >
-                <span className="font-semibold text-indigo-300">Kepala TIK:</span> Alam R.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('operator.tik@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Staf Pengelola Sistem UPA TIK"
-              >
-                <span className="font-semibold text-indigo-300">Staf TIK:</span> Gilang R.
-              </button>
+
+              {isSearchOpen && (
+                <div className="absolute left-0 right-0 bottom-full mb-1 bg-slate-900 rounded-xl shadow-2xl border border-slate-700 p-2 z-50 text-[11px] max-h-60 flex flex-col animate-in fade-in slide-in-from-bottom-2 duration-150">
+                  <div className="relative mb-2">
+                    <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Cari nama, NIP, email, atau jabatan..."
+                      className="w-full pl-8 pr-2.5 py-1.5 bg-slate-800 border border-slate-700 rounded-lg text-white text-xs placeholder-slate-400 focus:outline-none focus:border-unsil-gold-400 focus:ring-1 focus:ring-unsil-gold-400/40"
+                      autoFocus
+                    />
+                  </div>
+                  <div className="overflow-y-auto divide-y divide-slate-800/80 pr-1 flex-1 max-h-48">
+                    {filteredSearchUsers.length > 0 ? (
+                      filteredSearchUsers.map((u) => (
+                        <button
+                          key={u.id || u.nip || u.email}
+                          type="button"
+                          onClick={() => handleSelectDemoAccount(u)}
+                          className="w-full p-1.5 rounded hover:bg-slate-800/90 text-left transition flex items-center justify-between gap-2 cursor-pointer group"
+                        >
+                          <div className="truncate">
+                            <p className="text-white font-medium truncate group-hover:text-unsil-gold-300">
+                              {u.nama_lengkap || u.nama || u.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {u.jabatan || u.roleLabel || u.role} • {u.unit || u.unit_kerja_id}
+                            </p>
+                          </div>
+                          <span className="text-[9.5px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 group-hover:bg-unsil-gold-500/20 group-hover:text-unsil-gold-300 shrink-0 font-semibold">
+                            Pilih
+                          </span>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="p-3 text-center text-slate-400 text-xs">
+                        Tidak ditemukan pegawai yang cocok dengan kata kunci.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 

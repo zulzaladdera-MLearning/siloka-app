@@ -19,7 +19,6 @@ import {
   JRA_PRIMARY_CATEGORIES,
   JRA_SUB_CATEGORIES,
   JRA_MASTER_ITEMS,
-  FEATURED_PERIHAL_SHORTCUTS,
   TEMPLATE_DEFAULT_KLASIFIKASI_MAP,
   UNIT_CODE_MAP,
   resolveOfficialUnitInfo,
@@ -386,37 +385,6 @@ export default function SmartKlasifikasiNumberingPanel({
           <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
             Kode Terpilih Otomatis: <strong className="font-mono">{selectedKodeKlasifikasi}</strong>
           </span>
-        </div>
-
-        {/* Pintasan Cepat Perihal Baku (Sesuai Contoh Dokumen Sistem SILOKA) */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-bold uppercase text-slate-500 mr-1">
-            Contoh Perihal Baku:
-          </span>
-          {FEATURED_PERIHAL_SHORTCUTS.map((sc) => {
-            const isSelected = selectedKodeKlasifikasi === sc.kode_klasifikasi;
-            return (
-              <button
-                key={sc.kode_klasifikasi}
-                type="button"
-                onClick={() => handleSelectJraItem(getJraItemByCode(sc.kode_klasifikasi))}
-                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-semibold border transition ${
-                  isSelected
-                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
-                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-indigo-50 hover:border-indigo-300'
-                }`}
-              >
-                <span>{sc.label}</span>
-                <span
-                  className={`font-mono text-[10px] px-1 rounded ${
-                    isSelected ? 'bg-indigo-800 text-amber-300' : 'bg-white text-indigo-700'
-                  }`}
-                >
-                  {sc.kode_klasifikasi}
-                </span>
-              </button>
-            );
-          })}
         </div>
 
         {/* Searchable Selector Berbasis Perihal */}

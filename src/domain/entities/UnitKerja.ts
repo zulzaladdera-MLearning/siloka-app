@@ -101,7 +101,7 @@ export class UnitKerja {
       this.#tipeUnit === 'ORGAN';
 
     return {
-      kementerian: 'KEMENTERIAN PENDIDIKAN TINGGI, SAINS, DAN TEKNOLOGI',
+      kementerian: 'KEMENTERIAN PENDIDIKAN, KEBUDAYAAN, RISET, DAN TEKNOLOGI',
       universitas: 'UNIVERSITAS SILIWANGI',
       namaUnit: isTingkatUniversitas ? '' : this.#namaUnit.toUpperCase(),
       alamat: 'Jalan Siliwangi Nomor 24 Kota Tasikmalaya Kode Pos 46115',

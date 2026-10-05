@@ -8,7 +8,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { query, pool } from '../config/database.js';
+import { query, pool, isDatabaseAvailable } from '../config/database.js';
 import { generateDefaultPassword, generateRandomUnsilPassword, hashPassword } from '../utils/passwordHelper.js';
 import { sendWelcomeEmail } from './emailService.js';
 
@@ -34,6 +34,72 @@ try {
 } catch (e) {
   console.warn('[USER-SERVICE] Gagal memuat users.json di server:', e.message);
 }
+
+// Daftar blacklist pengguna yang telah dihapus oleh Super Administrator
+const deletedUsersFilePath = path.resolve(__dirname, '../../src/data/deletedUsers.json');
+export const deletedUserIdentifiers = new Set();
+
+const loadDeletedUsers = () => {
+  try {
+    if (fs.existsSync(deletedUsersFilePath)) {
+      const arr = JSON.parse(fs.readFileSync(deletedUsersFilePath, 'utf-8'));
+      if (Array.isArray(arr)) {
+        arr.forEach((id) => deletedUserIdentifiers.add(String(id).toLowerCase().trim()));
+      }
+    }
+  } catch (e) {
+    console.warn('[USER-SERVICE] Gagal memuat deletedUsers.json:', e.message);
+  }
+};
+loadDeletedUsers();
+
+export const saveDeletedUsers = () => {
+  try {
+    const dir = path.dirname(deletedUsersFilePath);
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(deletedUsersFilePath, JSON.stringify(Array.from(deletedUserIdentifiers), null, 2), 'utf-8');
+  } catch (e) {
+    console.warn('[USER-SERVICE] Gagal menyimpan deletedUsers.json:', e.message);
+  }
+};
+
+/**
+ * Mencabut status deleted / blacklist jika pengguna didaftarkan kembali oleh Super Admin
+ */
+export const unmarkUserAsDeleted = (identifiers = []) => {
+  let changed = false;
+  identifiers.filter(Boolean).forEach((id) => {
+    const clean = String(id).toLowerCase().trim();
+    if (deletedUserIdentifiers.has(clean)) {
+      deletedUserIdentifiers.delete(clean);
+      changed = true;
+    }
+    const prefix = clean.includes('@') ? clean.split('@')[0] : clean;
+    if (deletedUserIdentifiers.has(prefix)) {
+      deletedUserIdentifiers.delete(prefix);
+      changed = true;
+    }
+    const withDomain = clean.includes('@') ? clean : `${clean}@unsil.ac.id`;
+    if (deletedUserIdentifiers.has(withDomain)) {
+      deletedUserIdentifiers.delete(withDomain);
+      changed = true;
+    }
+  });
+  if (changed) {
+    saveDeletedUsers();
+  }
+};
+
+export const isUserDeleted = (identifier) => {
+  if (!identifier) return false;
+  const clean = String(identifier).toLowerCase().trim();
+  if (deletedUserIdentifiers.has(clean)) return true;
+  const prefix = clean.includes('@') ? clean.split('@')[0] : clean;
+  if (deletedUserIdentifiers.has(prefix)) return true;
+  const withDomain = clean.includes('@') ? clean : `${clean}@unsil.ac.id`;
+  if (deletedUserIdentifiers.has(withDomain)) return true;
+  return false;
+};
 
 const getUnitNameByCode = (code) => {
   const found = unitKerjaList.find((u) => u.kode_unit === code);
@@ -547,6 +613,32 @@ export const mutateUserJobAssignment = async ({
     } catch (tmErr) {
       console.warn('[MUTATION-SERVICE] Query tm_user dilewati:', tmErr.message);
     }
+
+    // Jalankan ke tabel 'master_user' untuk sinkronisasi
+    try {
+      let masterRole = 'DOSEN';
+      if (cleanRole === 'Super Admin' || cleanRole === 'SUPER_ADMIN') masterRole = 'SUPER_ADMIN';
+      else if (cleanRole === 'PEJABAT') masterRole = 'PEJABAT';
+      else if (cleanRole === 'PENGAWAS') masterRole = 'PENGAWAS';
+      else if (cleanRole === 'STAF_PERSURATAN') masterRole = 'STAF_PERSURATAN';
+      else if (cleanRole === 'OPERATOR_UNIT' || cleanRole === 'STAF') masterRole = 'OPERATOR_UNIT';
+
+      const sqlUpdateMaster = hasNewPassword
+        ? `UPDATE master_user SET unit_kerja_id = $1, email = COALESCE($2, email), role = $3::role_user_enum, role_label = COALESCE($4, role_label), password_hash = $5, nama_lengkap = COALESCE(NULLIF($6, ''), nama_lengkap), updated_at = NOW() WHERE id = $7 OR nip_nik = $7 OR username = $7 RETURNING *;`
+        : `UPDATE master_user SET unit_kerja_id = $1, email = COALESCE($2, email), role = $3::role_user_enum, role_label = COALESCE($4, role_label), nama_lengkap = COALESCE(NULLIF($5, ''), nama_lengkap), updated_at = NOW() WHERE id = $6 OR nip_nik = $6 OR username = $6 RETURNING *;`;
+
+      const masterParams = hasNewPassword
+        ? [cleanTargetUnit, cleanEmail, masterRole, cleanRoleLabel, hashedPassword, cleanNama, cleanUserId]
+        : [cleanTargetUnit, cleanEmail, masterRole, cleanRoleLabel, cleanNama, cleanUserId];
+
+      const resMaster = await query(sqlUpdateMaster, masterParams);
+      if (resMaster && resMaster.rows && resMaster.rows.length > 0) {
+        if (!updatedRecord) updatedRecord = resMaster.rows[0];
+        dbExecuted = true;
+      }
+    } catch (errMaster) {
+      console.warn('[MUTATION-SERVICE] Query master_user update dilewati:', errMaster.message);
+    }
   } catch (dbError) {
     console.warn(`[MUTATION-SERVICE] Database live tidak tersedia (${dbError.message}). Menjalankan update aman di memory store:`);
   }
@@ -710,7 +802,9 @@ export const storeNewUser = async ({
   id_unit,
   jabatan,
   tugas_tambahan,
-  role
+  role,
+  password,
+  raw_password
 }) => {
   const cleanNip = String(nip || nip_nik || '').trim();
   const cleanNama = String(nama || nama_lengkap || '').trim();
@@ -729,23 +823,40 @@ export const storeNewUser = async ({
   }
 
   // 1. Logika bisnis: "Dosen Biasa / Tanpa Jabatan" vs Pejabat Struktural
-  const isDosenBiasa = rawJabatan === 'Dosen Biasa / Tanpa Jabatan' || rawJabatan === 'Dosen Biasa';
-  const is_pejabat = !isDosenBiasa;
-  const finalJabatan = isDosenBiasa ? 'Dosen Biasa' : rawJabatan;
-  const finalRole = isDosenBiasa ? 'DOSEN' : (role || (is_pejabat ? 'PEJABAT' : 'OPERATOR_UNIT'));
+  const posLower = rawJabatan.toLowerCase();
+  const hasStructural =
+    /\b(rektor|dekan|direktur|ketua lembaga|kepala biro|kepala upa|kajur|ketua jurusan|kaprodi|sekretaris|wakil dekan|wakil rektor|kepala subbagian|kasubbag)\b/i.test(
+      rawJabatan
+    );
+  const isDosenBiasa =
+    rawJabatan === 'Dosen Biasa / Tanpa Jabatan' ||
+    rawJabatan === 'Dosen Biasa' ||
+    posLower.includes('dosen fungsional') ||
+    posLower.includes('dosen pengajar') ||
+    posLower.includes('tanpa jabatan');
+  const is_pejabat = !isDosenBiasa && (role === 'PEJABAT' || hasStructural);
+  const finalJabatan = isDosenBiasa && rawJabatan === 'Dosen Biasa / Tanpa Jabatan' ? 'Dosen Biasa' : rawJabatan;
+  const finalRole = is_pejabat ? 'PEJABAT' : (role || (isDosenBiasa ? 'DOSEN' : 'OPERATOR_UNIT'));
   const finalRoleLevel = isDosenBiasa ? 'Level 2: Fungsional Dosen' : (is_pejabat ? 'Level 1: Pimpinan' : 'Level 2: Pelaksana');
 
-  // 2. Hilangkan input password manual. Backend auto-generate:
+  // 2. Hilangkan input password manual jika tidak diisi, gunakan yang diinput atau backend auto-generate:
   // Username = Diambil dari NIP
   const username = cleanNip;
-  // Password = Buat string acak (format: 'Unsil' + 4 angka acak)
-  const rawPassword = generateRandomUnsilPassword();
+  // Password = Buat string acak (format: 'Unsil' + 4 angka acak) jika tidak disediakan
+  const rawPassword = (typeof password === 'string' && password.trim().length >= 6)
+    ? password.trim()
+    : ((typeof raw_password === 'string' && raw_password.trim().length >= 6)
+      ? raw_password.trim()
+      : generateRandomUnsilPassword());
   // Lakukan hashing bcrypt (12 salt rounds)
   const hashedPassword = await hashPassword(rawPassword);
 
   const userEmail = String(email || `${cleanNip}@unsil.ac.id`).trim().toLowerCase();
   const userId = `usr-${Date.now().toString(36)}-${cleanNip.slice(-4)}`;
   const unitName = getUnitNameByCode(cleanUnit);
+
+  // Cabut status terhapus / unmark deleted jika identifier ini pernah dihapus sebelumnya
+  unmarkUserAsDeleted([userId, cleanNip, username, userEmail]);
 
   let dbExecuted = false;
 
@@ -841,11 +952,77 @@ export const storeNewUser = async ({
     } catch (tmErr) {
       console.warn('[USER-SERVICE] Query tm_user dilewati:', tmErr.message);
     }
+
+    // Jalankan ke tabel 'master_user' jika ada
+    try {
+      let masterRole = 'DOSEN';
+      if (finalRole === 'Super Admin' || finalRole === 'SUPER_ADMIN') masterRole = 'SUPER_ADMIN';
+      else if (finalRole === 'PEJABAT') masterRole = 'PEJABAT';
+      else if (finalRole === 'PENGAWAS') masterRole = 'PENGAWAS';
+      else if (finalRole === 'STAF_PERSURATAN') masterRole = 'STAF_PERSURATAN';
+      else if (finalRole === 'OPERATOR_UNIT' || finalRole === 'STAF') masterRole = 'OPERATOR_UNIT';
+
+      const sqlInsertMaster = `
+        INSERT INTO master_user (
+          id, nip_nik, username, nama_lengkap, email, password_hash,
+          unit_kerja_id, role, role_level, role_label, is_signature_ready, is_active, must_change_password,
+          created_at, updated_at
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, true, NOW(), NOW())
+        ON CONFLICT (nip_nik) DO UPDATE SET
+          username = EXCLUDED.username,
+          nama_lengkap = EXCLUDED.nama_lengkap,
+          email = EXCLUDED.email,
+          unit_kerja_id = EXCLUDED.unit_kerja_id,
+          role = EXCLUDED.role,
+          role_level = EXCLUDED.role_level,
+          role_label = EXCLUDED.role_label,
+          is_signature_ready = EXCLUDED.is_signature_ready,
+          is_active = EXCLUDED.is_active,
+          updated_at = NOW()
+        RETURNING *;
+      `;
+      await query(sqlInsertMaster, [
+        userId,
+        cleanNip,
+        username,
+        cleanNama,
+        userEmail,
+        hashedPassword,
+        cleanUnit,
+        masterRole,
+        finalRoleLevel,
+        finalJabatan,
+        is_pejabat
+      ]);
+      dbExecuted = true;
+    } catch (mErr) {
+      console.warn('[USER-SERVICE] Query master_user dilewati:', mErr.message);
+    }
   } catch (dbErr) {
     console.warn('[USER-SERVICE] Database live tidak dapat diakses, beralih ke cache memori:', dbErr.message);
   }
 
   // Simpan/sinkronkan ke memoryUserStore untuk fallback real-time
+  const isSuperUser = finalRole === 'Super Admin' || finalRole === 'SUPER_ADMIN';
+  const roleSlugUser = isSuperUser
+    ? 'super_admin'
+    : is_pejabat
+    ? 'pimpinan'
+    : finalRole === 'VERIFIKATOR'
+    ? 'verifikator'
+    : finalRole === 'STAF' || finalRole === 'OPERATOR_UNIT'
+    ? 'admin_tu'
+    : finalRole === 'PENGAWAS'
+    ? 'auditor_spi'
+    : 'drafter';
+
+  const defaultPerms = is_pejabat
+    ? ['surat.create', 'surat.read', 'disposisi.create', 'disposisi.forward', 'tte.sign']
+    : isSuperUser
+    ? ['*']
+    : ['surat.create', 'surat.read'];
+
   const memoryRecord = {
     id: userId,
     nip: cleanNip,
@@ -864,8 +1041,11 @@ export const storeNewUser = async ({
     roleLabel: finalJabatan,
     id_role: finalRole,
     role: finalRole,
+    role_slug: roleSlugUser,
     roleLevel: finalRoleLevel,
     is_pejabat: is_pejabat,
+    is_super_admin: isSuperUser,
+    permissions: defaultPerms,
     password: hashedPassword,
     password_hash: hashedPassword,
     raw_password: rawPassword,
@@ -890,9 +1070,366 @@ export const storeNewUser = async ({
   };
 };
 
+/**
+ * ============================================================================
+ * SKENARIO 4: Pengambilan Seluruh Data Pengguna Resmi (GET /api/admin/users)
+ * ============================================================================
+ * Mengambil data dari master_user PostgreSQL, digabungkan secara de-duplicated
+ * dengan tabel users, memoryUserStore, dan dataset master users.json.
+ */
+export const getAllUsersFromDatabase = async () => {
+  let dbUsers = [];
+  try {
+    if (isDatabaseAvailable()) {
+      const res = await query(`
+        SELECT 
+          m.id,
+          m.nip_nik,
+          m.nip_nik AS nip,
+          COALESCE(m.username, m.email, m.nip_nik) AS username,
+          m.nama_lengkap,
+          m.nama_lengkap AS name,
+          m.email,
+          m.unit_kerja_id,
+          m.unit_kerja_id AS kode_unit,
+          m.role::text AS raw_role,
+          m.role_label AS "roleLabel",
+          m.role_label AS jabatan,
+          m.role_level AS "roleLevel",
+          m.avatar_url AS avatar,
+          m.is_signature_ready AS "signatureReady",
+          m.is_active
+        FROM master_user m
+        ORDER BY 
+          CASE WHEN m.role::text ILIKE '%super%' THEN 0 ELSE 1 END,
+          m.nama_lengkap ASC
+      `);
+      if (res && res.rows && res.rows.length > 0) {
+        dbUsers = res.rows;
+      }
+    }
+  } catch (err) {
+    console.warn('[USER-SERVICE] Gagal mengambil dari master_user:', err.message);
+  }
+
+  // Juga periksa tabel 'users' untuk user yang mungkin ditambahkan secara dinamis
+  try {
+    if (isDatabaseAvailable()) {
+      const resUsers = await query(`
+        SELECT 
+          id, nip, nip AS nip_nik, username, nama AS nama_lengkap, nama AS name,
+          email, kode_unit AS unit_kerja_id, kode_unit, role AS raw_role,
+          jabatan AS "roleLabel", jabatan, is_pejabat, is_active
+        FROM users
+      `);
+      if (resUsers && resUsers.rows) {
+        for (const u of resUsers.rows) {
+          const exists = dbUsers.some(
+            (d) => d.nip === u.nip || d.id === u.id || (u.email && d.email === u.email)
+          );
+          if (!exists) {
+            dbUsers.push({
+              ...u,
+              role_level: u.is_pejabat ? 'Level 1: Pimpinan' : 'Level 2: Fungsional Dosen',
+              signatureReady: Boolean(u.is_pejabat)
+            });
+          }
+        }
+      }
+    }
+  } catch (errUsers) {
+    console.warn('[USER-SERVICE] Gagal mengambil dari tabel users:', errUsers.message);
+  }
+
+  // Fallback: Gabungkan dengan memoryUserStore dan masterUsersList (users.json) jika database kosong/offline
+  const memoryList = Array.from(memoryUserStore.values());
+  const fallbackSource = memoryList.length > 0 ? memoryList : masterUsersList;
+
+  const combined = [...dbUsers];
+  for (const fb of fallbackSource) {
+    const key = fb.nip || fb.nip_nik;
+    const exists = combined.some(
+      (c) =>
+        (key && (c.nip === key || c.nip_nik === key)) ||
+        (fb.email && c.email && c.email.toLowerCase() === fb.email.toLowerCase()) ||
+        (fb.id && c.id === fb.id)
+    );
+    if (!exists) {
+      combined.push({
+        id: fb.id,
+        nip_nik: fb.nip_nik || fb.nip,
+        nip: fb.nip || fb.nip_nik,
+        username: fb.username || fb.email || fb.nip,
+        nama_lengkap: fb.nama_lengkap || fb.nama || fb.name,
+        name: fb.nama_lengkap || fb.nama || fb.name,
+        email: fb.email,
+        unit_kerja_id: fb.unit_kerja_id || fb.kode_unit || fb.id_unit || 'UN58',
+        kode_unit: fb.unit_kerja_id || fb.kode_unit || fb.id_unit || 'UN58',
+        raw_role: fb.role || fb.id_role,
+        roleLabel: fb.roleLabel || fb.role_label || fb.jabatan,
+        jabatan: fb.jabatan || fb.roleLabel || fb.role_label,
+        roleLevel: fb.roleLevel || 'Level 2: Pelaksana',
+        avatar: fb.avatar || fb.avatar_url,
+        signatureReady: fb.signatureReady !== false,
+        is_active: fb.is_active !== false
+      });
+    }
+  }
+
+  // Format data final yang konsisten sesuai standar institusi UNSIL
+  return combined
+    .filter(
+      (u) =>
+        u.id !== 'usr-admin-01' &&
+        u.id !== 'usr-00' &&
+        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+        !isUserDeleted(u.id) &&
+        !isUserDeleted(u.nip) &&
+        !isUserDeleted(u.nip_nik) &&
+        !isUserDeleted(u.email) &&
+        !isUserDeleted(u.username)
+    )
+    .map((u) => {
+      const rawRole = String(u.raw_role || u.role || '').toUpperCase();
+      const isSuper =
+        rawRole.includes('SUPER') ||
+        String(u.email || '').includes('dedegunawan@unsil.ac.id') ||
+        u.id === 'usr-dg-01';
+      const cleanJabatan =
+        u.jabatan || u.roleLabel || (isSuper ? 'Super Administrator' : 'Pegawai');
+      const posLower = cleanJabatan.toLowerCase();
+      const hasStructural =
+        /\b(rektor|dekan|direktur|ketua lembaga|kepala biro|kepala upa|kajur|ketua jurusan|kaprodi|sekretaris|wakil dekan|wakil rektor|kepala subbagian|kasubbag)\b/i.test(
+          cleanJabatan
+        );
+      const isPejabat =
+        isSuper || rawRole === 'PEJABAT' || (hasStructural && !posLower.includes('dosen fungsional'));
+
+      let mappedRole = 'DOSEN';
+      if (isSuper) mappedRole = 'Super Admin';
+      else if (rawRole === 'PEJABAT' || isPejabat) mappedRole = 'PEJABAT';
+      else if (rawRole === 'PENGAWAS') mappedRole = 'PENGAWAS';
+      else if (rawRole === 'OPERATOR_UNIT' || rawRole === 'STAF') mappedRole = 'OPERATOR_UNIT';
+      else if (rawRole === 'STAF_PERSURATAN') mappedRole = 'STAF_PERSURATAN';
+      else if (rawRole === 'VERIFIKATOR') mappedRole = 'VERIFIKATOR';
+
+      const roleSlug = isSuper
+        ? 'super_admin'
+        : isPejabat
+        ? 'pimpinan'
+        : mappedRole === 'VERIFIKATOR'
+        ? 'verifikator'
+        : mappedRole === 'OPERATOR_UNIT' || mappedRole === 'STAF'
+        ? 'admin_tu'
+        : mappedRole === 'PENGAWAS'
+        ? 'auditor_spi'
+        : 'drafter';
+
+      return {
+        id: u.id,
+        nip: u.nip || u.nip_nik,
+        nip_nik: u.nip_nik || u.nip,
+        username: u.username || u.email || u.nip,
+        nama_lengkap: u.nama_lengkap || u.name,
+        name: u.nama_lengkap || u.name,
+        email: u.email,
+        unit_kerja_id: u.unit_kerja_id || u.kode_unit || 'UN58',
+        kode_unit: u.unit_kerja_id || u.kode_unit || 'UN58',
+        unit: getUnitNameByCode(u.unit_kerja_id || u.kode_unit),
+        role: mappedRole,
+        role_slug: u.role_slug || roleSlug,
+        roleLabel: cleanJabatan,
+        role_label: cleanJabatan,
+        jabatan: cleanJabatan,
+        roleLevel:
+          u.roleLevel ||
+          (isSuper
+            ? 'Level 0: Administrator Sistem'
+            : isPejabat
+            ? 'Level 1: Pimpinan'
+            : 'Level 3: Dosen/Pegawai'),
+        is_pejabat: isPejabat,
+        is_super_admin: isSuper,
+        signatureReady: u.signatureReady !== false || isPejabat,
+        is_active: u.is_active !== false,
+        avatar:
+          u.avatar ||
+          'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+      };
+    })
+    .sort((a, b) => {
+      if (a.is_super_admin && !b.is_super_admin) return -1;
+      if (!a.is_super_admin && b.is_super_admin) return 1;
+      return (a.name || '').localeCompare(b.name || '');
+    });
+};
+
+/**
+ * ============================================================================
+ * SKENARIO 5: Hapus Pengguna dari Sistem (DELETE /api/admin/users/:id)
+ * ============================================================================
+ * Menghapus akun pengguna dari database (master_user, users, tbl_users, tm_user)
+ * dan memory store, dengan proteksi mutlak bagi Super Administrator.
+ */
+export const deleteUserById = async (userOrId) => {
+  const isObj = typeof userOrId === 'object' && userOrId !== null;
+  const cleanId = String(
+    isObj ? (userOrId.id || userOrId.nip || userOrId.nip_nik || userOrId.email) : (userOrId || '')
+  ).trim();
+  if (!cleanId) {
+    throw new Error('ID atau NIP pengguna wajib disertakan.');
+  }
+
+  // Proteksi mutlak Super Admin
+  if (
+    cleanId === 'usr-dg-01' ||
+    cleanId === '198501012010121001' ||
+    cleanId.toLowerCase().includes('dedegunawan')
+  ) {
+    throw new Error(
+      'Akun Super Administrator sistem tidak dapat dihapus untuk menjaga keamanan dan kedaulatan akses SILOKA.'
+    );
+  }
+
+  // Kumpulkan seluruh data pengenal pengguna sebelum dihapus
+  const idsToBlacklist = new Set([cleanId.toLowerCase()]);
+
+  if (isObj) {
+    if (userOrId.id) idsToBlacklist.add(String(userOrId.id).toLowerCase());
+    if (userOrId.nip) idsToBlacklist.add(String(userOrId.nip).toLowerCase());
+    if (userOrId.nip_nik) idsToBlacklist.add(String(userOrId.nip_nik).toLowerCase());
+    if (userOrId.email) {
+      const em = String(userOrId.email).toLowerCase();
+      idsToBlacklist.add(em);
+      if (em.includes('@')) idsToBlacklist.add(em.split('@')[0]);
+    }
+    if (userOrId.username) idsToBlacklist.add(String(userOrId.username).toLowerCase());
+  }
+
+  // Cek di memoryUserStore
+  for (const [key, u] of memoryUserStore.entries()) {
+    if (u.id === cleanId || u.nip_nik === cleanId || u.email === cleanId || key === cleanId) {
+      if (u.id) idsToBlacklist.add(String(u.id).toLowerCase());
+      if (u.nip_nik) idsToBlacklist.add(String(u.nip_nik).toLowerCase());
+      if (u.nip) idsToBlacklist.add(String(u.nip).toLowerCase());
+      if (u.email) {
+        const em = String(u.email).toLowerCase();
+        idsToBlacklist.add(em);
+        if (em.includes('@')) idsToBlacklist.add(em.split('@')[0]);
+      }
+      if (u.username) idsToBlacklist.add(String(u.username).toLowerCase());
+    }
+  }
+
+  // Cek di masterUsersList
+  for (const u of masterUsersList) {
+    if (
+      u.id === cleanId ||
+      u.nip_nik === cleanId ||
+      u.nip === cleanId ||
+      u.email === cleanId ||
+      u.username === cleanId
+    ) {
+      if (u.id) idsToBlacklist.add(String(u.id).toLowerCase());
+      if (u.nip_nik) idsToBlacklist.add(String(u.nip_nik).toLowerCase());
+      if (u.nip) idsToBlacklist.add(String(u.nip).toLowerCase());
+      if (u.email) {
+        const em = String(u.email).toLowerCase();
+        idsToBlacklist.add(em);
+        if (em.includes('@')) idsToBlacklist.add(em.split('@')[0]);
+      }
+      if (u.username) idsToBlacklist.add(String(u.username).toLowerCase());
+    }
+  }
+
+  // Daftarkan ke blacklist permanen agar tidak bisa login kembali sama sekali
+  idsToBlacklist.forEach((id) => deletedUserIdentifiers.add(id));
+  saveDeletedUsers();
+
+  // Hapus dari masterUsersList
+  masterUsersList = masterUsersList.filter(
+    (u) =>
+      !idsToBlacklist.has(String(u.id || '').toLowerCase()) &&
+      !idsToBlacklist.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
+      !idsToBlacklist.has(String(u.email || '').toLowerCase()) &&
+      !idsToBlacklist.has(String(u.username || '').toLowerCase())
+  );
+
+  let dbDeleted = false;
+  try {
+    if (isDatabaseAvailable()) {
+      try {
+        await query(`DELETE FROM master_user WHERE id = $1 OR nip_nik = $1 OR email = $1`, [cleanId]);
+        dbDeleted = true;
+      } catch (e1) {
+        console.warn('[USER-SERVICE] Gagal hapus dari master_user:', e1.message);
+      }
+
+      try {
+        await query(`DELETE FROM users WHERE id::text = $1 OR nip = $1 OR username = $1 OR email = $1`, [cleanId]);
+        dbDeleted = true;
+      } catch (e2) {
+        console.warn('[USER-SERVICE] Gagal hapus dari users:', e2.message);
+      }
+
+      try {
+        await query(
+          `DELETE FROM tbl_user_roles WHERE id_user IN (SELECT id_user FROM tbl_users WHERE id_user::text = $1 OR nip_nik = $1 OR email = $1)`,
+          [cleanId]
+        );
+      } catch (eRole) {
+        console.warn('[USER-SERVICE] Gagal hapus dari tbl_user_roles:', eRole.message);
+      }
+
+      try {
+        await query(`DELETE FROM tbl_users WHERE id_user::text = $1 OR nip_nik = $1 OR email = $1`, [cleanId]);
+        dbDeleted = true;
+      } catch (e3) {
+        console.warn('[USER-SERVICE] Gagal hapus dari tbl_users:', e3.message);
+      }
+
+      try {
+        await query(`DELETE FROM tm_user WHERE id::text = $1 OR nip_nik = $1 OR email = $1`, [cleanId]);
+        dbDeleted = true;
+      } catch (e4) {
+        console.warn('[USER-SERVICE] Gagal hapus dari tm_user:', e4.message);
+      }
+    }
+  } catch (err) {
+    console.warn('[USER-SERVICE] Gagal menghapus user dari database:', err.message);
+  }
+
+  // Hapus dari cache memory
+  memoryUserStore.delete(cleanId);
+  for (const [key, user] of memoryUserStore.entries()) {
+    const kLower = String(key).toLowerCase();
+    const uId = String(user.id || '').toLowerCase();
+    const uNip = String(user.nip_nik || user.nip || '').toLowerCase();
+    const uEmail = String(user.email || '').toLowerCase();
+    if (
+      idsToBlacklist.has(kLower) ||
+      idsToBlacklist.has(uId) ||
+      idsToBlacklist.has(uNip) ||
+      idsToBlacklist.has(uEmail)
+    ) {
+      memoryUserStore.delete(key);
+    }
+  }
+
+  return {
+    success: true,
+    db_deleted: dbDeleted,
+    message: 'Pengguna berhasil dihapus dari sistem. Akses ke sistem SILOKA telah dicabut sepenuhnya.'
+  };
+};
+
 export default {
   upsertUserFromSync,
   mutateUserJobAssignment,
-  storeNewUser
+  storeNewUser,
+  getAllUsersFromDatabase,
+  deleteUserById,
+  isUserDeleted,
+  deletedUserIdentifiers
 };
 

@@ -12,6 +12,9 @@
 
 import masterPejabatList from '../data/masterPejabat.json' with { type: 'json' };
 import usersData from '../data/users.json' with { type: 'json' };
+import unitKerjaList from '../data/unitKerja.json' with { type: 'json' };
+import { matchesOfficialDisposisiPosition } from './disposisiStandards.js';
+import { isSuperAdminUser } from './authGuards.js';
 
 /**
  * Mendapatkan daftar pejabat struktural yang HANYA berada di bawah unit kerja user login.
@@ -89,48 +92,245 @@ export const formatPejabatLabel = (pejabat) => {
 };
 
 /**
+ * Helper untuk mendapatkan nama resmi unit kerja dari kode unit
+ */
+const getUnitNameByCode = (code) => {
+  const clean = String(code || '').trim().toUpperCase();
+  const found = unitKerjaList.find((u) => u.kode_unit.toUpperCase() === clean);
+  if (found) return found.nama_unit;
+  return 'Universitas Siliwangi';
+};
+
+/**
+ * Helper pengelompokan kategori tujuan pejabat naskah dinas
+ */
+const getKategoriByUnitAndPosition = (kodeUnit, jabatanStr = '') => {
+  const code = String(kodeUnit || '').toUpperCase().trim();
+  const jab = String(jabatanStr || '').toLowerCase();
+
+  if (code === 'UN58' || code === 'UN58.SENAT' || code === 'UN58.SPI' || code === 'UN58.DP') {
+    return 'Pimpinan Rektorat & Organ Universitas';
+  }
+  if (code === 'UN58.5' || code === 'UN58.6') {
+    return 'Pimpinan Biro UNSIL';
+  }
+  if (code.startsWith('UN58.1') || code === 'UN58.PASCA') {
+    if (
+      jab.includes('jurusan') ||
+      jab.includes('kajur') ||
+      jab.includes('prodi') ||
+      jab.includes('program studi') ||
+      jab.includes('laboratorium') ||
+      jab.includes('kalab')
+    ) {
+      return 'Ketua Jurusan & Koordinator Program Studi';
+    }
+    return 'Dekan Fakultas & Direktur Pascasarjana';
+  }
+  if (code.startsWith('UN58.2') || code.startsWith('UN58.3')) {
+    return 'Kepala Lembaga & UPA';
+  }
+  return 'Pimpinan Satuan Kerja Lainnya';
+};
+
+/**
+ * Memeriksa apakah suatu akun pengguna merupakan Pejabat Struktural sah UNSIL
+ */
+const isOfficialUserAccount = (u) => {
+  if (!u) return false;
+  // Super Admin adalah administrator sistem, bukan pejabat penerima surat dinas
+  if (isSuperAdminUser(u)) return false;
+
+  const role = String(u.role || '').toUpperCase();
+  const roleSlug = String(u.role_slug || '').toLowerCase();
+  const isPejabat = Boolean(u.is_pejabat);
+  const jab = String(u.jabatan || u.roleLabel || u.role_label || '').trim();
+  const posLower = jab.toLowerCase();
+
+  // Kecualikan dosen biasa fungsional tanpa jabatan atau staf tata usaha murni
+  if (
+    posLower.includes('dosen fungsional') ||
+    posLower.includes('dosen biasa') ||
+    posLower.includes('tanpa jabatan') ||
+    posLower.includes('pengadministrasi') ||
+    posLower.includes('arsiparis')
+  ) {
+    return false;
+  }
+
+  return (
+    isPejabat ||
+    role === 'PEJABAT' ||
+    roleSlug === 'pimpinan' ||
+    matchesOfficialDisposisiPosition(jab)
+  );
+};
+
+/**
  * Mendapatkan seluruh daftar pejabat struktural resmi UNSIL
- * lengkap dengan pemetaan user_id dari data akun pengguna
- * untuk kebutuhan perutean otomatis (direct inbox routing) Surat Masuk.
+ * yang TERINTEGRASI PENUH dengan modul Manajemen Pengguna (allUsers),
+ * Peran & Wewenang Akun, Unit Kerja, dan Jabatan Struktural / Peran Institusi.
  * 
+ * Data akun pengguna aktif dari Manajemen Pengguna dijadikan Single Source of Truth
+ * untuk nama pejabat terkini, NIP, email, dan perutean disposisi otomatis (direct inbox routing).
+ * 
+ * @param {Array<object>} [customUsersList] - Daftar master user dari Manajemen Pengguna (opsional)
  * @returns {Array<object>}
  */
-export const getAllOfficialsWithUserMapping = () => {
-  return masterPejabatList.map((p) => {
-    const userMatch = usersData.find(
-      (u) =>
-        u.nip_nik === p.nip ||
-        u.nip === p.nip ||
-        (u.jabatan && u.jabatan.toLowerCase() === p.jabatan.toLowerCase()) ||
-        (u.roleLabel && u.roleLabel.toLowerCase() === p.jabatan.toLowerCase())
-    );
+export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
+  // 1. Tentukan sumber data pengguna aktif (dari props Manajemen Pengguna, localStorage, atau fallback usersData)
+  let currentUsers = [];
+  if (Array.isArray(customUsersList) && customUsersList.length > 0) {
+    currentUsers = customUsersList;
+  } else if (typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('siloka_users_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          currentUsers = parsed;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  if (!currentUsers || currentUsers.length === 0) {
+    currentUsers = usersData;
+  }
 
-    let kategori = 'Pimpinan Fakultas & Lembaga';
-    if (p.kode_unit === 'UN58' || p.kode_unit === 'UN58.SENAT' || p.kode_unit === 'UN58.SPI' || p.kode_unit === 'UN58.DP') {
-      kategori = 'Pimpinan Rektorat & Organ Universitas';
-    } else if (p.kode_unit === 'UN58.5' || p.kode_unit === 'UN58.6') {
-      kategori = 'Pimpinan Biro UNSIL';
-    } else if (p.kode_unit.startsWith('UN58.1') && p.jabatan.toLowerCase().includes('dekan')) {
-      kategori = 'Dekan Fakultas & Direktur Pascasarjana';
-    } else if (p.kode_unit.startsWith('UN58.2') || p.kode_unit.startsWith('UN58.3')) {
-      kategori = 'Kepala Lembaga & UPA';
+  const officials = [];
+  const matchedUserIds = new Set();
+  const matchedNips = new Set();
+
+  // 2. Tahap 1: Iterasi Master Pejabat Struktur Organisasi UNSIL
+  // Hubungkan dan perbarui secara dinamis dengan akun dari Manajemen Pengguna jika tersedia
+  masterPejabatList.forEach((p) => {
+    // Cari akun pengguna di Manajemen Pengguna yang cocok
+    const userMatch = currentUsers.find((u) => {
+      if (!u) return false;
+      const uNip = String(u.nip || u.nip_nik || '').trim();
+      const pNip = String(p.nip || '').trim();
+      if (uNip && pNip && uNip === pNip) return true;
+
+      const uUnit = String(u.unit_kerja_id || u.kode_unit || '').trim().toUpperCase();
+      const pUnit = String(p.kode_unit || '').trim().toUpperCase();
+      const uJab = String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase();
+      const pJab = String(p.jabatan || '').trim().toLowerCase();
+
+      // Cocokkan jika unit sama dan jabatan struktural sama persis
+      if (uUnit && pUnit && uUnit === pUnit && uJab && pJab && (uJab === pJab || uJab.includes(pJab) || pJab.includes(uJab))) {
+        return true;
+      }
+      return false;
+    });
+
+    const kodeUnit = userMatch?.unit_kerja_id || userMatch?.kode_unit || p.kode_unit;
+    const finalJabatan = userMatch?.jabatan || userMatch?.roleLabel || p.jabatan;
+    const finalNama = userMatch?.nama_lengkap || userMatch?.name || p.nama_gelar;
+    const finalNip = userMatch?.nip || userMatch?.nip_nik || p.nip;
+    const finalUnitName = userMatch?.unit || getUnitNameByCode(kodeUnit);
+    const kategori = getKategoriByUnitAndPosition(kodeUnit, finalJabatan);
+
+    if (userMatch) {
+      matchedUserIds.add(userMatch.id);
+      if (finalNip) matchedNips.add(finalNip);
     }
 
-    return {
+    officials.push({
       id: p.id,
-      jabatan: p.jabatan,
-      nama: p.nama,
-      gelar: p.gelar,
-      nama_gelar: p.nama_gelar,
-      nip: p.nip,
-      kode_unit: p.kode_unit,
+      jabatan: finalJabatan,
+      nama: userMatch?.nama_lengkap || userMatch?.name || p.nama,
+      gelar: p.gelar || '',
+      nama_gelar: finalNama,
+      nip: finalNip,
+      kode_unit: kodeUnit,
+      unit_nama: finalUnitName,
       kategori,
       user_id: userMatch?.id || null,
       user_email: userMatch?.email || null,
-      user_name: userMatch?.nama_lengkap || userMatch?.name || p.nama_gelar,
+      user_name: finalNama,
       role: userMatch?.role || 'PEJABAT',
-      label: `${p.jabatan} — ${p.nama_gelar}`
-    };
+      role_slug: userMatch?.role_slug || 'pimpinan',
+      roleLevel: userMatch?.roleLevel || 'Level 1: Pimpinan',
+      permissions: userMatch?.permissions || ['disposisi.create', 'disposisi.forward'],
+      label: finalJabatan,
+      is_from_user_management: Boolean(userMatch),
+      has_active_account: Boolean(userMatch?.email || userMatch?.id)
+    });
+  });
+
+  // 3. Tahap 2: Tambahkan Pejabat Baru dari Manajemen Pengguna yang belum ada di masterPejabatList
+  // (Contoh: Ketua Jurusan, Koordinator Prodi, Wakil Dekan baru, atau Kepala Unit baru)
+  currentUsers.forEach((u) => {
+    if (!u) return;
+    if (matchedUserIds.has(u.id)) return;
+    const uNip = String(u.nip || u.nip_nik || '').trim();
+    if (uNip && matchedNips.has(uNip)) return;
+
+    if (isOfficialUserAccount(u)) {
+      const kodeUnit = u.unit_kerja_id || u.kode_unit || 'UN58';
+      const finalJabatan = u.jabatan || u.roleLabel || u.role_label || 'Pejabat Struktural';
+      const finalNama = u.nama_lengkap || u.name || 'Pegawai UNSIL';
+      const finalNip = u.nip || u.nip_nik || '-';
+      const finalUnitName = u.unit || getUnitNameByCode(kodeUnit);
+      const kategori = getKategoriByUnitAndPosition(kodeUnit, finalJabatan);
+
+      matchedUserIds.add(u.id);
+      if (finalNip && finalNip !== '-') matchedNips.add(finalNip);
+
+      officials.push({
+        id: u.id,
+        jabatan: finalJabatan,
+        nama: finalNama,
+        gelar: '',
+        nama_gelar: finalNama,
+        nip: finalNip,
+        kode_unit: kodeUnit,
+        unit_nama: finalUnitName,
+        kategori,
+        user_id: u.id,
+        user_email: u.email || null,
+        user_name: finalNama,
+        role: u.role || 'PEJABAT',
+        role_slug: u.role_slug || 'pimpinan',
+        roleLevel: u.roleLevel || 'Level 1: Pimpinan',
+        permissions: u.permissions || ['disposisi.create', 'disposisi.forward'],
+        label: finalJabatan,
+        is_from_user_management: true,
+        has_active_account: true
+      });
+    }
+  });
+
+  // 4. Tahap 3: Pengurutan Hierarkis SOTK UNSIL
+  const kategoriOrder = {
+    'Pimpinan Rektorat & Organ Universitas': 1,
+    'Pimpinan Biro UNSIL': 2,
+    'Dekan Fakultas & Direktur Pascasarjana': 3,
+    'Ketua Jurusan & Koordinator Program Studi': 4,
+    'Kepala Lembaga & UPA': 5,
+    'Pimpinan Satuan Kerja Lainnya': 6
+  };
+
+  return officials.sort((a, b) => {
+    const orderA = kategoriOrder[a.kategori] || 99;
+    const orderB = kategoriOrder[b.kategori] || 99;
+    if (orderA !== orderB) return orderA - orderB;
+
+    // Utamakan Rektor di puncak
+    const isRektorA = a.jabatan.toLowerCase().includes('rektor universitas');
+    const isRektorB = b.jabatan.toLowerCase().includes('rektor universitas');
+    if (isRektorA && !isRektorB) return -1;
+    if (!isRektorA && isRektorB) return 1;
+
+    // Utamakan Dekan di atas Wakil Dekan
+    const isDekanA = a.jabatan.toLowerCase().startsWith('dekan');
+    const isDekanB = b.jabatan.toLowerCase().startsWith('dekan');
+    if (isDekanA && !isDekanB) return -1;
+    if (!isDekanA && isDekanB) return 1;
+
+    return a.jabatan.localeCompare(b.jabatan);
   });
 };
 

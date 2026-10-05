@@ -10,6 +10,10 @@ import {
   getOutgoingList
 } from '../controllers/outgoingLetterController.js';
 import {
+  createInbound,
+  getInboundList
+} from '../controllers/inboundLetterController.js';
+import {
   getPejabatList,
   getPejabatByUnitCode
 } from '../controllers/pejabatController.js';
@@ -48,6 +52,12 @@ router.get('/pejabat/unit/:kode_unit', getPejabatByUnitCode);
 // 3. Endpoint Transaksi Surat Keluar & Nomor Otomatis
 router.post('/surat-keluar', createOutgoing);
 router.get('/surat-keluar', getOutgoingList);
+
+// 3.b. Endpoint Registrasi Surat Masuk & Buku Agenda Ekspedisi
+router.post('/surat-masuk', createInbound);
+router.get('/surat-masuk', getInboundList);
+router.post('/letters/inbound', createInbound);
+router.get('/letters/inbound', getInboundList);
 
 // 4. Endpoint Pengendalian Surat Terkunci RBAC (Tupoksi Prefix & Max Keamanan)
 router.get('/surat', checkPermission('surat:read'), getScopedLetters);

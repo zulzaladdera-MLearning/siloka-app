@@ -3,7 +3,6 @@ import {
   X,
   SendHorizontal,
   FileText,
-  UserCheck,
   Calendar,
   AlertCircle,
   CheckCircle2,
@@ -13,8 +12,9 @@ import {
   Building2,
   Building,
   Check,
-  RotateCcw,
-  CheckSquare
+  CheckSquare,
+  Clock,
+  Sparkles
 } from 'lucide-react';
 import { isLetterSignatureRequest } from '../../utils/letterActionPolicy';
 import {
@@ -23,7 +23,8 @@ import {
   OFFICIAL_DISPOSISI_CHECKLIST_COL1,
   OFFICIAL_DISPOSISI_CHECKLIST_COL2,
   DISPOSISI_SLA_DAYS,
-  getHierarchicalDisposisiTargets
+  getHierarchicalDisposisiTargets,
+  isDisposisiAuthorizedOfficial
 } from '../../utils/disposisiStandards';
 
 export { BKU_STRUCTURAL_TEAMS, OFFICIAL_UNSIL_INSTRUCTIONS };
@@ -34,9 +35,28 @@ export const QuickDisposisiModal = ({
   onClose,
   onSubmitDisposisi,
   allLetters = [],
-  currentUser = null
+  currentUser = null,
+  allUsers = []
 }) => {
-  if (!isOpen) return null;
+  // Profil Pengguna Aktif yang Disinkronkan dengan Manajemen Pengguna (allUsers)
+  const effectiveCurrentUser = useMemo(() => {
+    if (!currentUser) return null;
+    if (Array.isArray(allUsers) && allUsers.length > 0) {
+      const matched = allUsers.find(
+        (u) =>
+          (u.id && currentUser.id && String(u.id) === String(currentUser.id)) ||
+          (u.email && currentUser.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (u.nip && currentUser.nip && u.nip === currentUser.nip)
+      );
+      if (matched) return { ...currentUser, ...matched };
+    }
+    return currentUser;
+  }, [currentUser, allUsers]);
+
+  // Evaluasi wewenang pejabat SOTK UNSIL
+  const isAuthorized = useMemo(() => {
+    return isDisposisiAuthorizedOfficial(effectiveCurrentUser, allUsers);
+  }, [effectiveCurrentUser, allUsers]);
 
   // STRICT BUSINESS RULE: Saring hanya naskah yang sah didisposisikan (kecualikan Permohonan TTD)
   const disposableLetters = useMemo(() => {
@@ -45,22 +65,10 @@ export const QuickDisposisiModal = ({
 
   const isTargetSignatureRequest = letter ? isLetterSignatureRequest(letter) : false;
 
-  const [selectedLetterId, setSelectedLetterId] = useState(() => {
-    if (letter && !isLetterSignatureRequest(letter)) return letter.id;
-    return disposableLetters[0]?.id || '';
-  });
-
   // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
   const hierarchicalTargets = useMemo(() => {
-    return getHierarchicalDisposisiTargets(currentUser);
-  }, [currentUser]);
-
-  const [targetUnit, setTargetUnit] = useState(() => {
-    return hierarchicalTargets[0]?.nama || 'Kepala Bagian Umum';
-  });
-  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
-  const [unitSearchQuery, setUnitSearchQuery] = useState('');
-  const unitDropdownRef = useRef(null);
+    return getHierarchicalDisposisiTargets(effectiveCurrentUser);
+  }, [effectiveCurrentUser]);
 
   // Kalkulasi tanggal jatuh tempo berdasarkan SLA Peraturan Rektor No. 3/2023
   const calculateDueDateBySifat = (sifat) => {
@@ -70,7 +78,16 @@ export const QuickDisposisiModal = ({
     return d.toISOString().split('T')[0];
   };
 
-  // State Instruksi Tindak Lanjut ("Untuk :")
+  // State Manajemen Disposisi
+  const [selectedLetterId, setSelectedLetterId] = useState('');
+  const [targetUnit, setTargetUnit] = useState('');
+  const [isCustomTarget, setIsCustomTarget] = useState(false);
+  const [customTargetUnit, setCustomTargetUnit] = useState('');
+  const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
+  const [unitSearchQuery, setUnitSearchQuery] = useState('');
+  const unitDropdownRef = useRef(null);
+
+  // State Instruksi Tindak Lanjut ("Untuk :") Format Contoh 21
   const [actions, setActions] = useState(['Proses sesuai prosedur']);
   const [koordinasiDetail, setKoordinasiDetail] = useState('');
   const [lainnyaDetail, setLainnyaDetail] = useState('');
@@ -79,7 +96,48 @@ export const QuickDisposisiModal = ({
   const [dueDate, setDueDate] = useState(() => calculateDueDateBySifat('Segera'));
   const [validationError, setValidationError] = useState('');
 
-  // Close dropdown when clicking outside
+  // SINKRONISASI MUTLAK: Selaraskan data naskah saat modal dibuka atau surat berubah
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Utamakan letter prop yang diklik oleh pejabat
+    const activeLetter = (letter && !isLetterSignatureRequest(letter))
+      ? letter
+      : (selectedLetterId ? disposableLetters.find((l) => l.id === selectedLetterId) : null) || disposableLetters[0] || null;
+
+    if (activeLetter) {
+      setSelectedLetterId(activeLetter.id);
+    }
+
+    // Default target bawahan sesuai pimpinan login
+    const defaultTarget = hierarchicalTargets[0]?.nama || '';
+    const existingTarget = activeLetter?.disposisi?.tujuanDisposisi;
+    if (existingTarget) {
+      setTargetUnit(existingTarget);
+    } else {
+      setTargetUnit(defaultTarget);
+    }
+    setIsCustomTarget(false);
+    setCustomTargetUnit('');
+
+    // Pre-fill butir instruksi jika surat sudah memiliki riwayat disposisi
+    if (activeLetter?.disposisi?.actions && Array.isArray(activeLetter.disposisi.actions) && activeLetter.disposisi.actions.length > 0) {
+      setActions(activeLetter.disposisi.actions);
+    } else {
+      setActions(['Proses sesuai prosedur']);
+    }
+
+    const currentSifat = activeLetter?.disposisi?.sifatInstruksi || activeLetter?.sifat || 'Segera';
+    setSifatInstruksi(currentSifat);
+    setDueDate(activeLetter?.disposisi?.batasWaktu || calculateDueDateBySifat(currentSifat));
+    setCustomNote(activeLetter?.disposisi?.customNote || '');
+    setKoordinasiDetail('');
+    setLainnyaDetail('');
+    setValidationError('');
+    setIsUnitDropdownOpen(false);
+  }, [isOpen, letter, hierarchicalTargets]);
+
+  // Close dropdown target ketika klik di luar
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (unitDropdownRef.current && !unitDropdownRef.current.contains(event.target)) {
@@ -90,15 +148,24 @@ export const QuickDisposisiModal = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedLetterObj =
-    disposableLetters.find((l) => l.id === selectedLetterId) ||
-    (letter && !isTargetSignatureRequest ? letter : null);
+  // Objek surat yang aktif sedang didisposisikan
+  const selectedLetterObj = useMemo(() => {
+    if (letter && !isTargetSignatureRequest) return letter;
+    if (selectedLetterId) {
+      const match = disposableLetters.find((l) => l.id === selectedLetterId);
+      if (match) return match;
+    }
+    return disposableLetters[0] || null;
+  }, [letter, selectedLetterId, disposableLetters, isTargetSignatureRequest]);
 
   const selectedTeamObj = useMemo(() => {
-    return hierarchicalTargets.find((t) => t.nama === targetUnit) || hierarchicalTargets[0];
+    return (
+      hierarchicalTargets.find((t) => t.nama === targetUnit) ||
+      hierarchicalTargets[0] || { nama: targetUnit || 'Unit Kerja Terkait', deskripsi: '' }
+    );
   }, [targetUnit, hierarchicalTargets]);
 
-  // Filter unit kerja bawahan berdasarkan query pencarian
+  // Filter unit kerja bawahan berdasarkan pencarian
   const filteredTeams = useMemo(() => {
     if (!unitSearchQuery.trim()) return hierarchicalTargets;
     const q = unitSearchQuery.toLowerCase();
@@ -110,7 +177,12 @@ export const QuickDisposisiModal = ({
     );
   }, [unitSearchQuery, hierarchicalTargets]);
 
-  // Handler toggle checkbox instruksi
+  // STRICT ACCESS CONTROL & VISIBILITY GUARD (Dipanggil setelah SEMUA hooks dideklarasikan)
+  if (!isOpen || !isAuthorized) {
+    return null;
+  }
+
+  // Handler toggle checklist instruksi
   const handleToggleAction = (itemLabel) => {
     setValidationError('');
     if (actions.includes(itemLabel)) {
@@ -136,13 +208,17 @@ export const QuickDisposisiModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
 
-    // STRICT BUSINESS RULE: Double safeguard check on submission
     if (!selectedLetterObj || isLetterSignatureRequest(selectedLetterObj)) {
       alert('ATURAN KETAT SISTEM: Naskah dinas ini berstatus Permohonan Tanda Tangan Elektronik (TTE) dan TIDAK DAPAT didisposisikan.');
       return;
     }
 
-    // Validasi Checklist Instruksi ("Untuk :")
+    const finalTarget = isCustomTarget ? customTargetUnit.trim() : targetUnit.trim();
+    if (!finalTarget) {
+      setValidationError('Mohon tentukan unit / pejabat bawahan penerima disposisi.');
+      return;
+    }
+
     if (actions.length === 0) {
       setValidationError('Mohon centang minimal satu butir instruksi tindak lanjut ("Untuk :") sesuai arahan dinas.');
       return;
@@ -159,13 +235,13 @@ export const QuickDisposisiModal = ({
       return act;
     });
 
-    const pemberiName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Pimpinan Unit';
-    const pemberiJabatan = currentUser?.jabatan || currentUser?.sotk_position_label || currentUser?.roleLabel || 'Pimpinan';
+    const pemberiName = effectiveCurrentUser?.nama_lengkap || effectiveCurrentUser?.nama || effectiveCurrentUser?.name || 'Pimpinan Unit';
+    const pemberiJabatan = effectiveCurrentUser?.jabatan || effectiveCurrentUser?.sotk_position_label || effectiveCurrentUser?.roleLabel || 'Pimpinan';
 
     onSubmitDisposisi({
-      letterId: selectedLetterId,
-      nomorAgenda: selectedLetterObj?.nomorAgenda || `AGD-${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
-      targetUnit,
+      letterId: selectedLetterObj.id,
+      nomorAgenda: selectedLetterObj.nomorAgenda || `AGD-${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
+      targetUnit: finalTarget,
       sifatInstruksi,
       actions: finalizedActions,
       customNote,
@@ -181,7 +257,7 @@ export const QuickDisposisiModal = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in duration-200">
       <div className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[92vh]">
         {/* Header Format Resmi UNSIL */}
-        <div className="px-5 py-3.5 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-slate-950 text-white flex items-center justify-between shrink-0">
+        <div className="px-5 py-3.5 bg-gradient-to-r from-unsil-green-950 via-unsil-green-900 to-slate-950 text-white flex items-center justify-between shrink-0 shadow-sm">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-unsil-gold-500/20 border border-unsil-gold-400/40 flex items-center justify-center shrink-0 shadow-inner">
               <CheckSquare className="w-5 h-5 text-unsil-gold-300" />
@@ -189,14 +265,14 @@ export const QuickDisposisiModal = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-white tracking-wide">
-                  Lembar Arahan Disposisi Surat Masuk
+                  Lembar Disposisi Surat Masuk
                 </h2>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-unsil-gold-400/20 text-unsil-gold-300 border border-unsil-gold-400/30">
-                  Matriks Kewenangan UNSIL
+                <span className="text-[9.5px] font-mono font-semibold px-2 py-0.5 rounded bg-unsil-gold-400/20 text-unsil-gold-300 border border-unsil-gold-400/30">
+                  Contoh 21
                 </span>
               </div>
               <p className="text-[11px] text-emerald-200 mt-0.5">
-                Pemberi Arahan: <strong>{currentUser?.nama_lengkap || currentUser?.name || 'Pimpinan Unit'}</strong> — {currentUser?.jabatan || currentUser?.roleLabel || 'Pejabat Struktural'}
+                Pemberi Arahan: <strong className="text-white">{effectiveCurrentUser?.nama_lengkap || effectiveCurrentUser?.name || 'Pimpinan Unit'}</strong> — {effectiveCurrentUser?.jabatan || effectiveCurrentUser?.roleLabel || 'Pejabat Struktural'}
               </p>
             </div>
           </div>
@@ -210,7 +286,7 @@ export const QuickDisposisiModal = ({
           </button>
         </div>
 
-        {/* Form Body vs Strict Guard Notice */}
+        {/* Peringatan jika naskah Permohonan TTE */}
         {isTargetSignatureRequest ? (
           <div className="p-8 space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto shadow-sm">
@@ -228,7 +304,7 @@ export const QuickDisposisiModal = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-xs transition"
+                className="px-5 py-2 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 Tutup & Kembali
               </button>
@@ -236,28 +312,204 @@ export const QuickDisposisiModal = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs text-slate-700">
-            {/* Target Surat Selector & Preview */}
+            {/* KARTU IDENTITAS NASKAH DINAS YANG DIDISPOSISIKAN (Terkunci & Presisi) */}
+            {selectedLetterObj && (
+              <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 shadow-2xs space-y-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-unsil-green-800 text-unsil-gold-300">
+                      {selectedLetterObj.kategori || 'Surat Masuk'}
+                    </span>
+                    <span className="text-[11px] font-mono font-bold text-unsil-green-950">
+                      No. Agenda: {selectedLetterObj.nomorAgenda || 'Terdaftar'}
+                    </span>
+                  </div>
+                  <span className="text-[10.5px] font-mono text-slate-700 bg-white px-2 py-0.5 rounded border border-emerald-200">
+                    No. Surat: <strong className="text-slate-900">{selectedLetterObj.nomorSurat}</strong>
+                  </span>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 leading-snug">
+                    {selectedLetterObj.perihal}
+                  </h3>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-600 pt-1 border-t border-emerald-200/60">
+                  <div>
+                    <span>Asal / Pengirim: </span>
+                    <strong className="text-slate-800">{selectedLetterObj.pengirim || 'Instansi Luar'}</strong>
+                  </div>
+                  <span>•</span>
+                  <div>
+                    <span>Tanggal Masuk: </span>
+                    <strong className="text-slate-800">
+                      {selectedLetterObj.tanggal || (typeof selectedLetterObj.created_at === 'string' ? selectedLetterObj.created_at.slice(0, 10) : '-')}
+                    </strong>
+                  </div>
+                  <span>•</span>
+                  <div>
+                    <span>Sifat Naskah: </span>
+                    <strong className="text-unsil-green-900">{selectedLetterObj.sifat || 'Biasa'}</strong>
+                  </div>
+                </div>
+
+                {/* Selektor alternatif jika dibuka tanpa naskah spesifik */}
+                {!letter && disposableLetters.length > 1 && (
+                  <div className="pt-2 border-t border-emerald-100 flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Pilih Naskah Masuk Lainnya:</span>
+                    <select
+                      value={selectedLetterId}
+                      onChange={(e) => setSelectedLetterId(e.target.value)}
+                      className="p-1 px-2 bg-white border border-slate-300 rounded text-xs text-slate-800 max-w-[280px] truncate"
+                    >
+                      {disposableLetters.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          [{l.nomorAgenda || l.nomorSurat}] - {l.perihal.slice(0, 45)}...
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* BARIS TARGET BAWAHAN & PENGATURAN SLA */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <div className="md:col-span-2">
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Surat Masuk yang Didisposisikan
-                </label>
-                <select
-                  value={selectedLetterId}
-                  onChange={(e) => setSelectedLetterId(e.target.value)}
-                  className="w-full p-2 bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition truncate"
-                >
-                  {disposableLetters.map((l) => (
-                    <option key={l.id} value={l.id}>
-                      [{l.nomorAgenda || l.nomorSurat}] - {l.perihal.slice(0, 60)}...
-                    </option>
-                  ))}
-                </select>
+              {/* Tujuan Disposisi Berjenjang */}
+              <div className="md:col-span-2 space-y-1">
+                <div className="flex items-center justify-between">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                    Diteruskan Kepada (Bawahan / Unit Pengolah Tujuan) *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsCustomTarget(!isCustomTarget);
+                      if (!isCustomTarget) {
+                        setCustomTargetUnit('');
+                      } else {
+                        setTargetUnit(hierarchicalTargets[0]?.nama || '');
+                      }
+                    }}
+                    className="text-[10.5px] text-unsil-green-800 hover:text-unsil-green-950 font-semibold hover:underline cursor-pointer"
+                  >
+                    {isCustomTarget ? '← Pilih dari Struktur SOTK' : '✍️ Ketik Manual Tujuan Lain'}
+                  </button>
+                </div>
+
+                {isCustomTarget ? (
+                  <input
+                    type="text"
+                    value={customTargetUnit}
+                    onChange={(e) => {
+                      setCustomTargetUnit(e.target.value);
+                      setTargetUnit(e.target.value);
+                    }}
+                    placeholder="Ketik nama jabatan bawahan, nama staf, atau unit pengolah..."
+                    className="w-full p-2.5 bg-amber-50/60 border border-amber-300 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20"
+                    autoFocus
+                    required
+                  />
+                ) : (
+                  <div className="relative" ref={unitDropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setIsUnitDropdownOpen((prev) => !prev)}
+                      className="w-full p-2.5 bg-white border border-slate-300 hover:border-unsil-green-700 rounded-lg text-xs font-medium text-slate-800 flex items-center justify-between shadow-2xs transition focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2 truncate">
+                        <div className="w-6 h-6 rounded bg-unsil-green-800 text-unsil-gold-400 flex items-center justify-center shrink-0">
+                          <Building2 className="w-3.5 h-3.5" />
+                        </div>
+                        <span className="font-bold text-slate-900 truncate">{targetUnit || 'Pilih Subordinat / Unit'}</span>
+                        {selectedTeamObj?.deskripsi && (
+                          <span className="text-[11px] text-slate-400 truncate hidden sm:inline">
+                            — {selectedTeamObj.deskripsi}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-slate-400 shrink-0 ml-1">
+                        {selectedTeamObj?.badge && (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-unsil-green-900 font-bold border border-emerald-200">
+                            {selectedTeamObj.badge}
+                          </span>
+                        )}
+                        <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isUnitDropdownOpen ? 'rotate-180 text-unsil-green-800' : ''}`} />
+                      </div>
+                    </button>
+
+                    {/* Searchable Dropdown Menu */}
+                    {isUnitDropdownOpen && (
+                      <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-30 animate-in fade-in slide-in-from-top-1 duration-150">
+                        <div className="px-3 pb-2 border-b border-slate-100">
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              type="text"
+                              value={unitSearchQuery}
+                              onChange={(e) => setUnitSearchQuery(e.target.value)}
+                              placeholder="Cari pejabat / unit bawahan..."
+                              className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-unsil-green-800 focus:bg-white text-slate-800 placeholder-slate-400"
+                              autoFocus
+                            />
+                          </div>
+                        </div>
+
+                        <div className="max-h-48 overflow-y-auto divide-y divide-slate-50 p-1">
+                          {filteredTeams.length > 0 ? (
+                            filteredTeams.map((team) => {
+                              const isSelected = targetUnit === team.nama;
+                              return (
+                                <button
+                                  key={team.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setTargetUnit(team.nama);
+                                    setIsUnitDropdownOpen(false);
+                                    setUnitSearchQuery('');
+                                  }}
+                                  className={`w-full p-2 rounded-lg text-left flex items-start justify-between gap-2 transition cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-emerald-50 text-unsil-green-950 font-semibold'
+                                      : 'hover:bg-slate-50 text-slate-700'
+                                  }`}
+                                >
+                                  <div className="flex items-start gap-2 truncate">
+                                    <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${
+                                      isSelected ? 'bg-unsil-green-800 text-unsil-gold-300' : 'bg-slate-100 text-slate-500'
+                                    }`}>
+                                      <Building className="w-3 h-3" />
+                                    </div>
+                                    <div className="truncate">
+                                      <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
+                                      {team.deskripsi && (
+                                        <p className="text-[10px] text-slate-500 mt-0.5 truncate">{team.deskripsi}</p>
+                                      )}
+                                    </div>
+                                  </div>
+                                  {isSelected && (
+                                    <Check className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
+                                  )}
+                                </button>
+                              );
+                            })
+                          ) : (
+                            <div className="p-3 text-center text-xs text-slate-400">
+                              Tidak ditemukan unit bawahan terkait.
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Derajat Kecepatan / Sifat
+              {/* Derajat Kecepatan & Batas Waktu */}
+              <div className="space-y-1">
+                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
+                  Derajat Kecepatan / Sifat *
                 </label>
                 <select
                   value={sifatInstruksi}
@@ -266,146 +518,36 @@ export const QuickDisposisiModal = ({
                     setSifatInstruksi(val);
                     setDueDate(calculateDueDateBySifat(val));
                   }}
-                  className="w-full p-2 bg-slate-50 border border-slate-300 hover:border-slate-400 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
                 >
                   <option value="Sangat Segera">Sangat Segera (Maks. 24 Jam)</option>
-                  <option value="Segera">Segera (Maks. 2×24 Jam / 2 Hari)</option>
+                  <option value="Segera">Segera (Maks. 2 Hari Kerja)</option>
                   <option value="Biasa">Biasa (Maks. 5 Hari Kerja)</option>
                   <option value="Rahasia">Rahasia Internal (Maks. 3 Hari)</option>
                 </select>
               </div>
             </div>
 
-            {selectedLetterObj && (
-              <div className="p-3 rounded-xl bg-emerald-50/80 border border-emerald-200 flex items-start gap-2.5">
-                <FileText className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold text-slate-900 leading-snug line-clamp-1">{selectedLetterObj.perihal}</p>
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 mt-1">
-                    <span>Asal/Pengirim: <strong className="text-slate-800">{selectedLetterObj.pengirim}</strong></span>
-                    <span>•</span>
-                    <span>No. Surat: <strong className="text-slate-800">{selectedLetterObj.nomorSurat}</strong></span>
-                    <span>•</span>
-                    <span>Agenda: <strong className="text-unsil-green-900 font-mono">{selectedLetterObj.nomorAgenda || 'Terdaftar'}</strong></span>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Tujuan Disposisi Berjenjang (Top-Down Subordinate Picker) */}
-            <div className="relative" ref={unitDropdownRef}>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                Diteruskan Kepada (Bawahan / Unit Pengolah Tujuan) :
-              </label>
-
-              <button
-                type="button"
-                onClick={() => setIsUnitDropdownOpen((prev) => !prev)}
-                className="w-full p-2.5 bg-white border border-slate-300 hover:border-unsil-green-700 rounded-lg text-xs font-medium text-slate-800 flex items-center justify-between shadow-2xs transition focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20"
-              >
-                <div className="flex items-center gap-2 truncate">
-                  <div className="w-6 h-6 rounded bg-unsil-green-800 text-unsil-gold-400 flex items-center justify-center shrink-0">
-                    <Building2 className="w-3.5 h-3.5" />
-                  </div>
-                  <span className="font-bold text-slate-900 truncate">{targetUnit}</span>
-                  {selectedTeamObj?.deskripsi && (
-                    <span className="text-[11px] text-slate-400 truncate hidden sm:inline">
-                      — {selectedTeamObj.deskripsi}
-                    </span>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 text-slate-400 shrink-0 ml-1">
-                  {selectedTeamObj?.badge && (
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-unsil-green-900 font-bold border border-emerald-200">
-                      {selectedTeamObj.badge}
-                    </span>
-                  )}
-                  <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isUnitDropdownOpen ? 'rotate-180 text-unsil-green-800' : ''}`} />
-                </div>
-              </button>
-
-              {/* Searchable Dropdown Menu */}
-              {isUnitDropdownOpen && (
-                <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-30 animate-in fade-in slide-in-from-top-1 duration-150">
-                  <div className="px-3 pb-2 border-b border-slate-100">
-                    <div className="relative">
-                      <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                      <input
-                        type="text"
-                        value={unitSearchQuery}
-                        onChange={(e) => setUnitSearchQuery(e.target.value)}
-                        placeholder="Cari pejabat / unit bawahan..."
-                        className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-unsil-green-800 focus:bg-white text-slate-800 placeholder-slate-400"
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <div className="max-h-48 overflow-y-auto divide-y divide-slate-50 p-1">
-                    {filteredTeams.length > 0 ? (
-                      filteredTeams.map((team) => {
-                        const isSelected = targetUnit === team.nama;
-                        return (
-                          <button
-                            key={team.id}
-                            type="button"
-                            onClick={() => {
-                              setTargetUnit(team.nama);
-                              setIsUnitDropdownOpen(false);
-                              setUnitSearchQuery('');
-                            }}
-                            className={`w-full p-2 rounded-lg text-left flex items-start justify-between gap-2 transition ${
-                              isSelected
-                                ? 'bg-emerald-50 text-unsil-green-950 font-semibold'
-                                : 'hover:bg-slate-50 text-slate-700'
-                            }`}
-                          >
-                            <div className="flex items-start gap-2 truncate">
-                              <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${
-                                isSelected ? 'bg-unsil-green-800 text-unsil-gold-300' : 'bg-slate-100 text-slate-500'
-                              }`}>
-                                <Building className="w-3 h-3" />
-                              </div>
-                              <div className="truncate">
-                                <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
-                                {team.deskripsi && (
-                                  <p className="text-[10px] text-slate-500 mt-0.5 truncate">{team.deskripsi}</p>
-                                )}
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <Check className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
-                            )}
-                          </button>
-                        );
-                      })
-                    ) : (
-                      <div className="p-3 text-center text-xs text-slate-400">
-                        Tidak ditemukan unit bawahan terkait.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* TABEL CHECKLIST 2 KOLOM (Format Disposisi Resmi UNSIL - Gambar Dokumen) */}
-            <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/60 p-3.5 space-y-2.5">
+            {/* TABEL CHECKLIST 2 KOLOM (Format Disposisi Resmi UNSIL - Contoh 21) */}
+            <div className="border border-slate-200 rounded-xl overflow-hidden bg-slate-50/70 p-3.5 space-y-2.5">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
                 <div>
                   <label className="text-xs font-bold text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
                     <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800" />
-                    Instruksi Tindak Lanjut Naskah (Untuk :)
+                    <span>Instruksi Tindak Lanjut Naskah (Untuk :)</span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-100 text-unsil-green-900 font-semibold border border-emerald-300 ml-1">
+                      Contoh 21
+                    </span>
                   </label>
-                  <p className="text-[10px] text-slate-500">
+                  <p className="text-[10.5px] text-slate-500 mt-0.5">
                     Centang satu atau beberapa butir arahan pimpinan di bawah ini:
                   </p>
                 </div>
-                <div className="flex items-center gap-2 text-[10px]">
+                <div className="flex items-center gap-2 text-[10.5px]">
                   <button
                     type="button"
                     onClick={handleSelectAll}
-                    className="text-unsil-green-800 hover:text-unsil-green-950 font-bold hover:underline"
+                    className="text-unsil-green-800 hover:text-unsil-green-950 font-bold hover:underline cursor-pointer"
                   >
                     Pilih Semua
                   </button>
@@ -413,7 +555,7 @@ export const QuickDisposisiModal = ({
                   <button
                     type="button"
                     onClick={handleClearAll}
-                    className="text-slate-500 hover:text-slate-800 font-semibold hover:underline"
+                    className="text-slate-500 hover:text-slate-800 font-semibold hover:underline cursor-pointer"
                   >
                     Kosongkan
                   </button>
@@ -431,8 +573,8 @@ export const QuickDisposisiModal = ({
                         key={item.id}
                         className={`flex items-start gap-2.5 p-1.5 rounded-lg cursor-pointer transition select-none ${
                           isChecked
-                            ? 'bg-emerald-100/70 text-unsil-green-950 font-semibold'
-                            : 'hover:bg-slate-100/80 text-slate-700'
+                            ? 'bg-emerald-100/70 border border-emerald-300 text-unsil-green-950 font-semibold shadow-2xs'
+                            : 'hover:bg-slate-100/80 border border-transparent text-slate-700'
                         }`}
                       >
                         <input
@@ -456,8 +598,8 @@ export const QuickDisposisiModal = ({
                         <label
                           className={`flex items-start gap-2.5 p-1.5 rounded-lg cursor-pointer transition select-none ${
                             isChecked
-                              ? 'bg-emerald-100/70 text-unsil-green-950 font-semibold'
-                              : 'hover:bg-slate-100/80 text-slate-700'
+                              ? 'bg-emerald-100/70 border border-emerald-300 text-unsil-green-950 font-semibold shadow-2xs'
+                              : 'hover:bg-slate-100/80 border border-transparent text-slate-700'
                           }`}
                         >
                           <input
@@ -476,7 +618,7 @@ export const QuickDisposisiModal = ({
                               type="text"
                               value={koordinasiDetail}
                               onChange={(e) => setKoordinasiDetail(e.target.value)}
-                              placeholder="Tuliskan pihak/unit koordinasi..."
+                              placeholder="Tuliskan pihak / unit kerja koordinasi..."
                               className="w-full text-[11px] p-1.5 bg-white border border-emerald-300 rounded focus:ring-1 focus:ring-unsil-green-800 outline-none"
                               autoFocus
                             />
@@ -503,10 +645,10 @@ export const QuickDisposisiModal = ({
               </div>
 
               {validationError && (
-                <p className="text-[11px] text-rose-600 pt-1 flex items-center gap-1 font-semibold animate-in fade-in duration-150">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                  {validationError}
-                </p>
+                <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-1.5 animate-in fade-in duration-150">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                  <span>{validationError}</span>
+                </div>
               )}
             </div>
 
@@ -514,7 +656,7 @@ export const QuickDisposisiModal = ({
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
               <div className="md:col-span-2">
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Catatan Pimpinan Tambahan (Opsional)
+                  Catatan Tambahan Pimpinan (Opsional)
                 </label>
                 <textarea
                   rows={2}
@@ -527,7 +669,7 @@ export const QuickDisposisiModal = ({
 
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700 mb-1">
-                  Tenggat Waktu Penyelesaian
+                  Tenggat Waktu Penyelesaian (SLA)
                 </label>
                 <input
                   type="date"
@@ -535,8 +677,9 @@ export const QuickDisposisiModal = ({
                   onChange={(e) => setDueDate(e.target.value)}
                   className="w-full p-2 bg-slate-50 border border-slate-300 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800"
                 />
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Otomatis dihitung sesuai SLA: <strong>{sifatInstruksi}</strong>.
+                <p className="text-[10px] text-slate-500 mt-1 flex items-center gap-1">
+                  <Clock className="w-3 h-3 text-slate-400 shrink-0" />
+                  <span>Otomatis dihitung sesuai SLA: <strong>{sifatInstruksi}</strong>.</span>
                 </p>
               </div>
             </div>
@@ -550,7 +693,7 @@ export const QuickDisposisiModal = ({
                 <button
                   type="button"
                   onClick={onClose}
-                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors"
+                  className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Batal
                 </button>

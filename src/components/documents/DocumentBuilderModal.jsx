@@ -327,7 +327,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     disahkanOlehNip: '196808301989031004',
     namaPos: 'PROSEDUR OPERASIONAL STANDAR PENERBITAN SPJ DAN SURAT PERTANGGUNGJAWABAN KEUANGAN BKU',
     dasarHukumText:
-      'Undang-Undang Nomor 17 Tahun 2003 tentang Keuangan Negara\nPeraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi Nomor 24 Tahun 2024 tentang Statuta Universitas Siliwangi\nPeraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Kelola Kearsipan dan Naskah Dinas Elektronik',
+      'Undang-Undang Nomor 17 Tahun 2003 tentang Keuangan Negara\nPeraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi Nomor 24 Tahun 2024 tentang Statuta Universitas Siliwangi\nPeraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi',
     kualifikasiText:
       'Pendidikan minimal D3 / S1 Akuntansi atau Manajemen Keuangan\nMemahami regulasi perpajakan dan aplikasi SILOKA BKU UNSIL',
     keterkaitanText:
@@ -378,7 +378,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     tujuanText:
       'Para Dekan Fakultas\nPara Ketua Lembaga\nPara Kepala Biro dan Unit Kerja\nCivitas Academica Universitas Siliwangi',
     dasarHukum:
-      'Berdasarkan Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Pedoman Tata Naskah Dinas Elektronik serta percepatan transformasi birokrasi digital kampus, dengan ini kami sampaikan ketentuan teknis persuratan dinas sebagai berikut:',
+      'Berdasarkan Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi serta percepatan transformasi birokrasi digital kampus, dengan ini kami sampaikan ketentuan teknis persuratan dinas sebagai berikut:',
     isiText:
       '1. Seluruh persuratan kedinasan, lembar disposisi, dan pertanggungjawaban anggaran wajib dicatat secara terpusat melalui Sistem Informasi SILOKA BKU UNSIL.\n2. Mulai tanggal 1 Oktober 2026, dokumen dinas resmi diterbitkan menggunakan Tanda Tangan Elektronik (TTE) tersertifikasi BSrE BSSN dan tidak lagi menggunakan cap basah stempel fisik.\n3. Pengarsipan surat dinas wajib mengikuti Jadwal Retensi Arsip (JRA) yang berlaku demi mencegah penumpukan arsip inaktif kedaluwarsa.\n4. Surat Edaran ini berlaku sejak tanggal ditetapkan untuk dipedomani dan dilaksanakan dengan penuh tanggung jawab.',
     tempatTanggal: `Tasikmalaya, 8 September ${currentYear}`,
@@ -398,7 +398,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     menimbangText:
       'bahwa dalam rangka mewujudkan akuntabilitas pengelolaan kearsipan dan percepatan naskah dinas elektronik di lingkungan Universitas Siliwangi, dipandang perlu membentuk Tim Kerja Khusus;\nbahwa mereka yang namanya tercantum dalam Lampiran Keputusan ini dipandang cakap dan memenuhi syarat untuk diangkat dalam tim kerja dimaksud;\nbahwa berdasarkan pertimbangan sebagaimana dimaksud dalam huruf a dan b, perlu menetapkan Keputusan Rektor Universitas Siliwangi.',
     mengingatText:
-      'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\nUndang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\nPeraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi dan Pengelolaan Perguruan Tinggi;\nPeraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Naskah Dinas Elektronik.',
+      'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\nUndang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\nPeraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi dan Pengelolaan Perguruan Tinggi;\nPeraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi.',
     menetapkan:
       'KEPUTUSAN REKTOR UNIVERSITAS SILIWANGI TENTANG PENETAPAN TIM KERJA REFORMASI BIROKRASI DAN TATA KELOLA KEARSIPAN DIGITAL BKU.',
     diktum: [
@@ -440,7 +440,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     menimbangText:
       'bahwa dalam rangka menjamin kelancaran pelaksanaan penatausahaan anggaran dan akuntabilitas keuangan BLU Universitas Siliwangi, dipandang perlu menerbitkan surat perintah ini;\nbahwa pegawai yang namanya tercantum di bawah ini dipandang cakap dan memenuhi syarat untuk melaksanakan perintah tersebut.',
     dasarText:
-      'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\nPeraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi;\nPeraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Kelola Kearsipan dan Naskah Dinas Elektronik.',
+      'Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\nPeraturan Pemerintah Nomor 4 Tahun 2014 tentang Penyelenggaraan Pendidikan Tinggi;\nPeraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi.',
     kepadaText:
       'Dr. Nana Sujana, Drs., M.Si. / NIP. 196808301989031004 / Kepala Biro Umum dan Keuangan',
     untukText:
@@ -850,8 +850,8 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
   const [lapData, setLapData] = useState({
     nomorSurat: `091/UN58/TI.01/${currentYear}`,
     tentang: 'PELAKSANAAN AUDIT KESIAPAN TEKNOLOGI DAN IMPLEMENTASI TATA NASKAH DINAS ELEKTRONIK APLIKASI SILOKA UNIVERSITAS SILIWANGI TAHUN 2026',
-    latarBelakang: 'Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 03 Tahun 2025, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.',
-    dasar: '1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\n2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\n3. Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Naskah Dinas Elektronik;\n4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.',
+    latarBelakang: 'Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 3 Tahun 2023, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.',
+    dasar: '1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\n2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\n3. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi;\n4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.',
     ruangLingkup: 'Ruang lingkup pelaksanaan kegiatan meliputi pengujian 20 format naskah dinas resmi, integrasi Tanda Tangan Elektronik (TTE) tersertifikasi BSrE BSSN, keandalan server basis data surat dinas, serta pelatihan operasional bagi staf pengadministrasi persuratan.',
     kegiatanDilaksanakan: '1. Melakukan validasi kesesuaian layout visual 20 format naskah dinas dengan pedoman tata naskah dinas resmi UNSIL.\n2. Melaksanakan uji coba penerbitan TTE BSrE dengan enkripsi hash dokumen dan stempel QR-Code verifikasi dinas.\n3. Menyelenggarakan bimbingan teknis (Bimtek) administrasi naskah dinas elektronik kepada seluruh perwakilan fakultas dan unit kerja.',
     hasilDicapai: '1. Sebanyak 20 format naskah dinas resmi berhasil diintegrasikan dengan sempurna ke dalam aplikasi SILOKA.\n2. Tingkat kepatuhan format persuratan kedinasan mencapai 100% dan siap dioperasikan penuh pada semester ganjil TA 2026/2027.\n3. Telah tersertifikasi secara elektronik dan aman dari risiko pemalsuan dokumen kedinasan.',
@@ -878,7 +878,7 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
     pranggapan:
       '1. Seluruh 21 format naskah dinas resmi SILOKA akan diwajibkan secara penuh pada semester ganjil TA 2026/2027.\n2. Kesiapan modul TTE tersertifikasi BSrE dan integrasi stempel QR-Code resmi akan menghapuskan penggunaan cap basah fisik di seluruh fakultas dan biro.\n3. Beban akses server akan meningkat signifikan sehingga diperlukan klaster server cadangan di Kampus Mugarsari.',
     faktaMempengaruhi:
-      '1. Peraturan Rektor Universitas Siliwangi Nomor 03 Tahun 2025 tentang Tata Kelola Kearsipan dan Naskah Dinas Elektronik.\n2. Hasil audit kesiapan sistem menunjukkan efisiensi tata kelola persuratan dinas meningkat 80% dengan SILOKA.\n3. UPT TIK telah menyiapkan klaster server cadangan namun memerlukan penetapan alokasi anggaran operasional DIPA BLU TA 2026.',
+      '1. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi.\n2. Hasil audit kesiapan sistem menunjukkan efisiensi tata kelola persuratan dinas meningkat 80% dengan SILOKA.\n3. UPT TIK telah menyiapkan klaster server cadangan namun memerlukan penetapan alokasi anggaran operasional DIPA BLU TA 2026.',
     analisis:
       'Pemberlakuan TTE BSrE tersertifikasi secara menyeluruh memberikan kepastian hukum dan mencegah risiko pemalsuan surat dinas. Hambatan yang timbul berupa kebutuhan sosialisasi teknis kepada staf tata usaha fakultas dapat diselesaikan melalui bimbingan teknis (Bimtek) berjadwal dengan alokasi anggaran yang efisien dan akuntabel.',
     simpulan:

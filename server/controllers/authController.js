@@ -19,7 +19,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { query, isDatabaseAvailable, isConnectionError } from '../config/database.js';
 import { comparePassword } from '../utils/passwordHelper.js';
-import { memoryUserStore } from '../services/userManagementService.js';
+import { memoryUserStore, isUserDeleted } from '../services/userManagementService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -63,6 +63,20 @@ export const loginUser = async (req, res) => {
         success: false,
         error: 'MissingPassword',
         message: 'Silakan masukkan kata sandi akun SILOKA Anda.'
+      });
+    }
+
+    // 0. CEK OTORISASI: Jika user telah dihapus oleh Super Administrator, tolak seketika
+    if (
+      isUserDeleted(rawInput) ||
+      isUserDeleted(withDomain) ||
+      isUserDeleted(withoutDomain)
+    ) {
+      return res.status(403).json({
+        status: 403,
+        success: false,
+        error: 'AccountDeleted',
+        message: 'Gagal Masuk: Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator. Akses ke sistem SILOKA dicabut sepenuhnya.'
       });
     }
 
@@ -236,8 +250,35 @@ export const loginUser = async (req, res) => {
       }
     }
 
+    if (userRecord) {
+      if (
+        isUserDeleted(userRecord.id) ||
+        isUserDeleted(userRecord.nip) ||
+        isUserDeleted(userRecord.nip_nik) ||
+        isUserDeleted(userRecord.email) ||
+        isUserDeleted(userRecord.username)
+      ) {
+        return res.status(403).json({
+          status: 403,
+          success: false,
+          error: 'AccountDeleted',
+          message: 'Gagal Masuk: Akun Anda telah dinonaktifkan atau dihapus oleh Super Administrator. Akses ke sistem SILOKA dicabut sepenuhnya.'
+        });
+      }
+    }
+
     // Fallback pencarian fleksibel di memoryUserStore (akun hasil tambah user / mutasi di runtime)
     const checkMatch = (u) => {
+      if (
+        isUserDeleted(u.id) ||
+        isUserDeleted(u.nip) ||
+        isUserDeleted(u.nip_nik) ||
+        isUserDeleted(u.email) ||
+        isUserDeleted(u.username)
+      ) {
+        return false;
+      }
+
       const uEmail = u.email ? String(u.email).trim().toLowerCase() : '';
       const uUsername = u.username ? String(u.username).trim().toLowerCase() : '';
       const uNip = u.nip ? String(u.nip).trim().toLowerCase() : '';

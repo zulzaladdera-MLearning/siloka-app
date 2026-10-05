@@ -6,7 +6,12 @@
 import { Router } from 'express';
 import { requireSuperAdmin } from '../middleware/authMiddleware.js';
 import { importUsersFromExcel, downloadTemplateExcel } from '../controllers/excelImportController.js';
-import { mutateUserJob, storeUser } from '../controllers/userMutationController.js';
+import {
+  mutateUserJob,
+  storeUser,
+  getAllStaffUsers,
+  deleteStaffUser
+} from '../controllers/userMutationController.js';
 import { registerNewStaffUser } from '../controllers/userRegistrationController.js';
 import { configureTteCertificate } from '../controllers/tteCertificateController.js';
 import {
@@ -14,6 +19,12 @@ import {
   executeUnitMutationOrAssignment,
   getAvailablePositionsByUnit
 } from '../controllers/unitMutationController.js';
+import {
+  getAllUnits,
+  createUnit,
+  updateUnit,
+  deleteUnit
+} from '../controllers/unitKerjaController.js';
 
 const router = Router();
 
@@ -30,11 +41,14 @@ router.get('/verify-access', (req, res) => {
   });
 });
 
-// 2. Input Massal Impor Excel (.xlsx) & Unduh Format Template
+// 3. Ambil Seluruh Data Pengguna Kepegawaian (GET /api/admin/users)
+router.get('/users', getAllStaffUsers);
+
+// 4. Input Massal Impor Excel (.xlsx) & Unduh Format Template
 router.get('/users/template', downloadTemplateExcel);
 router.post('/users/import-excel', importUsersFromExcel);
 
-// 4. Manajemen Akun Pengguna: Registrasi RBAC & Tupoksi Pengguna Baru (POST /api/admin/users)
+// 5. Manajemen Akun Pengguna: Registrasi RBAC & Tupoksi Pengguna Baru (POST /api/admin/users)
 router.post('/users', (req, res, next) => {
   if (req.body.id_role || req.body.kode_unit_kerja || req.body.nip_nik) {
     return registerNewStaffUser(req, res, next);
@@ -53,6 +67,16 @@ router.post('/users/store', (req, res, next) => {
 router.put('/users/:id/mutation', mutateUserJob);
 router.patch('/users/:id/mutation', mutateUserJob);
 router.patch('/users/:id', mutateUserJob);
+router.put('/users/:id', mutateUserJob);
+
+// Hapus Akun Pengguna (DELETE /api/admin/users/:id)
+router.delete('/users/:id', deleteStaffUser);
+
+// Manajemen Unit Kerja Resmi SOTK (CRUD Super Admin)
+router.get('/unit-kerja', getAllUnits);
+router.post('/unit-kerja', createUnit);
+router.put('/unit-kerja/:id', updateUnit);
+router.delete('/unit-kerja/:id', deleteUnit);
 
 // 4.b. Mutasi Unit Kerja & Penugasan Tambahan (Sekunder) OTK UNSIL (Permendikbudristek No. 19/2023)
 router.get('/pegawai/unit-kerja-otk', getMasterOtkUnitsAndHistory);

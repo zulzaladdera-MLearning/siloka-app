@@ -39,8 +39,9 @@ import {
   isLetterOwnedByUser,
   isMandiriPersonalDocument
 } from '../../utils/authGuards';
+import { isDisposisiAuthorizedOfficial } from '../../utils/disposisiStandards';
 
-export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi }) => {
+export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi, currentUser }) => {
   const mergedDispositions = useMemo(() => {
     const list = [...dispositionsData];
     letters.forEach((letter) => {
@@ -78,13 +79,15 @@ export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi
             Daftar lembar disposisi pimpinan Biro BKU yang sedang diproses oleh unit bawahan ({mergedDispositions.length} Disposisi Aktif)
           </p>
         </div>
-        <button
-          onClick={onOpenNewDisposisi}
-          className="inline-flex items-center gap-2 px-4 py-2 bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
-        >
-          <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
-          <span>+ Buat Disposisi Baru</span>
-        </button>
+        {isDisposisiAuthorizedOfficial(currentUser) && (
+          <button
+            onClick={onOpenNewDisposisi}
+            className="inline-flex items-center gap-2 px-4 py-2 bg-unsil-green-800 hover:bg-unsil-green-900 text-white text-xs font-semibold rounded-lg transition-colors shadow-sm"
+          >
+            <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
+            <span>+ Buat Disposisi Baru</span>
+          </button>
+        )}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

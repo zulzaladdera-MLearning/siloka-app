@@ -101,28 +101,28 @@
 
 .kop-baris-kementerian {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 14pt !important;
+  font-size: 16pt !important;
   text-transform: uppercase !important;
   font-weight: 400 !important;
-  line-height: 1.12 !important;
+  line-height: 1.15 !important;
   color: #000000 !important;
 }
 
 .kop-baris-universitas,
 .kop-baris-unit {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 13pt !important;
+  font-size: 14pt !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
-  line-height: 1.12 !important;
+  line-height: 1.15 !important;
   color: #000000 !important;
 }
 
 .kop-baris-alamat {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 10.5pt !important;
+  font-size: 12pt !important;
   font-weight: 400 !important;
-  line-height: 1.12 !important;
+  line-height: 1.2 !important;
   color: #000000 !important;
 }
 
