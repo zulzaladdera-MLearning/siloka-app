@@ -75,20 +75,44 @@ export const Navbar = ({
       }
     });
 
-    // 3. Surat Masuk Baru untuk Unit Pengguna
+    // 3. Surat Masuk Baru untuk Pejabat Terkait & Unit Pengguna
     letters.forEach((l) => {
       if (l.kategori === 'Surat Masuk') {
+        const userJabatanLower = String(user?.jabatan || user?.roleLabel || '').toLowerCase();
+        const letterTujuanLower = String(l.target_jabatan || l.tujuan || '').toLowerCase();
+        const userEmailLower = String(user?.email || '').toLowerCase();
+        const userIdStr = String(user?.id || user?.id_user || '');
+
+        const isLetterForRektor =
+          (letterTujuanLower.includes('rektor') && !letterTujuanLower.includes('wakil') && !letterTujuanLower.includes('warek')) ||
+          String(l.target_user_id) === 'usr-01';
+
+        const isUserRektor =
+          (userJabatanLower.includes('rektor') && !userJabatanLower.includes('wakil') && !userJabatanLower.includes('warek')) ||
+          userIdStr === 'usr-01' ||
+          userEmailLower.includes('aripin');
+
+        const isDirectTargetOfficial =
+          (l.target_user_id && String(l.target_user_id) === userIdStr) ||
+          (l.target_user_email && userEmailLower && String(l.target_user_email).toLowerCase() === userEmailLower) ||
+          (l.target_pejabat_nip && (user?.nip || user?.nip_nik) && String(l.target_pejabat_nip) === String(user?.nip || user?.nip_nik)) ||
+          (isLetterForRektor && isUserRektor) ||
+          (isPejabat && userJabatanLower && letterTujuanLower && (userJabatanLower === letterTujuanLower || letterTujuanLower.includes(userJabatanLower)));
+
         const isMyUnit =
-          (user?.unit_kerja_id && (l.tujuan?.includes(user.unit_kerja_id) || l.unit_kerja_id === user.unit_kerja_id)) ||
-          (user?.roleLabel && l.tujuan?.includes(user.roleLabel));
-        if (isMyUnit && list.length < 6) {
+          !isPejabat &&
+          user?.unit_kerja_id &&
+          (String(l.unit_kerja_id) === String(user.unit_kerja_id) || String(l.target_unit_id) === String(user.unit_kerja_id));
+
+        if (isDirectTargetOfficial || isMyUnit) {
+          const senderStaff = l.creator_name || 'Staf Tata Usaha Loket';
           list.push({
             id: `inbound-${l.id}`,
             letter: l,
-            title: '📥 Registrasi Surat Masuk',
-            desc: `Dari: ${l.pengirim} - ${l.perihal?.slice(0, 50)}...`,
-            time: l.tanggal || 'Hari ini',
-            urgent: l.sifat === 'Segera'
+            title: isDirectTargetOfficial ? '📥 Surat Masuk Baru Menunggu Disposisi' : '📥 Registrasi Surat Masuk Unit',
+            desc: `Didaftarkan oleh ${senderStaff} • No. Asal: ${l.nomorSuratAsal || l.nomor_surat_asal || '-'} dari ${l.pengirim} (${l.perihal?.slice(0, 50)}...)`,
+            time: l.tanggalTerima || l.tanggal || 'Hari ini',
+            urgent: l.sifat === 'Amat Segera' || l.sifat === 'Segera' || l.sifat === 'Penting'
           });
         }
       }

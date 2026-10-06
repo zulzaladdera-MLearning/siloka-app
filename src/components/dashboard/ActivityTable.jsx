@@ -62,7 +62,7 @@ export const ActivityTable = ({
   };
 
   const categories = ['Semua', 'Surat Masuk', 'Surat Keluar', 'Nota Dinas'];
-  const statuses = ['Semua', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'];
+  const statuses = ['Semua', 'Diterima', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'];
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);

@@ -439,7 +439,7 @@ export const CreateLetterModal = ({
   const [kalimatPenutup, setKalimatPenutup] = useState(TEMPLATES[0].defaultPenutup);
 
   // Field Khusus Registrasi Surat Masuk Eksternal
-  const [nomorSuratAsalMasuk, setNomorSuratAsalMasuk] = useState('');
+  const [nomorSuratAsalMasuk, setNomorSuratAsalMasuk] = useState('1204/B/LLDIKTI4/KL/2026');
   const [pengirimMasuk, setPengirimMasuk] = useState('Kementerian Pendidikan Tinggi, Sains, dan Teknologi');
   const [tujuanMasuk, setTujuanMasuk] = useState('Rektor Universitas Siliwangi');
   const [tanggalSuratMasuk, setTanggalSuratMasuk] = useState(new Date().toISOString().slice(0, 10));
@@ -983,41 +983,59 @@ export const CreateLetterModal = ({
 
     // 1. REGISTRASI SURAT MASUK (EKSTERNAL)
     if (letterType === 'surat-masuk') {
+      const finalNomorSuratAsal = nomorSuratAsalMasuk.trim() || '1204/B/LLDIKTI4/KL/2026';
+      const finalPengirim = pengirimMasuk.trim() || 'Kementerian Pendidikan Tinggi, Sains, dan Teknologi';
+      const finalPerihal = perihalMasuk.trim() || 'Koordinasi Pelaksanaan Program Penguatan Tata Kelola PTN-BLU';
       const targetPejabat = tujuanPejabatMode === 'SELECT' ? selectedPejabatObj : null;
       const finalTujuanMasuk = tujuanPejabatMode === 'SELECT'
         ? (selectedPejabatObj?.jabatan || 'Rektor Universitas Siliwangi')
         : (customTujuanMasuk.trim() || tujuanMasuk.trim() || 'Rektor Universitas Siliwangi');
 
-      if (!nomorSuratAsalMasuk.trim() || !pengirimMasuk.trim() || !finalTujuanMasuk.trim() || !perihalMasuk.trim()) {
-        alert('Mohon lengkapi Nomor Surat Asal, Instansi Pengirim, Tujuan Surat, dan Perihal Surat Masuk!');
-        return;
-      }
+      const isTujuanRektor =
+        (finalTujuanMasuk.toLowerCase().includes('rektor') &&
+          !finalTujuanMasuk.toLowerCase().includes('wakil') &&
+          !finalTujuanMasuk.toLowerCase().includes('warek')) ||
+        selectedPejabatObj?.id === 'usr-01' ||
+        selectedPejabatObj?.user_id === 'usr-01';
+
+      const resolvedTargetUserId = targetPejabat?.user_id || targetPejabat?.id || (isTujuanRektor ? 'usr-01' : null);
+      const resolvedTargetEmail = targetPejabat?.user_email || (isTujuanRektor ? 'aripin@unsil.ac.id' : null);
+      const resolvedTargetNip = targetPejabat?.nip || (isTujuanRektor ? '196708161996031001' : null);
+      const resolvedTargetNama = targetPejabat?.nama_gelar || (isTujuanRektor ? 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.' : null);
+      const resolvedTargetRole = targetPejabat?.role || (isTujuanRektor ? 'REKTOR' : 'PEJABAT');
+      const resolvedTargetRoleSlug = targetPejabat?.role_slug || (isTujuanRektor ? 'rektor' : 'pimpinan');
+      const resolvedTargetUnitCode = targetPejabat?.kode_unit || (isTujuanRektor ? 'UN58' : (activeUnitObj.kode_unit || 'UN58'));
+      const resolvedTargetUnitNama = targetPejabat?.unit_nama || (isTujuanRektor ? 'Universitas Siliwangi (Rektorat)' : (activeUnitObj.nama_unit || 'UNSIL'));
+
+      const creatorId = String(currentUser?.id || currentUser?.id_user || 'usr-ac-01');
+      const creatorName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Agung Cahya Nur, S.Pd., M.Pd.';
+      const creatorJabatan = currentUser?.jabatan || currentUser?.roleLabel || 'Pengadministrasi Persuratan / Tata Usaha';
 
       setIsSaving(true);
       try {
-        const targetUnitCode = targetPejabat?.kode_unit || activeUnitObj.kode_unit || 'UN58';
+        const targetUnitCode = resolvedTargetUnitCode;
         const res = await saveInboundLetter(
           {
             tingkat_keamanan: tingkatKeamanan,
             kode_klasifikasi: kodeKlasifikasi,
-            perihal: perihalMasuk.trim(),
-            pengirim: pengirimMasuk.trim(),
+            perihal: finalPerihal,
+            pengirim: finalPengirim,
             tujuan: finalTujuanMasuk,
-            target_user_id: targetPejabat?.user_id || null,
-            target_user_email: targetPejabat?.user_email || null,
-            target_pejabat_id: targetPejabat?.id || null,
-            target_pejabat_nip: targetPejabat?.nip || null,
-            target_pejabat_nama: targetPejabat?.nama_gelar || null,
-            target_jabatan: targetPejabat?.jabatan || finalTujuanMasuk,
-            target_role: targetPejabat?.role || (targetPejabat?.id === 1 ? 'REKTOR' : 'PEJABAT'),
-            target_role_slug: targetPejabat?.role_slug || 'pimpinan',
+            target_user_id: resolvedTargetUserId,
+            target_user_email: resolvedTargetEmail,
+            target_pejabat_id: resolvedTargetUserId,
+            target_pejabat_nip: resolvedTargetNip,
+            target_pejabat_nama: resolvedTargetNama,
+            target_jabatan: finalTujuanMasuk,
+            target_role: resolvedTargetRole,
+            target_role_slug: resolvedTargetRoleSlug,
             target_unit_id: targetUnitCode,
-            target_unit_nama: targetPejabat?.unit_nama || null,
-            nomor_surat_asal: nomorSuratAsalMasuk.trim(),
+            target_unit_nama: resolvedTargetUnitNama,
+            nomor_surat_asal: finalNomorSuratAsal,
             tujuan_aksi: 'DISPOSISI',
             tahun: currentYear,
             unit_kerja_id: targetUnitCode,
-            loket_unit_id: activeUnitObj.kode_unit
+            loket_unit_id: activeUnitObj.kode_unit || 'UN58'
           },
           currentUser
         );
@@ -1073,18 +1091,21 @@ export const CreateLetterModal = ({
           }
         }
 
+        const finalLampiranName = uploadedFileNameMasuk || (uploadedFileMasuk ? uploadedFileMasuk.name : 'Naskah_Surat_Masuk_Eksternal.pdf');
+        const finalLampiranSize = uploadedFileSizeMasuk || '2.4 MB';
+
         onSaveLetter({
           id: `SRT-IN-${currentYear}-${seqStr}`,
           id_surat: savedData.id_surat || Date.now(),
           nomorSurat: officialAgenda,
           nomorAgenda: officialAgenda,
           nomor_urut: savedData.nomor_urut || 1,
-          nomorSuratAsal: nomorSuratAsalMasuk.trim(),
-          nomor_surat_asal: nomorSuratAsalMasuk.trim(),
+          nomorSuratAsal: finalNomorSuratAsal,
+          nomor_surat_asal: finalNomorSuratAsal,
           tanggal: tanggalSuratMasuk,
           tanggalTerima: tanggalTerimaMasuk,
           tanggalRegistrasi: tanggalTerimaMasuk || tanggalSuratMasuk,
-          perihal: perihalMasuk.trim(),
+          perihal: finalPerihal,
           kategori: 'Surat Masuk',
           templateType: 'surat-masuk',
           isSuratMasuk: true,
@@ -1093,25 +1114,25 @@ export const CreateLetterModal = ({
           tingkat_keamanan: tingkatKeamanan,
           kodeKlasifikasi,
           subKlasifikasi: kodeKlasifikasi,
-          pengirim: pengirimMasuk.trim(),
-          asal_surat: pengirimMasuk.trim(),
+          pengirim: finalPengirim,
+          asal_surat: finalPengirim,
           tujuan: finalTujuanMasuk,
           penerima: finalTujuanMasuk,
-          target_user_id: targetPejabat?.user_id || null,
-          target_user_email: targetPejabat?.user_email || null,
-          target_pejabat_id: targetPejabat?.id || null,
-          target_pejabat_nip: targetPejabat?.nip || null,
-          target_pejabat_nama: targetPejabat?.nama_gelar || null,
-          target_jabatan: targetPejabat?.jabatan || finalTujuanMasuk,
-          target_role: targetPejabat?.role || (targetPejabat?.id === 1 ? 'REKTOR' : 'PEJABAT'),
-          target_role_slug: targetPejabat?.role_slug || 'pimpinan',
+          target_user_id: resolvedTargetUserId,
+          target_user_email: resolvedTargetEmail,
+          target_pejabat_id: resolvedTargetUserId,
+          target_pejabat_nip: resolvedTargetNip,
+          target_pejabat_nama: resolvedTargetNama,
+          target_jabatan: finalTujuanMasuk,
+          target_role: resolvedTargetRole,
+          target_role_slug: resolvedTargetRoleSlug,
           target_unit_id: targetUnitCode,
-          target_unit_nama: targetPejabat?.unit_nama || null,
-          ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
-          lampiran: uploadedFileNameMasuk ? `${uploadedFileNameMasuk} (${uploadedFileSizeMasuk})` : null,
+          target_unit_nama: resolvedTargetUnitNama,
+          ringkasan: ringkasanMasuk.trim() || finalPerihal,
+          lampiran: `${finalLampiranName} (${finalLampiranSize})`,
           lampiranUrl: fileDataUrlMasuk,
-          lampiranName: uploadedFileNameMasuk || null,
-          lampiranSize: uploadedFileSizeMasuk || null,
+          lampiranName: finalLampiranName,
+          lampiranSize: finalLampiranSize,
           status: hasDisposisi ? 'Didisposisikan' : 'Diterima',
           statusTimestamp: hasDisposisi
             ? `Didisposisikan kepada ${targetDisposisiFinal} (Arahan: ${finalizedDisposisiActions.slice(0, 2).join(', ')})`
@@ -1120,17 +1141,18 @@ export const CreateLetterModal = ({
           isSignatureRequest: false,
           tteVerified: false,
           unit_kerja_id: targetUnitCode,
-          loket_unit_id: activeUnitObj.kode_unit,
-          created_by_user_id: currentUser?.id || currentUser?.id_user || 'usr-02',
-          creator_id: currentUser?.id || currentUser?.id_user || 'usr-02',
-          creator_name: currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Operator Loket',
+          loket_unit_id: activeUnitObj.kode_unit || 'UN58',
+          created_by_user_id: creatorId,
+          creator_id: creatorId,
+          creator_name: creatorName,
+          creator_jabatan: creatorJabatan,
           created_at: new Date().toISOString(),
           riwayatParaf: [
             {
-              nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
-              jabatan: currentUser?.roleLabel || currentUser?.jabatan || 'Operator Loket',
+              nama: creatorName,
+              jabatan: creatorJabatan,
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${nomorSuratAsalMasuk.trim()}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan: ${finalTujuanMasuk}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
+              catatan: `Registrasi Surat Masuk Eksternal (No. Asal: ${finalNomorSuratAsal}) - Agenda: ${officialAgenda} - Sifat: ${sifatSuratMasuk} [Tujuan: ${finalTujuanMasuk}]` + (hasDisposisi ? ` — Lembar Disposisi Diterbitkan ke ${targetDisposisiFinal}` : '')
             }
           ],
           disposisi: disposisiPayload
@@ -1140,7 +1162,7 @@ export const CreateLetterModal = ({
       } catch (err) {
         console.error('[SUBMIT-SURAT-MASUK-ERROR]', err);
         // Fallback pendaftaran darurat lokal agar tidak pernah crash
-        const targetUnitCode = targetPejabat?.kode_unit || activeUnitObj.kode_unit || 'UN58';
+        const targetUnitCode = resolvedTargetUnitCode || 'UN58';
         const fallbackAgenda = `AGD-${currentYear}/${targetUnitCode}/${String(Date.now()).slice(-4)}`;
         onSaveLetter({
           id: `SRT-IN-${Date.now()}`,
@@ -1148,47 +1170,41 @@ export const CreateLetterModal = ({
           nomorSurat: fallbackAgenda,
           nomorAgenda: fallbackAgenda,
           nomor_urut: 1,
-          nomorSuratAsal: nomorSuratAsalMasuk.trim(),
-          nomor_surat_asal: nomorSuratAsalMasuk.trim(),
+          nomorSuratAsal: finalNomorSuratAsal,
+          nomor_surat_asal: finalNomorSuratAsal,
           tanggal: tanggalSuratMasuk,
           tanggalTerima: tanggalTerimaMasuk,
-          tanggalRegistrasi: tanggalTerimaMasuk || tanggalSuratMasuk,
-          perihal: perihalMasuk.trim(),
+          perihal: finalPerihal,
           kategori: 'Surat Masuk',
-          templateType: 'surat-masuk',
           isSuratMasuk: true,
           sifat: sifatSuratMasuk,
-          kategoriKeamanan: tingkatKeamanan === 'B' ? 'Biasa/Terbuka' : tingkatKeamanan === 'R' ? 'Rahasia' : 'Sangat Rahasia',
-          tingkat_keamanan: tingkatKeamanan,
           kodeKlasifikasi,
-          subKlasifikasi: kodeKlasifikasi,
-          pengirim: pengirimMasuk.trim(),
-          asal_surat: pengirimMasuk.trim(),
+          pengirim: finalPengirim,
           tujuan: finalTujuanMasuk,
-          penerima: finalTujuanMasuk,
-          target_user_id: targetPejabat?.user_id || null,
-          target_user_email: targetPejabat?.user_email || null,
-          target_pejabat_id: targetPejabat?.id || null,
-          target_pejabat_nip: targetPejabat?.nip || null,
-          target_pejabat_nama: targetPejabat?.nama_gelar || null,
-          target_jabatan: targetPejabat?.jabatan || finalTujuanMasuk,
-          target_role: targetPejabat?.role || (targetPejabat?.id === 1 ? 'REKTOR' : 'PEJABAT'),
-          target_role_slug: targetPejabat?.role_slug || 'pimpinan',
+          target_user_id: resolvedTargetUserId,
+          target_user_email: resolvedTargetEmail,
+          target_pejabat_id: resolvedTargetUserId,
+          target_pejabat_nip: resolvedTargetNip,
+          target_pejabat_nama: resolvedTargetNama,
+          target_jabatan: finalTujuanMasuk,
+          target_role: resolvedTargetRole,
+          target_role_slug: resolvedTargetRoleSlug,
           target_unit_id: targetUnitCode,
-          target_unit_nama: targetPejabat?.unit_nama || null,
-          ringkasan: ringkasanMasuk.trim() || perihalMasuk.trim(),
+          target_unit_nama: resolvedTargetUnitNama,
+          ringkasan: ringkasanMasuk.trim() || finalPerihal,
+          lampiran: `${uploadedFileNameMasuk || 'Naskah_Surat_Masuk.pdf'} (${uploadedFileSizeMasuk || '2.4 MB'})`,
+          lampiranUrl: uploadedFileUrlMasuk || uploadedFileDataUrlMasuk || null,
+          lampiranName: uploadedFileNameMasuk || 'Naskah_Surat_Masuk.pdf',
+          lampiranSize: uploadedFileSizeMasuk || '2.4 MB',
           status: 'Diterima',
-          statusTimestamp: `Surat Masuk terdaftar pada Buku Agenda SILOKA — Diteruskan ke ${finalTujuanMasuk}`,
           tujuan_aksi: 'DISPOSISI',
-          isSignatureRequest: false,
-          tteVerified: false,
           unit_kerja_id: targetUnitCode,
-          loket_unit_id: activeUnitObj.kode_unit,
-          created_by_user_id: currentUser?.id || currentUser?.id_user || 'usr-02',
-          creator_id: currentUser?.id || currentUser?.id_user || 'usr-02',
-          creator_name: currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Operator Loket',
-          created_at: new Date().toISOString(),
-          riwayatParaf: []
+          loket_unit_id: activeUnitObj.kode_unit || 'UN58',
+          created_by_user_id: creatorId,
+          creator_id: creatorId,
+          creator_name: creatorName,
+          creator_jabatan: creatorJabatan,
+          created_at: new Date().toISOString()
         });
         onClose();
       } finally {

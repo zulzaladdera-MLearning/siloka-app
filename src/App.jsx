@@ -557,9 +557,26 @@ export default function App() {
 
   useEffect(() => {
     try {
-      localStorage.setItem('siloka_letters_data', JSON.stringify(letters));
+      // Optimasi penyimpanan lokal: pangkas dataURL base64 PDF yang sangat besar agar tidak melampaui kuota 5MB browser
+      const sanitized = letters.map((l) => {
+        if (l.lampiranUrl && String(l.lampiranUrl).startsWith('data:') && String(l.lampiranUrl).length > 150000) {
+          return {
+            ...l,
+            lampiranUrl: null,
+            hasLargeAttachment: true
+          };
+        }
+        return l;
+      });
+      localStorage.setItem('siloka_letters_data', JSON.stringify(sanitized));
     } catch (e) {
-      console.error('Failed to persist letters', e);
+      console.warn('Failed to persist full letters, attempting trimmed storage:', e);
+      try {
+        const minimal = letters.slice(0, 50).map(({ lampiranUrl, ...rest }) => rest);
+        localStorage.setItem('siloka_letters_data', JSON.stringify(minimal));
+      } catch (err2) {
+        // ignore
+      }
     }
   }, [letters]);
 
@@ -838,7 +855,19 @@ export default function App() {
         const letterTujuanLower = String(letter.target_jabatan || letter.tujuan || '').toLowerCase().trim();
         const currentRoleLabel = String(currentUser?.jabatan || currentUser?.roleLabel || currentUser?.nama_jabatan || '').toLowerCase().trim();
 
-        // 1. Pengecekan Filter Unit Kerja Dropdown (Pimpinan / Super Admin / Pengawas)
+        // 1. Hak Akses Global: HANYA Super Administrator sistem
+        if (isSuperAdminUser(currentUser)) {
+          return true;
+        }
+
+        // 2. Staf Pembuat / Pendaftar Surat di loket TU selalu berhak melihat riwayat agenda yang didaftarkannya
+        const currentUserId = String(currentUser?.id || currentUser?.id_user || '');
+        const isCreator =
+          (letter.created_by_user_id && String(letter.created_by_user_id) === currentUserId) ||
+          (letter.creator_id && String(letter.creator_id) === currentUserId);
+        if (isCreator) return true;
+
+        // 3. Pengecekan Filter Unit Kerja Dropdown (Pimpinan / Super Admin / Pengawas)
         if (selectedUnitFilter && selectedUnitFilter !== 'ALL') {
           const filterUnit = String(selectedUnitFilter).toUpperCase();
           const matchesDirectUnit =
@@ -881,18 +910,6 @@ export default function App() {
           }
         }
 
-        // 2. Hak Akses Global: HANYA Super Administrator sistem
-        if (isSuperAdminUser(currentUser)) {
-          return true;
-        }
-
-        // 3. Staf Pembuat / Pendaftar Surat di loket TU selalu berhak melihat riwayat agenda yang didaftarkannya
-        const currentUserId = String(currentUser?.id || currentUser?.id_user || '');
-        const isCreator =
-          (letter.created_by_user_id && String(letter.created_by_user_id) === currentUserId) ||
-          (letter.creator_id && String(letter.creator_id) === currentUserId);
-        if (isCreator) return true;
-
         // 4. Jika surat telah didisposisikan, target disposisi berhak melihat
         if (letter.disposisi) {
           const dispTarget = String(letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || '').toLowerCase();
@@ -931,7 +948,8 @@ export default function App() {
               !currentRoleLabel.includes('warek')) ||
             String(currentUser?.sotk_position_label || '').toLowerCase() === 'rektor' ||
             currentUserEmail === 'aripin.rektor@unsil.ac.id' ||
-            currentUserEmail.includes('rektor@') ||
+            currentUserEmail === 'aripin@unsil.ac.id' ||
+            currentUserEmail.includes('rektor') ||
             currentNip === '196708161996031001' ||
             currentUserId === 'usr-01';
 

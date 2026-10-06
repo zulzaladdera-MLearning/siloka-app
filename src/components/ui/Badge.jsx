@@ -3,6 +3,16 @@ import { Send, Eye, FileSignature, CheckCircle2, Archive, AlertCircle, ShieldAle
 
 export const StatusBadge = ({ status, className = '' }) => {
   const configs = {
+    'Diterima': {
+      bg: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+      icon: CheckCircle2,
+      dot: 'bg-emerald-500'
+    },
+    'Didisposisikan': {
+      bg: 'bg-teal-50 border-teal-200 text-teal-800',
+      icon: CheckCircle2,
+      dot: 'bg-teal-500'
+    },
     'Dikirim': {
       bg: 'bg-sky-50 border-sky-200 text-sky-700',
       icon: Send,
