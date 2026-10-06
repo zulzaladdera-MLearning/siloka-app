@@ -349,7 +349,9 @@ export const BukuAgendaView = ({
                       <span className="font-mono text-xs font-semibold text-slate-900 block">
                         {item.nomorSurat}
                       </span>
-                      <p className="font-medium text-slate-700 line-clamp-1 mt-0.5 group-hover:text-slate-900">
+                      <p className={`font-medium line-clamp-1 mt-0.5 group-hover:text-slate-900 ${
+                        item.ekspedisiStatus === 'Dibatalkan' ? 'text-slate-400 line-through' : 'text-slate-700'
+                      }`}>
                         {item.perihal}
                       </p>
                     </td>
@@ -364,7 +366,13 @@ export const BukuAgendaView = ({
                       </p>
                     </td>
                     <td className="py-3.5 px-4 text-center">
-                      <span className="inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                      <span
+                        className={`inline-block px-2.5 py-1 rounded-full text-[10px] font-semibold border ${
+                          item.ekspedisiStatus === 'Dibatalkan'
+                            ? 'bg-rose-50 text-rose-800 border-rose-200'
+                            : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                        }`}
+                      >
                         {item.ekspedisiStatus}
                       </span>
                     </td>

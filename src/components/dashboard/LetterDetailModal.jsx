@@ -572,6 +572,29 @@ export const LetterDetailModal = ({
           )}
         </div>
 
+        {/* Banner Status Dibatalkan (Jika Registrasi Surat Dianulir) */}
+        {letter.status === 'Dibatalkan' && (
+          <div className="mx-3 sm:mx-6 mt-3 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shrink-0">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <div className="font-bold text-rose-900 text-sm">Registrasi Surat Masuk Telah Dibatalkan</div>
+              <p className="text-rose-800">
+                Surat ini telah dibatalkan oleh <strong className="font-semibold">{letter.dibatalkan_oleh || 'Petugas'}</strong> pada {letter.dibatalkan_pada || '-'}.
+              </p>
+              {letter.alasan_pembatalan && (
+                <div className="bg-white/80 p-2 rounded-lg border border-rose-200/80 text-rose-900">
+                  <span className="font-semibold text-rose-950">Alasan: </span>
+                  <span>{letter.alasan_pembatalan}</span>
+                  {letter.catatan_pembatalan && <span className="text-slate-600 italic"> — "{letter.catatan_pembatalan}"</span>}
+                </div>
+              )}
+              <p className="text-[11px] text-rose-700">
+                * Sesuai ketentuan kearsipan dan JRA, nomor agenda tetap tercatat di Buku Agenda dengan status Dibatalkan untuk menjaga keutuhan penomoran.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Content Body: Conditional Switcher between Document (F4/A4) and Metadata */}
         {activeTabMode === 'document' ? (
           <div className="p-3 sm:p-6 overflow-y-auto overflow-x-auto bg-slate-200/70 flex flex-col items-center">

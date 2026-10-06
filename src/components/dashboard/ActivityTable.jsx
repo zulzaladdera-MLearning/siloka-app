@@ -17,9 +17,12 @@ import {
   Lock,
   Layers,
   Trash2,
-  CheckSquare
+  CheckSquare,
+  FileX2,
+  Ban
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
+import { CancelLetterModal } from './CancelLetterModal';
 import unitKerjaList from '../../data/unitKerja.json';
 import { canLetterBeDisposed } from '../../utils/letterActionPolicy';
 
@@ -28,6 +31,7 @@ export const ActivityTable = ({
   onSelectLetter,
   onOpenDisposisi,
   onDeleteLetter = null,
+  onCancelLetter = null,
   searchQuery,
   activeFilter,
   setActiveFilter,
@@ -41,28 +45,34 @@ export const ActivityTable = ({
   const [selectedStatus, setSelectedStatus] = useState('Semua');
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [copiedId, setCopiedId] = useState(null);
+  const [letterToCancel, setLetterToCancel] = useState(null);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
 
-  // Penanganan Hapus Riwayat Per-Item (Konfirmasi Tunggal 1x)
-  const handleDeleteItem = (letter) => {
-    if (!letter || !onDeleteLetter) return;
+  // Penanganan Buka Modal Pembatalan Naskah (Ramah Kearsipan & Orang Awam)
+  const handleOpenCancelModal = (letter) => {
+    if (!letter) return;
     if (currentUser?.role === 'PENGAWAS') {
-      window.alert('Akses Ditolak: Pengawas SPI berstatus peninjau (read-only) dan tidak berwenang menghapus surat.');
+      window.alert('Akses Ditolak: Pengawas SPI berstatus peninjau (read-only) dan tidak berwenang membatalkan surat.');
       return;
     }
     if (letter.isLockedPermanen) {
       window.alert('Akses Ditolak: Berkas ini berstatus Arsip Permanen dan dilindungi regulasi kearsipan.');
       return;
     }
+    setLetterToCancel(letter);
+    setIsCancelModalOpen(true);
+  };
 
-    // Konfirmasi 1x sesuai permintaan sistem
-    const confirmed = window.confirm('Apakah anda yakin untuk menghapus surat tersebut?');
-    if (!confirmed) return;
-
-    onDeleteLetter(letter);
+  const handleConfirmCancel = (letter, reason, note) => {
+    if (onCancelLetter) {
+      onCancelLetter(letter, reason, note);
+    } else if (onDeleteLetter) {
+      onDeleteLetter(letter);
+    }
   };
 
   const categories = ['Semua', 'Surat Masuk', 'Surat Keluar', 'Nota Dinas'];
-  const statuses = ['Semua', 'Diterima', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan'];
+  const statuses = ['Semua', 'Diterima', 'Dikirim', 'Dibaca', 'Diparaf', 'Disetujui', 'Didisposisikan', 'Diarsipkan', 'Dibatalkan'];
 
   const handleCopy = (text, id) => {
     navigator.clipboard.writeText(text);
@@ -386,18 +396,25 @@ export const ActivityTable = ({
                       <span>Disposisi</span>
                     </button>
                   )}
-                  {onDeleteLetter && currentUser?.role !== 'PENGAWAS' && !letter.isLockedPermanen && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleDeleteItem(letter);
-                      }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-95 transition"
-                      title="Hapus Naskah Ini dari Riwayat"
-                    >
-                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
-                      <span>Hapus</span>
-                    </button>
+                  {(onCancelLetter || onDeleteLetter) && currentUser?.role !== 'PENGAWAS' && !letter.isLockedPermanen && (
+                    letter.status === 'Dibatalkan' ? (
+                      <span className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium text-rose-500 bg-rose-50/60 border border-rose-200">
+                        <Ban className="w-3.5 h-3.5 text-rose-400" />
+                        <span>Dibatalkan</span>
+                      </span>
+                    ) : (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenCancelModal(letter);
+                        }}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-95 transition cursor-pointer"
+                        title="Batalkan Registrasi Naskah Ini"
+                      >
+                        <FileX2 className="w-3.5 h-3.5 text-rose-600" />
+                        <span>Batalkan</span>
+                      </button>
+                    )
                   )}
                 </div>
               </div>
@@ -543,9 +560,22 @@ export const ActivityTable = ({
                   {/* Column 4: Status Badge & Timestamp */}
                   <td className="py-3.5 px-4 align-top whitespace-nowrap">
                     <StatusBadge status={letter.status} />
-                    <div className="text-[10px] text-slate-400 mt-1">
-                      {letter.statusTimestamp}
-                    </div>
+                    {letter.status === 'Dibatalkan' ? (
+                      <div className="mt-1">
+                        {letter.alasan_pembatalan && (
+                          <div className="text-[10px] text-rose-700 font-medium max-w-[170px] truncate" title={letter.alasan_pembatalan}>
+                            Alasan: {letter.alasan_pembatalan}
+                          </div>
+                        )}
+                        <div className="text-[9.5px] text-slate-400">
+                          {letter.statusTimestamp || `Oleh: ${letter.dibatalkan_oleh || 'Petugas'}`}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[10px] text-slate-400 mt-1">
+                        {letter.statusTimestamp}
+                      </div>
+                    )}
                   </td>
 
                   {/* Column 5: Action buttons */}
@@ -553,7 +583,7 @@ export const ActivityTable = ({
                     <div className="flex items-center justify-start gap-1" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => onSelectLetter(letter)}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-800 hover:bg-emerald-50 transition-colors"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-800 hover:bg-emerald-50 transition-colors cursor-pointer"
                         title="Lihat Detail Surat & Jejak Paraf"
                       >
                         <Eye className="w-4 h-4" />
@@ -563,7 +593,7 @@ export const ActivityTable = ({
                       {canLetterBeDisposed(letter, currentUser) && (
                         <button
                           onClick={() => onOpenDisposisi(letter)}
-                          className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-800 hover:bg-emerald-50 transition-colors"
+                          className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-800 hover:bg-emerald-50 transition-colors cursor-pointer"
                           title={letter.kategori === 'Surat Masuk' ? 'Beri Arahan Disposisi (Checklist Instruksi)' : 'Disposisi Surat Ini'}
                         >
                           {letter.kategori === 'Surat Masuk' ? (
@@ -574,8 +604,8 @@ export const ActivityTable = ({
                         </button>
                       )}
 
-                      {/* Tombol Hapus Riwayat Naskah (Double Konfirmasi) */}
-                      {onDeleteLetter && currentUser?.role !== 'PENGAWAS' && (
+                      {/* Tombol Batalkan Registrasi Naskah (Ramah Kearsipan & Orang Awam) */}
+                      {(onCancelLetter || onDeleteLetter) && currentUser?.role !== 'PENGAWAS' && (
                         letter.isLockedPermanen ? (
                           <span
                             className="p-1.5 rounded-lg text-slate-300 cursor-not-allowed"
@@ -583,16 +613,23 @@ export const ActivityTable = ({
                           >
                             <Lock className="w-4 h-4 text-slate-300" />
                           </span>
+                        ) : letter.status === 'Dibatalkan' ? (
+                          <span
+                            className="p-1.5 rounded-lg text-rose-300 cursor-not-allowed"
+                            title="Registrasi surat ini telah dibatalkan (dianulir)"
+                          >
+                            <Ban className="w-4 h-4 text-rose-300" />
+                          </span>
                         ) : (
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleDeleteItem(letter);
+                              handleOpenCancelModal(letter);
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
-                            title="Hapus Naskah Ini dari Riwayat"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Batalkan Registrasi Naskah Ini"
                           >
-                            <Trash2 className="w-4 h-4" />
+                            <FileX2 className="w-4 h-4" />
                           </button>
                         )
                       )}
@@ -612,6 +649,18 @@ export const ActivityTable = ({
           <strong className="text-slate-700">{letters.length}</strong> entri surat aktif
         </span>
       </div>
+
+      {/* Modal Pembatalan Registrasi Surat (Ramah Orang Awam & Kearsipan) */}
+      <CancelLetterModal
+        letter={letterToCancel}
+        isOpen={isCancelModalOpen}
+        onClose={() => {
+          setIsCancelModalOpen(false);
+          setLetterToCancel(null);
+        }}
+        onConfirmCancel={handleConfirmCancel}
+        currentUser={currentUser}
+      />
     </div>
   );
 };

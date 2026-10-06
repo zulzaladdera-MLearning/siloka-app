@@ -1315,6 +1315,58 @@ export default function App() {
     });
   };
 
+  // Pembatalan Registrasi Naskah Dinas Resmi (Menjaga Keutuhan Buku Agenda & JRA)
+  const handleCancelLetter = (letterToCancel, reason, note) => {
+    if (!letterToCancel || !letterToCancel.id) return;
+    if (currentUser?.role === 'PENGAWAS') {
+      showToast('Akses Read-Only: Pengawas SPI berstatus peninjau dan tidak berwenang membatalkan surat.', 'warning');
+      return;
+    }
+    if (letterToCancel.isLockedPermanen) {
+      showToast('Akses Ditolak: Berkas ini berstatus Arsip Permanen dan dilindungi regulasi kearsipan.', 'error');
+      return;
+    }
+
+    const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+    const cancellerName = currentUser?.nama_lengkap || currentUser?.name || 'Petugas Persuratan';
+    const displayNum = letterToCancel.nomorAgenda || letterToCancel.nomorSurat || 'dinas';
+
+    setLetters((prev) =>
+      prev.map((l) => {
+        if (l.id === letterToCancel.id) {
+          return {
+            ...l,
+            status: 'Dibatalkan',
+            statusTimestamp: `Dibatalkan oleh ${cancellerName}`,
+            alasan_pembatalan: reason || 'Pembatalan registrasi oleh petugas',
+            catatan_pembatalan: note || '',
+            dibatalkan_oleh: cancellerName,
+            dibatalkan_oleh_id: currentUser?.id || null,
+            dibatalkan_pada: timestamp,
+            riwayatParaf: [
+              ...(l.riwayatParaf || []),
+              {
+                nama: cancellerName,
+                jabatan: currentUser?.roleLabel || currentUser?.jabatan || 'Petugas Registrasi',
+                waktu: timestamp,
+                catatan: `Registrasi naskah dibatalkan. Alasan: ${reason || '-'}${note ? ` (${note})` : ''}`
+              }
+            ]
+          };
+        }
+        return l;
+      })
+    );
+
+    showToast(`Registrasi naskah ${displayNum} berhasil dibatalkan. Nomor agenda tetap aman tercatat.`, 'info');
+
+    handleLogAction({
+      action: 'LETTER_CANCELLED',
+      details: `Pembatalan registrasi naskah dinas: ${displayNum} (${letterToCancel.perihal || 'Naskah'}) oleh ${cancellerName}. Alasan: ${reason || '-'} (${note || '-'})`,
+      severity: 'WARNING'
+    });
+  };
+
   // Feature 6: Review & Approval Workflow (Setujui Naskah)
   const handleApproveLetter = (letterId, note) => {
     let approvedNomor = '';
@@ -1886,6 +1938,7 @@ export default function App() {
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
               onDeleteLetter={handleDeleteLetter}
+              onCancelLetter={handleCancelLetter}
               searchQuery={searchQuery}
               activeFilter={metricFilter}
               setActiveFilter={setMetricFilter}
@@ -1955,6 +2008,7 @@ export default function App() {
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
               onDeleteLetter={handleDeleteLetter}
+              onCancelLetter={handleCancelLetter}
               searchQuery={searchQuery}
               activeFilter={null}
               setActiveFilter={() => {}}
@@ -1996,6 +2050,7 @@ export default function App() {
               onSelectLetter={(letter) => setSelectedLetter(letter)}
               onOpenDisposisi={handleOpenDisposisiForLetter}
               onDeleteLetter={handleDeleteLetter}
+              onCancelLetter={handleCancelLetter}
               searchQuery={searchQuery}
               activeFilter={null}
               setActiveFilter={() => {}}

@@ -37,6 +37,16 @@ export const StatusBadge = ({ status, className = '' }) => {
       bg: 'bg-slate-100 border-slate-300 text-slate-700',
       icon: Archive,
       dot: 'bg-slate-500'
+    },
+    'Dibatalkan': {
+      bg: 'bg-rose-50 border-rose-200 text-rose-800',
+      icon: AlertCircle,
+      dot: 'bg-rose-500'
+    },
+    'Dianulir': {
+      bg: 'bg-rose-50 border-rose-200 text-rose-800',
+      icon: AlertCircle,
+      dot: 'bg-rose-500'
     }
   };
 
