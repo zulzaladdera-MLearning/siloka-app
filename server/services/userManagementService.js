@@ -1141,9 +1141,11 @@ export const getAllUsersFromDatabase = async () => {
     console.warn('[USER-SERVICE] Gagal mengambil dari tabel users:', errUsers.message);
   }
 
-  // Fallback: Gabungkan dengan memoryUserStore dan masterUsersList (users.json) jika database kosong/offline
+  // Fallback: Gunakan masterUsersList (users.json) HANYA jika database dan memory store sama-sama kosong
   const memoryList = Array.from(memoryUserStore.values());
-  const fallbackSource = memoryList.length > 0 ? memoryList : masterUsersList;
+  const fallbackSource = dbUsers.length > 0
+    ? memoryList
+    : (memoryList.length > 0 ? memoryList : masterUsersList);
 
   const combined = [...dbUsers];
   for (const fb of fallbackSource) {

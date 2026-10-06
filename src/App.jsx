@@ -324,7 +324,7 @@ export default function App() {
                   (prevU.email && m.email && m.email.toLowerCase() === prevU.email.toLowerCase())
               );
 
-              if (!existsInMerged) {
+              if (!existsInMerged && (uId.startsWith('usr-custom-') || uId.startsWith('usr-imp-'))) {
                 merged.push(prevU);
               }
             });
