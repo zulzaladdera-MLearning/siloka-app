@@ -881,8 +881,8 @@ export default function App() {
           }
         }
 
-        // 2. Hak Akses Global: Super Admin dan Pengawas SPI berwenang memantau seluruh surat masuk
-        if (isSuperAdminUser(currentUser) || currentUser?.role === 'PENGAWAS') {
+        // 2. Hak Akses Global: HANYA Super Administrator sistem
+        if (isSuperAdminUser(currentUser)) {
           return true;
         }
 
@@ -903,7 +903,59 @@ export default function App() {
           if (userUnitShort && dispTarget.includes(userUnitShort)) return true;
         }
 
-        // 5. DIRECT TARGET MATCH: Berdasarkan ID Pengguna, Email, atau NIP Akun
+        // 5. Cek apakah pengguna saat ini adalah Pejabat Struktural
+        const isCurrentUserPejabat =
+          currentUser?.is_pejabat === true ||
+          currentUser?.role === 'PEJABAT' ||
+          currentUser?.role === 'PIMPINAN' ||
+          currentUser?.role_slug === 'pimpinan' ||
+          isDisposisiAuthorizedOfficial(currentUser, allUsers);
+
+        const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
+        const currentUserEmail = String(currentUser?.email || '').toLowerCase().trim();
+
+        // 6. ISOLASI MUTLAK SURAT MASUK BERTUJUAN REKTOR (Eksklusif Rektor Universitas Siliwangi)
+        const isTargetRektor =
+          (letterTujuanLower.includes('rektor') &&
+            !letterTujuanLower.includes('wakil') &&
+            !letterTujuanLower.includes('warek')) ||
+          String(letter.target_pejabat_nama || '').toLowerCase().includes('aripin') ||
+          String(letter.target_pejabat_nip || '').trim() === '196708161996031001' ||
+          String(letter.target_user_email || '').toLowerCase() === 'aripin.rektor@unsil.ac.id' ||
+          String(letter.target_user_id || '') === 'usr-01';
+
+        if (isTargetRektor) {
+          const isUserRektor =
+            (currentRoleLabel.includes('rektor') &&
+              !currentRoleLabel.includes('wakil') &&
+              !currentRoleLabel.includes('warek')) ||
+            String(currentUser?.sotk_position_label || '').toLowerCase() === 'rektor' ||
+            currentUserEmail === 'aripin.rektor@unsil.ac.id' ||
+            currentUserEmail.includes('rektor@') ||
+            currentNip === '196708161996031001' ||
+            currentUserId === 'usr-01';
+
+          // Jika akun aktif adalah Rektor -> TAMPILKAN DI KOTAK MASUK
+          if (isUserRektor) {
+            return true;
+          }
+
+          // JIKA BUKAN REKTOR:
+          // Pejabat lain (Wakil Rektor, Dekan, Kepala Biro, UPA, SPI, dll.) DITOLAK MUTLAK!
+          if (isCurrentUserPejabat) {
+            return false;
+          }
+
+          // Staf Tata Usaha / Operator Loket Rektorat (UN58) non-pejabat dapat memantau untuk administrasi
+          if (currentUnitId === 'UN58' && !isCurrentUserPejabat) {
+            return true;
+          }
+
+          // Akun lain ditolak
+          return false;
+        }
+
+        // 7. DIRECT TARGET MATCH: Berdasarkan ID Pengguna, Email, atau NIP Akun
         if (
           letter.target_user_id &&
           currentUserId &&
@@ -913,12 +965,11 @@ export default function App() {
         }
         if (
           letter.target_user_email &&
-          currentUser?.email &&
-          letter.target_user_email.toLowerCase().trim() === currentUser.email.toLowerCase().trim()
+          currentUserEmail &&
+          letter.target_user_email.toLowerCase().trim() === currentUserEmail
         ) {
           return true;
         }
-        const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
         if (
           letter.target_pejabat_nip &&
           currentNip &&
@@ -927,35 +978,18 @@ export default function App() {
           return true;
         }
 
-        // 6. DIRECT JABATAN STRUKTURAL ROUTING KE AKUN PEJABAT TERKAIT
-        const isCurrentUserPejabat =
-          currentUser?.is_pejabat === true ||
-          currentUser?.role === 'PEJABAT' ||
-          currentUser?.role === 'PIMPINAN' ||
-          currentUser?.role_slug === 'pimpinan' ||
-          isDisposisiAuthorizedOfficial(currentUser, allUsers);
-
+        // 8. DIRECT JABATAN STRUKTURAL ROUTING KE AKUN PEJABAT TERKAIT
         if (isCurrentUserPejabat) {
           if (currentRoleLabel && letterTujuanLower) {
             // Kecocokan Sama Persis
             if (currentRoleLabel === letterTujuanLower) return true;
-
-            // Khusus Rektor: Hanya akun Rektor asli (bukan Wakil Rektor atau Dekan)
-            if (
-              letterTujuanLower.includes('rektor') &&
-              !letterTujuanLower.includes('wakil') &&
-              !letterTujuanLower.includes('warek')
-            ) {
-              if (currentRoleLabel.includes('rektor') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('warek')) {
-                return true;
-              }
-            }
 
             // Khusus Wakil Rektor I (Bidang Akademik)
             if (letterTujuanLower.includes('akademik') && (letterTujuanLower.includes('warek') || letterTujuanLower.includes('wakil rektor'))) {
               if (currentRoleLabel.includes('akademik') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Wakil Rektor II (Bidang Keuangan dan Umum)
@@ -963,6 +997,7 @@ export default function App() {
               if (currentRoleLabel.includes('keuangan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Wakil Rektor III (Bidang Kemahasiswaan dan Alumni)
@@ -970,6 +1005,7 @@ export default function App() {
               if (currentRoleLabel.includes('kemahasiswaan') && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Wakil Rektor IV (Bidang Perencanaan, Kerja Sama, dan SI)
@@ -977,24 +1013,30 @@ export default function App() {
               if ((currentRoleLabel.includes('perencanaan') || currentRoleLabel.includes('kerja sama')) && (currentRoleLabel.includes('warek') || currentRoleLabel.includes('wakil rektor'))) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Dekan Fakultas
             if (letterTujuanLower.includes('dekan') && !letterTujuanLower.includes('wakil') && !letterTujuanLower.includes('wadek')) {
               if (currentRoleLabel.includes('dekan') && !currentRoleLabel.includes('wakil') && !currentRoleLabel.includes('wadek')) {
-                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
+                  return true;
+                }
+                if (letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
                   return true;
                 }
               }
+              return false;
             }
 
             // Khusus Wakil Dekan (Wadek)
             if (letterTujuanLower.includes('wakil dekan') || letterTujuanLower.includes('wadek')) {
               if (currentRoleLabel.includes('wakil dekan') || currentRoleLabel.includes('wadek')) {
-                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId) {
+                if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
                   return true;
                 }
               }
+              return false;
             }
 
             // Khusus Ketua Jurusan (Kajur) / Koordinator Program Studi (Kaprodi)
@@ -1002,24 +1044,30 @@ export default function App() {
               if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Kepala Biro (Kepala BAKPK, Kepala BKU)
             if (letterTujuanLower.includes('kepala biro') || letterTujuanLower.includes('kabiro')) {
               if (currentRoleLabel.includes('kepala biro') || currentRoleLabel.includes('kabiro')) {
-                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
+                if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
+                  return true;
+                }
+                if (letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
                   return true;
                 }
               }
+              return false;
             }
 
             // Khusus Kepala Bagian (Kabag)
             if (letterTujuanLower.includes('kepala bagian') || letterTujuanLower.includes('kabag')) {
               if (currentRoleLabel.includes('kepala bagian') || currentRoleLabel.includes('kabag')) {
-                if (!targetUnit || !currentUnitId || targetUnit === currentUnitId) {
+                if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
                   return true;
                 }
               }
+              return false;
             }
 
             // Khusus Ketua/Kepala LPPM, LPMPP, dan UPA
@@ -1027,6 +1075,7 @@ export default function App() {
               if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
                 return true;
               }
+              return false;
             }
 
             // Khusus Ketua Senat & Ketua SPI
@@ -1034,18 +1083,26 @@ export default function App() {
               if (currentRoleLabel === letterTujuanLower || letterTujuanLower.includes(currentRoleLabel) || currentRoleLabel.includes(letterTujuanLower)) {
                 return true;
               }
+              return false;
             }
           }
 
-          // Jika surat masuk ditujukan umum ke unit kerja (misal: Fakultas Teknik / Rektorat)
+          // Jika surat masuk ditujukan spesifik ke pejabat struktural tertentu, pejabat lain DITOLAK
+          if (letter.target_jabatan || letter.target_pejabat_id || letter.target_user_id || letter.target_pejabat_nip) {
+            return false;
+          }
+
+          // Jika surat masuk ditujukan umum ke unit kerja (misal: Fakultas Teknik / Rektorat tanpa spesifikasi pejabat)
           if (targetUnit && currentUnitId && targetUnit === currentUnitId) {
             return true;
           }
+
+          return false;
         }
 
-        // 7. Staf Tata Usaha / Operator Unit Penerima Surat Masuk
-        // Seluruh staf di unit kerja tujuan (misal Rektorat UN58, BKU UN58.6, FKIP UN58.10) berhak melihat surat masuk unitnya
-        if (currentUnitId && (targetUnit === currentUnitId || letterUnit === currentUnitId)) {
+        // 9. Staf Tata Usaha / Operator Unit Penerima Surat Masuk (Bukan Pejabat)
+        // Staf di unit kerja tujuan berhak melihat surat masuk unitnya untuk keperluan administrasi loket
+        if (!isCurrentUserPejabat && currentUnitId && (targetUnit === currentUnitId || letterUnit === currentUnitId)) {
           return true;
         }
 
@@ -1916,7 +1973,7 @@ export default function App() {
         {/* Modul Buku Agenda Masuk & Ekspedisi */}
         {activeTab === 'buku-agenda' && (
           <BukuAgendaView
-            letters={letters}
+            letters={scopedLetters}
             currentUser={currentUser}
             currentUnit={currentUnit}
             onSelectLetter={(letter) => setSelectedLetter(letter)}

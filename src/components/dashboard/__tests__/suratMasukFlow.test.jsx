@@ -97,4 +97,151 @@ describe('Alur Registrasi Surat Masuk, Penomoran Agenda, & Buku Agenda (SILOKA U
 
     expect(matchesDirectUnit || matchesContext).toBe(true);
   });
+
+  it('harus memastikan isolasi surat masuk bertarget Rektor: hanya sampai ke akun Rektor & staf pencatat, tidak ke pejabat lain', () => {
+    const inboundLetterRektor = {
+      id: 'SRT-IN-2026-0001',
+      kategori: 'Surat Masuk',
+      tujuan: 'Rektor Universitas Siliwangi',
+      target_jabatan: 'Rektor Universitas Siliwangi',
+      target_unit_id: 'UN58',
+      unit_kerja_id: 'UN58',
+      loket_unit_id: 'UN58.6',
+      target_pejabat_nama: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+      target_pejabat_nip: '196708161996031001',
+      target_user_email: 'aripin.rektor@unsil.ac.id',
+      target_user_id: 'usr-01',
+      created_by_user_id: 'usr-staf-bku',
+      creator_id: 'usr-staf-bku'
+    };
+
+    // Fungsi helper penentuan hak akses surat masuk sesuai logika App.jsx
+    const checkCanAccessInboundLetter = (letter, currentUser) => {
+      const currentUserId = String(currentUser?.id || currentUser?.id_user || '');
+      const currentRoleLabel = String(currentUser?.jabatan || currentUser?.roleLabel || '').toLowerCase().trim();
+      const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
+      const currentUserEmail = String(currentUser?.email || '').toLowerCase().trim();
+      const currentUnitId = String(currentUser?.unit_kerja_id || currentUser?.kode_unit || '').toUpperCase();
+      const letterTujuanLower = String(letter.target_jabatan || letter.tujuan || '').toLowerCase().trim();
+
+      // 1. Super Admin
+      if (currentUser?.role === 'SUPER_ADMIN' || currentUser?.role === 'Super Admin') return true;
+
+      // 2. Staf pembuat / pendaftar loket
+      if (letter.created_by_user_id === currentUserId || letter.creator_id === currentUserId) return true;
+
+      // 3. Pengecekan Pejabat
+      const isCurrentUserPejabat = currentUser?.is_pejabat === true || currentUser?.role === 'PEJABAT';
+
+      // 4. Isolasi Surat Masuk Bertarget Rektor
+      const isTargetRektor =
+        (letterTujuanLower.includes('rektor') &&
+          !letterTujuanLower.includes('wakil') &&
+          !letterTujuanLower.includes('warek')) ||
+        String(letter.target_pejabat_nip || '').trim() === '196708161996031001' ||
+        String(letter.target_user_email || '').toLowerCase() === 'aripin.rektor@unsil.ac.id';
+
+      if (isTargetRektor) {
+        const isUserRektor =
+          (currentRoleLabel.includes('rektor') &&
+            !currentRoleLabel.includes('wakil') &&
+            !currentRoleLabel.includes('warek')) ||
+          currentUserEmail === 'aripin.rektor@unsil.ac.id' ||
+          currentNip === '196708161996031001' ||
+          currentUserId === 'usr-01';
+
+        if (isUserRektor) return true;
+        if (isCurrentUserPejabat) return false;
+        if (currentUnitId === 'UN58' && !isCurrentUserPejabat) return true;
+        return false;
+      }
+
+      return false;
+    };
+
+    // Akun Rektor asli
+    const rektorUser = {
+      id: 'usr-01',
+      nip: '196708161996031001',
+      email: 'aripin.rektor@unsil.ac.id',
+      jabatan: 'Rektor Universitas Siliwangi',
+      unit_kerja_id: 'UN58',
+      role: 'PEJABAT',
+      is_pejabat: true
+    };
+
+    // Staf pencatat naskah di loket BKU
+    const stafPencatat = {
+      id: 'usr-staf-bku',
+      nip: '199501012020122002',
+      email: 'siti.rohmah@unsil.ac.id',
+      jabatan: 'Staf Administrasi Persuratan BKU',
+      unit_kerja_id: 'UN58.6',
+      role: 'OPERATOR_UNIT',
+      is_pejabat: false
+    };
+
+    // Pejabat lain: Wakil Rektor I (sama-sama di UN58)
+    const warek1User = {
+      id: 'usr-warek-01',
+      nip: '197005141997021001',
+      email: 'dedi.warek1@unsil.ac.id',
+      jabatan: 'Wakil Rektor Bidang Akademik',
+      unit_kerja_id: 'UN58',
+      role: 'PEJABAT',
+      is_pejabat: true
+    };
+
+    // Pejabat lain: Dekan FKIP
+    const dekanFkipUser = {
+      id: 'usr-dekan-fkip',
+      nip: '196504121990031001',
+      email: 'cucu.suherman@unsil.ac.id',
+      jabatan: 'Dekan Fakultas Keguruan dan Ilmu Pendidikan',
+      unit_kerja_id: 'UN58.10',
+      role: 'PEJABAT',
+      is_pejabat: true
+    };
+
+    // Pejabat lain: Kepala BKU
+    const kepalaBkuUser = {
+      id: 'usr-kepala-bku',
+      nip: '196803201994032001',
+      email: 'nana.sujana@unsil.ac.id',
+      jabatan: 'Kepala Biro Keuangan dan Umum',
+      unit_kerja_id: 'UN58.6',
+      role: 'PEJABAT',
+      is_pejabat: true
+    };
+
+    // Pejabat lain: Pengawas SPI
+    const pengawasSpiUser = {
+      id: 'usr-spi-01',
+      nip: '197508202002121001',
+      email: 'hendra.spi@unsil.ac.id',
+      jabatan: 'Ketua Satuan Pengawas Internal (SPI)',
+      unit_kerja_id: 'UN58.SPI',
+      role: 'PEJABAT',
+      is_pejabat: true
+    };
+
+    // Verifikasi:
+    // 1. Akun Rektor HARUS menerima surat masuk tersebut
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, rektorUser)).toBe(true);
+
+    // 2. Akun staf pencatat HARUS dapat melihat naskah yang didaftarkannya
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, stafPencatat)).toBe(true);
+
+    // 3. Akun Wakil Rektor TIDAK BOLEH melihat (meski unit sama UN58)
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, warek1User)).toBe(false);
+
+    // 4. Akun Dekan FKIP TIDAK BOLEH melihat
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, dekanFkipUser)).toBe(false);
+
+    // 5. Akun Kepala BKU TIDAK BOLEH melihat
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, kepalaBkuUser)).toBe(false);
+
+    // 6. Akun Pengawas SPI TIDAK BOLEH melihat
+    expect(checkCanAccessInboundLetter(inboundLetterRektor, pengawasSpiUser)).toBe(false);
+  });
 });

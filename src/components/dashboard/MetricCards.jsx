@@ -22,7 +22,7 @@ export const MetricCards = ({
   currentFilter,
   currentUser = null
 }) => {
-  const activeDataset = scopedLetters.length > 0 ? scopedLetters : letters;
+  const activeDataset = Array.isArray(scopedLetters) ? scopedLetters : [];
   const showBrankasDigital = canAccessBrankasDigital(currentUser);
 
   // 1. Surat Masuk Baru
