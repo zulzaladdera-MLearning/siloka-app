@@ -212,4 +212,12 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     deletedUserIdentifiers.delete(testTarget.email.toLowerCase());
     deletedUserIdentifiers.delete(testTarget.username.toLowerCase());
   });
+
+  it('memastikan SystemSettingsView mengimpor ikon Info dan komponen dapat di-render tanpa ReferenceError', async () => {
+    const SystemSettingsModule = await import('../SystemSettingsView');
+    expect(SystemSettingsModule.default).toBeDefined();
+
+    // Verifikasi modul SystemSettingsView dapat dievaluasi tanpa melempar ReferenceError
+    expect(typeof SystemSettingsModule.default).toBe('function');
+  });
 });

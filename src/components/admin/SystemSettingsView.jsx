@@ -23,7 +23,8 @@ import {
   User,
   IdCard,
   Briefcase,
-  CheckSquare
+  CheckSquare,
+  Info
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
