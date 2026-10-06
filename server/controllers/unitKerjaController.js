@@ -31,11 +31,24 @@ export const getAllUnits = async (req, res) => {
   try {
     if (isDatabaseAvailable()) {
       try {
+        // Cek struktur kolom tbl_unit_kerja yang ada di database secara adaptif
         const dbRes = await query(
-          'SELECT id, kode_unit, nama_unit, singkatan, tipe_unit, parent_kode, is_active FROM tbl_unit_kerja ORDER BY id ASC'
+          `SELECT 
+             kode_unit,
+             nama_unit,
+             COALESCE(singkatan, kode_unit) AS singkatan,
+             COALESCE(tipe_unit, 'ORGAN') AS tipe_unit,
+             COALESCE(parent_kode, 'UN58') AS parent_kode,
+             COALESCE(is_active, true) AS is_active
+           FROM tbl_unit_kerja
+           ORDER BY kode_unit ASC`
         );
         if (dbRes && Array.isArray(dbRes.rows) && dbRes.rows.length > 0) {
-          const sorted = sortUnitsByOtk(dbRes.rows);
+          const mappedRows = dbRes.rows.map((r, idx) => ({
+            id: idx + 1,
+            ...r
+          }));
+          const sorted = sortUnitsByOtk(mappedRows);
           return res.status(200).json({
             status: 200,
             success: true,
