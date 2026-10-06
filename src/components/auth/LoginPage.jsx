@@ -1,6 +1,82 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Lock, User, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Building2, KeyRound, AlertCircle } from 'lucide-react';
 import usersData from '../../data/users.json';
+import { isSuperAdminUser } from '../../utils/authGuards';
+
+// 5 Akun Kanonikal Resmi Manajemen Pengguna SILOKA UNSIL (Sesuai Master Data Kepegawaian)
+const CANONICAL_MANAJEMEN_PENGGUNA_USERS = [
+  {
+    id: 'usr-ac-01',
+    nama_lengkap: 'Agung Cahya Nur, S.Pd., M.Pd.',
+    email: 'agungcahyanur@unsil.ac.id',
+    nip: '200008172027031001',
+    nip_nik: '200008172027031001',
+    role: 'STAF',
+    raw_role: 'OPERATOR_UNIT',
+    role_slug: 'admin_tu',
+    roleLevel: 'Level 2: Pelaksana Administrasi',
+    roleLabel: 'Pengadministrasi Persuratan / Tata Usaha',
+    jabatan: 'Pengadministrasi Persuratan / Tata Usaha',
+    unit: 'Universitas Siliwangi (Rektorat)',
+    unit_kerja_id: 'UN58'
+  },
+  {
+    id: 'usr-01',
+    nama_lengkap: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+    email: 'aripin@unsil.ac.id',
+    nip: '196708161996031001',
+    nip_nik: '196708161996031001',
+    role: 'PEJABAT',
+    role_slug: 'pimpinan',
+    roleLevel: 'Level 1: Pimpinan',
+    roleLabel: 'Rektor Universitas Siliwangi',
+    jabatan: 'Rektor Universitas Siliwangi',
+    unit: 'Universitas Siliwangi (Rektorat)',
+    unit_kerja_id: 'UN58'
+  },
+  {
+    id: 'usr-dg-01',
+    nama_lengkap: 'Dede Gunawan, S.Kom., M.Kom.',
+    email: 'dedegunawan@unsil.ac.id',
+    nip: '198501012010121001',
+    nip_nik: '198501012010121001',
+    role: 'Super Admin',
+    is_super_admin: true,
+    roleLevel: 'Level 0: Administrator Sistem',
+    roleLabel: 'Super Administrator SILOKA UNSIL',
+    jabatan: 'Super Administrator',
+    unit: 'Unit Penunjang Akademik Teknologi Informasi dan Komunikasi',
+    unit_kerja_id: 'UN58.32'
+  },
+  {
+    id: 'usr-muw7evv4-1003',
+    nama_lengkap: 'Prof. Dr. H. Dedi Kusmayadi, S.E., M.Si., Ak., CA., CRBC., ACPA., CPA., CRA., CRP., CSBA., ASEAN-CPA',
+    email: 'dedikusmayadi@unsil.ac.id',
+    nip: '196811132021211003',
+    nip_nik: '196811132021211003',
+    role: 'PEJABAT',
+    role_slug: 'pimpinan',
+    roleLevel: 'Level 1: Pimpinan',
+    roleLabel: 'Wakil Rektor Bidang Akademik',
+    jabatan: 'Wakil Rektor Bidang Akademik',
+    unit: 'Universitas Siliwangi (Rektorat)',
+    unit_kerja_id: 'UN58'
+  },
+  {
+    id: 'usr-ar-01',
+    nama_lengkap: 'Dr. Ade Rustiana, Drs., M.Si.',
+    email: 'aderustiana@unsil.ac.id',
+    nip: '196801021992031002',
+    nip_nik: '196801021992031002',
+    role: 'PEJABAT',
+    role_slug: 'pimpinan',
+    roleLevel: 'Level 1: Pimpinan',
+    roleLabel: 'Wakil Rektor Bidang Keuangan dan Umum',
+    jabatan: 'Wakil Rektor Bidang Keuangan dan Umum',
+    unit: 'Universitas Siliwangi (Rektorat)',
+    unit_kerja_id: 'UN58'
+  }
+];
 
 export const LoginPage = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
@@ -9,6 +85,184 @@ export const LoginPage = ({ onLoginSuccess }) => {
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Sinkronisasi dinamis daftar akun uji coba langsung dari modul Manajemen Pengguna
+  const [demoUsers, setDemoUsers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('siloka_users_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+            const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
+            const valid = parsed.filter((u) => {
+              const uId = String(u.id || '').toLowerCase();
+              const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+              const uEmail = String(u.email || '').toLowerCase();
+              return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
+            });
+            if (valid.length > 0) return valid;
+          }
+        }
+      } catch (e) {}
+    }
+    return CANONICAL_MANAJEMEN_PENGGUNA_USERS;
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const syncUsers = async () => {
+      try {
+        const res = await fetch('/api/admin/users', {
+          headers: {
+            'Authorization': 'Bearer superadmin-secret-token',
+            'x-user-role': 'SUPER_ADMIN'
+          }
+        });
+        if (res.ok) {
+          const json = await res.json();
+          if (isMounted && json && Array.isArray(json.data) && json.data.length > 0) {
+            const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+            const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
+            const valid = json.data.filter((u) => {
+              const uId = String(u.id || '').toLowerCase();
+              const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+              const uEmail = String(u.email || '').toLowerCase();
+              return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
+            });
+            if (valid.length > 0) {
+              setDemoUsers(valid);
+              try {
+                localStorage.setItem('siloka_users_data', JSON.stringify(valid));
+              } catch (e) {}
+              return;
+            }
+          }
+        }
+      } catch (e) {}
+
+      if (typeof window !== 'undefined') {
+        try {
+          const stored = localStorage.getItem('siloka_users_data');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
+              const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
+              const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
+              const valid = parsed.filter((u) => {
+                const uId = String(u.id || '').toLowerCase();
+                const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
+                const uEmail = String(u.email || '').toLowerCase();
+                return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
+              });
+              if (valid.length > 0) {
+                setDemoUsers(valid);
+              }
+            }
+          }
+        } catch (e) {}
+      }
+    };
+
+    syncUsers();
+
+    const handleStorageChange = () => {
+      syncUsers();
+    };
+    window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('siloka:user-deleted', handleStorageChange);
+    return () => {
+      isMounted = false;
+      window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('siloka:user-deleted', handleStorageChange);
+    };
+  }, []);
+
+  // Format opsi tombol akun masuk terhubung langsung dengan profil Manajemen Pengguna
+  const demoButtons = useMemo(() => {
+    const list = Array.isArray(demoUsers) && demoUsers.length > 0 ? demoUsers : CANONICAL_MANAJEMEN_PENGGUNA_USERS;
+
+    const formatted = list.map((u) => {
+      const isSuper =
+        u.is_super_admin === true ||
+        u.role === 'Super Admin' ||
+        u.role_slug === 'super_admin' ||
+        String(u.jabatan || '').toLowerCase().includes('super admin') ||
+        String(u.email || '').toLowerCase().includes('dedegunawan');
+
+      if (isSuper) {
+        const baseName = (u.nama_lengkap || u.name || 'Dede Gunawan').split(',')[0];
+        return {
+          id: u.id || 'usr-dg-01',
+          labelPrefix: '★ Super Admin:',
+          labelColor: 'font-bold text-unsil-gold-400',
+          displayName: `${baseName} (${u.email || 'dedegunawan@unsil.ac.id'})`,
+          email: u.email || 'dedegunawan@unsil.ac.id',
+          password: u.raw_password || u.password || 'Siloka2026!',
+          isSuper: true,
+          title: `Super Administrator SILOKA (${u.nama_lengkap || 'Dede Gunawan'})`,
+          orderPriority: 2
+        };
+      }
+
+      const jab = String(u.jabatan || u.roleLabel || u.role_label || u.role || '').toLowerCase();
+      const name = String(u.nama_lengkap || u.nama || u.name || '');
+
+      let labelPrefix = 'Pejabat:';
+      let labelColor = 'font-semibold text-emerald-400';
+      let displayName = name.split(',')[0] || name;
+      let orderPriority = 10;
+
+      if (jab.includes('rektor') && !jab.includes('wakil') && !jab.includes('warek')) {
+        labelPrefix = 'Rektorat:';
+        labelColor = 'font-semibold text-amber-300';
+        displayName = name.includes('Aripin') ? 'Prof. Aripin' : displayName;
+        orderPriority = 1;
+      } else if (jab.includes('pengadministrasi') || jab.includes('tata usaha') || jab.includes('admin_tu') || jab.includes('operator') || u.role_slug === 'admin_tu') {
+        labelPrefix = 'Staf TU:';
+        labelColor = 'font-semibold text-unsil-gold-300';
+        displayName = name.includes('Agung Cahya') ? 'Agung Cahya Nur' : displayName;
+        orderPriority = 0;
+      } else if (jab.includes('wakil rektor bidang akademik') || jab.includes('wakil rektor i') || jab.includes('warek 1') || jab.includes('akademik')) {
+        labelPrefix = 'Wakil Rektor I:';
+        labelColor = 'font-semibold text-sky-400';
+        displayName = name.includes('Dedi Kusmayadi') ? 'Prof. Dedi Kusmayadi' : displayName;
+        orderPriority = 3;
+      } else if (jab.includes('wakil rektor bidang keuangan') || jab.includes('wakil rektor ii') || jab.includes('warek 2') || jab.includes('keuangan dan umum')) {
+        labelPrefix = 'Wakil Rektor II:';
+        labelColor = 'font-semibold text-emerald-400';
+        displayName = name.includes('Ade Rustiana') ? 'Dr. Ade Rustiana' : displayName;
+        orderPriority = 4;
+      } else if (jab.includes('dekan')) {
+        labelPrefix = 'Dekan:';
+        labelColor = 'font-semibold text-emerald-400';
+        orderPriority = 5;
+      } else if (jab.includes('spi') || jab.includes('pengawas')) {
+        labelPrefix = 'Pengawas:';
+        labelColor = 'font-semibold text-rose-300';
+        orderPriority = 6;
+      } else if (jab.includes('tik')) {
+        labelPrefix = jab.includes('kepala') ? 'Kepala TIK:' : 'Staf TIK:';
+        labelColor = 'font-semibold text-indigo-300';
+        orderPriority = 7;
+      }
+
+      return {
+        id: u.id || u.email,
+        labelPrefix,
+        labelColor,
+        displayName,
+        email: u.email || u.username,
+        password: u.raw_password || u.password || 'Siloka2026!',
+        isSuper: false,
+        title: `${u.jabatan || labelPrefix} (${u.nama_lengkap || displayName})`,
+        orderPriority
+      };
+    });
+
+    return formatted.sort((a, b) => a.orderPriority - b.orderPriority);
+  }, [demoUsers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -46,7 +300,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
         console.warn('[LOGIN] Gagal memuat siloka_users_data dari localStorage:', err);
       }
 
-      return candidateUsers.find((u) => {
+      const matched = candidateUsers.find((u) => {
         const uEmail = u.email ? String(u.email).trim().toLowerCase() : '';
         const uUsername = u.username ? String(u.username).trim().toLowerCase() : '';
         const uNip = u.nip ? String(u.nip).trim().toLowerCase() : '';
@@ -78,7 +332,7 @@ export const LoginPage = ({ onLoginSuccess }) => {
 
       // Fallback alias jika pengguna mengetik alias 'superadmin'
       if (rawInput === 'superadmin' || rawInput === 'superadmin@unsil.ac.id') {
-        const superAdmin = localUsers.find((u) => isSuperAdminUser(u));
+        const superAdmin = candidateUsers.find((u) => isSuperAdminUser(u));
         if (superAdmin) return superAdmin;
       }
 
@@ -348,111 +602,31 @@ export const LoginPage = ({ onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* Quick Demo Preset Accounts */}
+          {/* Quick Demo Preset Accounts - Terintegrasi dengan Manajemen Pengguna (allUsers) */}
           <div className="mt-6 pt-5 border-t border-slate-800">
             <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
               Pilihan Akun Masuk (Uji Coba):
             </p>
             <div className="grid grid-cols-2 gap-1.5 text-[11px]">
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('siti.rohmah@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Staf Operator BKU"
-              >
-                <span className="font-semibold text-unsil-gold-300">Staf BKU:</span> Siti Rohmah
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('nana.sujana@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Kepala Biro BKU (Pejabat)"
-              >
-                <span className="font-semibold text-emerald-400">Kepala BKU:</span> Dr. Nana S.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('dedegunawan@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 text-left border border-unsil-gold-500/50 transition truncate col-span-2 shadow-xs"
-                title="Super Administrator SILOKA (Dede Gunawan, S.Kom., M.Kom.)"
-              >
-                <span className="font-bold text-unsil-gold-400">★ Super Admin:</span> Dede Gunawan (dedegunawan@unsil.ac.id)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('dian.fkip@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Staf TU FKIP"
-              >
-                <span className="font-semibold text-unsil-gold-300">Staf FKIP:</span> Dian Fitriani
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('cucu.suherman@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Dekan FKIP (Pejabat)"
-              >
-                <span className="font-semibold text-emerald-400">Dekan FKIP:</span> Dr. Cucu S.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('aripin.rektor@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Rektor Universitas Siliwangi"
-              >
-                <span className="font-semibold text-amber-300">Rektorat:</span> Prof. Aripin
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('hendra.spi@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 text-left border border-slate-700/60 transition truncate"
-                title="Ketua SPI (Pengawas)"
-              >
-                <span className="font-semibold text-rose-300">Pengawas:</span> Hendra (SPI)
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('kepala.tik@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Kepala UPA TIK (Pejabat & Otoritas Sistem)"
-              >
-                <span className="font-semibold text-indigo-300">Kepala TIK:</span> Alam R.
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setUsername('operator.tik@unsil.ac.id');
-                  setPassword('Siloka2026!');
-                }}
-                className="p-1.5 rounded bg-indigo-950/70 hover:bg-indigo-900/80 text-slate-200 text-left border border-indigo-700/60 transition truncate col-span-1"
-                title="Staf Pengelola Sistem UPA TIK"
-              >
-                <span className="font-semibold text-indigo-300">Staf TIK:</span> Gilang R.
-              </button>
+              {demoButtons.map((btn) => (
+                <button
+                  key={btn.id}
+                  type="button"
+                  onClick={() => {
+                    setUsername(btn.email);
+                    setPassword(btn.password || 'Siloka2026!');
+                    setErrorMsg('');
+                  }}
+                  className={`p-1.5 rounded text-left transition truncate cursor-pointer ${
+                    btn.isSuper
+                      ? 'bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 border border-unsil-gold-500/50 col-span-2 shadow-xs'
+                      : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60'
+                  }`}
+                  title={btn.title}
+                >
+                  <span className={btn.labelColor}>{btn.labelPrefix}</span> {btn.displayName}
+                </button>
+              ))}
             </div>
           </div>
 

@@ -59,6 +59,26 @@
     "signatureReady": true
   },
   {
+    "id": "usr-muw7evv4-1003",
+    "nip_nik": "196811132021211003",
+    "nama_lengkap": "Prof. Dr. H. Dedi Kusmayadi, S.E., M.Si., Ak., CA., CRBC., ACPA., CPA., CRA., CRP., CSBA., ASEAN-CPA",
+    "email": "dedikusmayadi@unsil.ac.id",
+    "password_hash": "$2a$12$e8Yg3c7z3K9Y2k9jE9gX7O.7/2xM8wHwY7e4Y7m4k8h2z5x9l1a1b",
+    "unit_kerja_id": "UN58",
+    "role": "PEJABAT",
+    "raw_role": "PEJABAT",
+    "role_slug": "pimpinan",
+    "roleLevel": "Level 1: Pimpinan",
+    "roleLabel": "Wakil Rektor Bidang Akademik",
+    "jabatan": "Wakil Rektor Bidang Akademik",
+    "unit": "Universitas Siliwangi (Rektorat)",
+    "name": "Prof. Dr. H. Dedi Kusmayadi, S.E., M.Si., Ak., CA., CRBC., ACPA., CPA., CRA., CRP., CSBA., ASEAN-CPA",
+    "nip": "196811132021211003",
+    "username": "dedikusmayadi@unsil.ac.id",
+    "avatar": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80",
+    "signatureReady": true
+  },
+  {
     "id": "usr-dian-01",
     "nip_nik": "196803201994032001",
     "nama_lengkap": "Dr. Dian Indiyati, Ir., S.E., M.Si.",
