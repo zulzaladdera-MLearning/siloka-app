@@ -451,15 +451,37 @@ export const CreateLetterModal = ({
   // Master Pejabat Struktural UNSIL untuk Pilihan Dropdown & Direct Account Routing (Terintegrasi Manajemen Pengguna)
   const allOfficialsList = useMemo(() => getAllOfficialsWithUserMapping(allUsers), [allUsers]);
   const [tujuanPejabatMode, setTujuanPejabatMode] = useState('SELECT'); // 'SELECT' | 'MANUAL'
-  const [selectedPejabatMasukId, setSelectedPejabatMasukId] = useState(1); // Default ID 1: Rektor Universitas Siliwangi
+  const [selectedPejabatMasukId, setSelectedPejabatMasukId] = useState(() => {
+    return allOfficialsList[0]?.id || 'usr-01';
+  });
   const [customTujuanMasuk, setCustomTujuanMasuk] = useState('');
 
   const selectedPejabatObj = useMemo(() => {
     if (tujuanPejabatMode === 'MANUAL') return null;
     return (
       allOfficialsList.find((p) => String(p.id) === String(selectedPejabatMasukId)) ||
-      allOfficialsList[0]
+      allOfficialsList.find((p) => String(p.user_id) === String(selectedPejabatMasukId)) ||
+      allOfficialsList.find((p) => p.id === 'usr-01' || p.user_id === 'usr-01') ||
+      allOfficialsList[0] ||
+      null
     );
+  }, [allOfficialsList, selectedPejabatMasukId, tujuanPejabatMode]);
+
+  // Sinkronisasi otomatis saat daftar pejabat Manajemen Pengguna berubah
+  useEffect(() => {
+    if (allOfficialsList.length > 0 && tujuanPejabatMode === 'SELECT') {
+      const exists = allOfficialsList.some(
+        (p) => String(p.id) === String(selectedPejabatMasukId) || String(p.user_id) === String(selectedPejabatMasukId)
+      );
+      if (!exists) {
+        const defaultOfficial =
+          allOfficialsList.find((p) => p.id === 'usr-01' || p.user_id === 'usr-01') || allOfficialsList[0];
+        if (defaultOfficial) {
+          setSelectedPejabatMasukId(defaultOfficial.id);
+          setTujuanMasuk(defaultOfficial.jabatan);
+        }
+      }
+    }
   }, [allOfficialsList, selectedPejabatMasukId, tujuanPejabatMode]);
 
   // Profil Pengguna Aktif yang Disinkronkan dengan Manajemen Pengguna (allUsers)

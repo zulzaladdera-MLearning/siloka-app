@@ -178,9 +178,11 @@ const isOfficialUserAccount = (u) => {
  * @returns {Array<object>}
  */
 export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
-  // 1. Tentukan sumber data pengguna aktif (dari props Manajemen Pengguna, localStorage, atau fallback usersData)
+  // Jika caller memberikan customUsersList (dari Manajemen Pengguna / allUsers)
+  const isExplicitUserManagement = Array.isArray(customUsersList);
+
   let currentUsers = [];
-  if (Array.isArray(customUsersList) && customUsersList.length > 0) {
+  if (isExplicitUserManagement) {
     currentUsers = customUsersList;
   } else if (typeof window !== 'undefined') {
     try {
@@ -195,6 +197,105 @@ export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
       // ignore
     }
   }
+
+  // JIKA BERSUMBER EKSPLISIT DARI MANAJEMEN PENGGUNA (allUsers):
+  // HANYA ambil akun-akun pejabat yang sah dan aktif dari Manajemen Pengguna!
+  if (isExplicitUserManagement) {
+    const officials = [];
+    const seenUserIds = new Set();
+    const seenNips = new Set();
+
+    currentUsers.forEach((u) => {
+      if (!u) return;
+      if (!isOfficialUserAccount(u)) return; // Jangan masukkan staf/dosen non-pejabat atau super admin
+
+      const uId = String(u.id || '').trim();
+      const uNip = String(u.nip || u.nip_nik || '').trim();
+
+      if (uId && seenUserIds.has(uId)) return;
+      if (uNip && uNip !== '-' && seenNips.has(uNip)) return;
+
+      // Cari referensi masterPejabat untuk memperkaya data gelar atau SOTK
+      const masterRef = masterPejabatList.find((p) => {
+        const pNip = String(p.nip || '').trim();
+        if (uNip && pNip && uNip === pNip) return true;
+        const uJab = String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase();
+        const pJab = String(p.jabatan || '').trim().toLowerCase();
+        if (uJab && pJab && (uJab === pJab || uJab.includes(pJab) || pJab.includes(uJab))) return true;
+        return false;
+      });
+
+      const kodeUnit = u.unit_kerja_id || u.kode_unit || masterRef?.kode_unit || 'UN58';
+      const finalJabatan = u.jabatan || u.roleLabel || u.role_label || masterRef?.jabatan || 'Pejabat Struktural';
+      const finalNama = u.nama_lengkap || u.name || masterRef?.nama_gelar || 'Pejabat UNSIL';
+      const finalNip = uNip || masterRef?.nip || '-';
+      const finalUnitName = u.unit || getUnitNameByCode(kodeUnit);
+      const kategori = getKategoriByUnitAndPosition(kodeUnit, finalJabatan);
+
+      if (uId) seenUserIds.add(uId);
+      if (finalNip && finalNip !== '-') seenNips.add(finalNip);
+
+      officials.push({
+        id: u.id || masterRef?.id,
+        jabatan: finalJabatan,
+        nama: u.nama_lengkap || u.name || masterRef?.nama,
+        gelar: masterRef?.gelar || '',
+        nama_gelar: finalNama,
+        nip: finalNip,
+        kode_unit: kodeUnit,
+        unit_nama: finalUnitName,
+        kategori,
+        user_id: u.id,
+        user_email: u.email || null,
+        user_name: finalNama,
+        role: u.role || 'PEJABAT',
+        role_slug: u.role_slug || 'pimpinan',
+        roleLevel: u.roleLevel || 'Level 1: Pimpinan',
+        permissions: u.permissions || ['disposisi.create', 'disposisi.forward'],
+        label: finalJabatan,
+        is_from_user_management: true,
+        has_active_account: true,
+        is_pejabat: true
+      });
+    });
+
+    const kategoriOrder = {
+      'Pimpinan Rektorat & Organ Universitas': 1,
+      'Pimpinan Biro UNSIL': 2,
+      'Dekan Fakultas & Direktur Pascasarjana': 3,
+      'Ketua Jurusan & Koordinator Program Studi': 4,
+      'Kepala Lembaga & UPA': 5,
+      'Pimpinan Satuan Kerja Lainnya': 6
+    };
+
+    return officials.sort((a, b) => {
+      const orderA = kategoriOrder[a.kategori] || 99;
+      const orderB = kategoriOrder[b.kategori] || 99;
+      if (orderA !== orderB) return orderA - orderB;
+
+      // Utamakan Rektor di puncak
+      const isRektorA = a.jabatan.toLowerCase().includes('rektor universitas');
+      const isRektorB = b.jabatan.toLowerCase().includes('rektor universitas');
+      if (isRektorA && !isRektorB) return -1;
+      if (!isRektorA && isRektorB) return 1;
+
+      // Utamakan Wakil Rektor
+      const isWarekA = a.jabatan.toLowerCase().includes('wakil rektor');
+      const isWarekB = b.jabatan.toLowerCase().includes('wakil rektor');
+      if (isWarekA && !isWarekB) return -1;
+      if (!isWarekA && isWarekB) return 1;
+
+      // Utamakan Dekan di atas Wakil Dekan
+      const isDekanA = a.jabatan.toLowerCase().startsWith('dekan');
+      const isDekanB = b.jabatan.toLowerCase().startsWith('dekan');
+      if (isDekanA && !isDekanB) return -1;
+      if (!isDekanA && isDekanB) return 1;
+
+      return a.jabatan.localeCompare(b.jabatan);
+    });
+  }
+
+  // JIKA TANPA ARGUMEN (Fallback Default SOTK Master):
   if (!currentUsers || currentUsers.length === 0) {
     currentUsers = usersData;
   }
@@ -203,10 +304,7 @@ export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
   const matchedUserIds = new Set();
   const matchedNips = new Set();
 
-  // 2. Tahap 1: Iterasi Master Pejabat Struktur Organisasi UNSIL
-  // Hubungkan dan perbarui secara dinamis dengan akun dari Manajemen Pengguna jika tersedia
   masterPejabatList.forEach((p) => {
-    // Cari akun pengguna di Manajemen Pengguna yang cocok
     const userMatch = currentUsers.find((u) => {
       if (!u) return false;
       const uNip = String(u.nip || u.nip_nik || '').trim();
@@ -218,7 +316,6 @@ export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
       const uJab = String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase();
       const pJab = String(p.jabatan || '').trim().toLowerCase();
 
-      // Cocokkan jika unit sama dan jabatan struktural sama persis
       if (uUnit && pUnit && uUnit === pUnit && uJab && pJab && (uJab === pJab || uJab.includes(pJab) || pJab.includes(uJab))) {
         return true;
       }
@@ -260,50 +357,6 @@ export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
     });
   });
 
-  // 3. Tahap 2: Tambahkan Pejabat Baru dari Manajemen Pengguna yang belum ada di masterPejabatList
-  // (Contoh: Ketua Jurusan, Koordinator Prodi, Wakil Dekan baru, atau Kepala Unit baru)
-  currentUsers.forEach((u) => {
-    if (!u) return;
-    if (matchedUserIds.has(u.id)) return;
-    const uNip = String(u.nip || u.nip_nik || '').trim();
-    if (uNip && matchedNips.has(uNip)) return;
-
-    if (isOfficialUserAccount(u)) {
-      const kodeUnit = u.unit_kerja_id || u.kode_unit || 'UN58';
-      const finalJabatan = u.jabatan || u.roleLabel || u.role_label || 'Pejabat Struktural';
-      const finalNama = u.nama_lengkap || u.name || 'Pegawai UNSIL';
-      const finalNip = u.nip || u.nip_nik || '-';
-      const finalUnitName = u.unit || getUnitNameByCode(kodeUnit);
-      const kategori = getKategoriByUnitAndPosition(kodeUnit, finalJabatan);
-
-      matchedUserIds.add(u.id);
-      if (finalNip && finalNip !== '-') matchedNips.add(finalNip);
-
-      officials.push({
-        id: u.id,
-        jabatan: finalJabatan,
-        nama: finalNama,
-        gelar: '',
-        nama_gelar: finalNama,
-        nip: finalNip,
-        kode_unit: kodeUnit,
-        unit_nama: finalUnitName,
-        kategori,
-        user_id: u.id,
-        user_email: u.email || null,
-        user_name: finalNama,
-        role: u.role || 'PEJABAT',
-        role_slug: u.role_slug || 'pimpinan',
-        roleLevel: u.roleLevel || 'Level 1: Pimpinan',
-        permissions: u.permissions || ['disposisi.create', 'disposisi.forward'],
-        label: finalJabatan,
-        is_from_user_management: true,
-        has_active_account: true
-      });
-    }
-  });
-
-  // 4. Tahap 3: Pengurutan Hierarkis SOTK UNSIL
   const kategoriOrder = {
     'Pimpinan Rektorat & Organ Universitas': 1,
     'Pimpinan Biro UNSIL': 2,
@@ -318,13 +371,16 @@ export const getAllOfficialsWithUserMapping = (customUsersList = null) => {
     const orderB = kategoriOrder[b.kategori] || 99;
     if (orderA !== orderB) return orderA - orderB;
 
-    // Utamakan Rektor di puncak
     const isRektorA = a.jabatan.toLowerCase().includes('rektor universitas');
     const isRektorB = b.jabatan.toLowerCase().includes('rektor universitas');
     if (isRektorA && !isRektorB) return -1;
     if (!isRektorA && isRektorB) return 1;
 
-    // Utamakan Dekan di atas Wakil Dekan
+    const isWarekA = a.jabatan.toLowerCase().includes('wakil rektor');
+    const isWarekB = b.jabatan.toLowerCase().includes('wakil rektor');
+    if (isWarekA && !isWarekB) return -1;
+    if (!isWarekA && isWarekB) return 1;
+
     const isDekanA = a.jabatan.toLowerCase().startsWith('dekan');
     const isDekanB = b.jabatan.toLowerCase().startsWith('dekan');
     if (isDekanA && !isDekanB) return -1;
