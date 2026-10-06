@@ -55,21 +55,34 @@ export const Navbar = ({
       });
     }
 
-    // 2. Disposisi Diterima untuk Unit / Role Pengguna
+    // 2. Disposisi Diterima untuk Unit / Role / Akun Pejabat Pengguna
     letters.forEach((l) => {
       if (l.disposisi) {
-        const targetDesc = l.disposisi.tujuanDisposisi || l.disposisi.targetUnit || '';
+        const targetDesc = String(l.disposisi.tujuanDisposisi || l.disposisi.targetUnit || '').toLowerCase();
+        const targetUserId = String(l.disposisi.target_user_id || '');
+        const targetEmail = String(l.disposisi.target_user_email || '').toLowerCase().trim();
+        const targetNip = String(l.disposisi.target_pejabat_nip || '').trim();
+        const userIdStr = String(user?.id || user?.id_user || '');
+        const userEmailLower = String(user?.email || '').toLowerCase().trim();
+        const userNip = String(user?.nip || user?.nip_nik || '').trim();
+        const userJabatanLower = String(user?.jabatan || user?.roleLabel || '').toLowerCase();
+
         const isTargeted =
-          (user?.unit_kerja_id && targetDesc.includes(user.unit_kerja_id)) ||
-          (user?.roleLabel && targetDesc.includes(user.roleLabel));
+          (targetUserId && userIdStr && targetUserId === userIdStr) ||
+          (targetEmail && userEmailLower && targetEmail === userEmailLower) ||
+          (targetNip && userNip && targetNip === userNip) ||
+          (userJabatanLower && (targetDesc.includes(userJabatanLower) || userJabatanLower.includes(targetDesc))) ||
+          (user?.unit_kerja_id && targetDesc.includes(String(user.unit_kerja_id).toLowerCase()));
+
         if (isTargeted) {
+          const pemberi = l.disposisi.pemberiDisposisi || l.disposisi.jabatanPemberi || 'Pimpinan';
           list.push({
             id: `disp-${l.id}`,
             letter: l,
-            title: '📩 E-Disposisi Pimpinan Diterima',
-            desc: `${l.perihal?.slice(0, 50)}... Instruksi: ${l.disposisi.instruksi?.slice(0, 45)}`,
+            title: `📩 E-Disposisi dari ${pemberi}`,
+            desc: `${l.perihal?.slice(0, 50)}... • Arahan: ${l.disposisi.actions?.join(', ') || l.disposisi.instruksi || 'Tindak lanjuti'}`,
             time: l.disposisi.batasWaktu ? `Batas: ${l.disposisi.batasWaktu}` : 'Hari ini',
-            urgent: true
+            urgent: l.disposisi.sifatInstruksi === 'Sangat Segera' || l.disposisi.sifatInstruksi === 'Segera' || l.sifat === 'Segera'
           });
         }
       }

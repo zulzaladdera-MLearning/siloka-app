@@ -910,14 +910,29 @@ export default function App() {
           }
         }
 
-        // 4. Jika surat telah didisposisikan, target disposisi berhak melihat
+        const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
+        const currentUserEmail = String(currentUser?.email || '').toLowerCase().trim();
+
+        // 4. Jika surat telah didisposisikan, target penerima disposisi berhak melihat
         if (letter.disposisi) {
-          const dispTarget = String(letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || '').toLowerCase();
-          const userUnitName = String(currentUnit?.nama_unit || '').toLowerCase();
-          const userUnitShort = String(currentUnit?.singkatan || '').toLowerCase();
-          if (currentRoleLabel && (dispTarget.includes(currentRoleLabel) || currentRoleLabel.includes(dispTarget))) return true;
-          if (userUnitName && dispTarget.includes(userUnitName)) return true;
-          if (userUnitShort && dispTarget.includes(userUnitShort)) return true;
+          const dispUserId = String(letter.disposisi.target_user_id || '');
+          const dispEmail = String(letter.disposisi.target_user_email || '').toLowerCase().trim();
+          const dispNip = String(letter.disposisi.target_pejabat_nip || '').trim();
+          const dispTarget = String(letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || '').toLowerCase().trim();
+          const userUnitName = String(currentUnit?.nama_unit || '').toLowerCase().trim();
+          const userUnitShort = String(currentUnit?.singkatan || '').toLowerCase().trim();
+
+          const isDirectDisposisiRecipient =
+            (dispUserId && currentUserId && dispUserId === currentUserId) ||
+            (dispEmail && currentUserEmail && dispEmail === currentUserEmail) ||
+            (dispNip && currentNip && dispNip === currentNip) ||
+            (currentRoleLabel && (dispTarget.includes(currentRoleLabel) || currentRoleLabel.includes(dispTarget))) ||
+            (userUnitName && dispTarget.includes(userUnitName)) ||
+            (userUnitShort && dispTarget.includes(userUnitShort));
+
+          if (isDirectDisposisiRecipient) {
+            return true;
+          }
         }
 
         // 5. Cek apakah pengguna saat ini adalah Pejabat Struktural
@@ -927,9 +942,6 @@ export default function App() {
           currentUser?.role === 'PIMPINAN' ||
           currentUser?.role_slug === 'pimpinan' ||
           isDisposisiAuthorizedOfficial(currentUser, allUsers);
-
-        const currentNip = String(currentUser?.nip || currentUser?.nip_nik || '').trim();
-        const currentUserEmail = String(currentUser?.email || '').toLowerCase().trim();
 
         // 6. ISOLASI MUTLAK SURAT MASUK BERTUJUAN REKTOR (Eksklusif Rektor Universitas Siliwangi)
         const isTargetRektor =
@@ -1410,12 +1422,19 @@ export default function App() {
             statusTimestamp: `Didisposisikan kepada ${newDisposisi.targetUnit} (Tenggat: ${newDisposisi.dueDate})`,
             disposisi: {
               tujuanDisposisi: newDisposisi.targetUnit,
+              targetUnit: newDisposisi.targetUnit,
+              target_user_id: newDisposisi.target_user_id || null,
+              target_user_email: newDisposisi.target_user_email || null,
+              target_pejabat_nip: newDisposisi.target_pejabat_nip || null,
+              target_pejabat_nama: newDisposisi.target_pejabat_nama || null,
+              target_jabatan: newDisposisi.target_jabatan || newDisposisi.targetUnit,
               actions: newDisposisi.actions || [],
               instruksi: (newDisposisi.actions || []).join(', ') + (newDisposisi.customNote ? ' — Catatan: ' + newDisposisi.customNote : ''),
               batasWaktu: newDisposisi.dueDate,
               sifatInstruksi: newDisposisi.sifatInstruksi,
               customNote: newDisposisi.customNote,
               pemberiDisposisi: newDisposisi.pemberiName || currentUser?.nama_lengkap || currentUser?.name || 'Pimpinan Unit',
+              pemberiUserId: newDisposisi.pemberiUserId || currentUser?.id || currentUser?.id_user || null,
               jabatanPemberi: newDisposisi.pemberiJabatan || currentUser?.jabatan || currentUser?.sotk_position_label || currentUser?.roleLabel || 'Pimpinan',
               tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })
             },

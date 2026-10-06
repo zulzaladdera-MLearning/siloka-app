@@ -66,9 +66,10 @@ export const QuickDisposisiModal = ({
   const isTargetSignatureRequest = letter ? isLetterSignatureRequest(letter) : false;
 
   // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
+  // Terintegrasi langsung dengan Manajemen Pengguna (allUsers)
   const hierarchicalTargets = useMemo(() => {
-    return getHierarchicalDisposisiTargets(effectiveCurrentUser);
-  }, [effectiveCurrentUser]);
+    return getHierarchicalDisposisiTargets(effectiveCurrentUser, allUsers);
+  }, [effectiveCurrentUser, allUsers]);
 
   // Kalkulasi tanggal jatuh tempo berdasarkan SLA Peraturan Rektor No. 3/2023
   const calculateDueDateBySifat = (sifat) => {
@@ -81,6 +82,7 @@ export const QuickDisposisiModal = ({
   // State Manajemen Disposisi
   const [selectedLetterId, setSelectedLetterId] = useState('');
   const [targetUnit, setTargetUnit] = useState('');
+  const [selectedTargetObj, setSelectedTargetObj] = useState(null);
   const [isCustomTarget, setIsCustomTarget] = useState(false);
   const [customTargetUnit, setCustomTargetUnit] = useState('');
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
@@ -111,12 +113,13 @@ export const QuickDisposisiModal = ({
 
     // Default target bawahan sesuai pimpinan login
     const defaultTarget = hierarchicalTargets[0]?.nama || '';
-    const existingTarget = activeLetter?.disposisi?.tujuanDisposisi;
-    if (existingTarget) {
-      setTargetUnit(existingTarget);
-    } else {
-      setTargetUnit(defaultTarget);
-    }
+    const existingTarget = activeLetter?.disposisi?.tujuanDisposisi || activeLetter?.disposisi?.targetUnit;
+    const finalTargetName = existingTarget || defaultTarget;
+    setTargetUnit(finalTargetName);
+
+    const activeTargetObj = hierarchicalTargets.find((t) => t.nama === finalTargetName) || hierarchicalTargets[0] || null;
+    setSelectedTargetObj(activeTargetObj);
+
     setIsCustomTarget(false);
     setCustomTargetUnit('');
 
@@ -238,16 +241,26 @@ export const QuickDisposisiModal = ({
     const pemberiName = effectiveCurrentUser?.nama_lengkap || effectiveCurrentUser?.nama || effectiveCurrentUser?.name || 'Pimpinan Unit';
     const pemberiJabatan = effectiveCurrentUser?.jabatan || effectiveCurrentUser?.sotk_position_label || effectiveCurrentUser?.roleLabel || 'Pimpinan';
 
+    const matchedTargetObj = (!isCustomTarget && selectedTargetObj && selectedTargetObj.nama === finalTarget)
+      ? selectedTargetObj
+      : hierarchicalTargets.find((t) => t.nama === finalTarget) || null;
+
     onSubmitDisposisi({
       letterId: selectedLetterObj.id,
       nomorAgenda: selectedLetterObj.nomorAgenda || `AGD-${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
       targetUnit: finalTarget,
+      target_user_id: matchedTargetObj?.user_id || null,
+      target_user_email: matchedTargetObj?.user_email || null,
+      target_pejabat_nip: matchedTargetObj?.user_nip || null,
+      target_pejabat_nama: matchedTargetObj?.user_nama || null,
+      target_jabatan: finalTarget,
       sifatInstruksi,
       actions: finalizedActions,
       customNote,
       dueDate,
       pemberiName,
       pemberiJabatan,
+      pemberiUserId: effectiveCurrentUser?.id || effectiveCurrentUser?.id_user || null,
       timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB'
     });
     onClose();
@@ -466,6 +479,7 @@ export const QuickDisposisiModal = ({
                                   type="button"
                                   onClick={() => {
                                     setTargetUnit(team.nama);
+                                    setSelectedTargetObj(team);
                                     setIsUnitDropdownOpen(false);
                                     setUnitSearchQuery('');
                                   }}
@@ -482,7 +496,14 @@ export const QuickDisposisiModal = ({
                                       <Building className="w-3 h-3" />
                                     </div>
                                     <div className="truncate">
-                                      <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
+                                      <div className="flex items-center gap-1.5 truncate">
+                                        <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
+                                        {team.is_active_account && (
+                                          <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100/80 text-emerald-800 border border-emerald-200 shrink-0">
+                                            Akun Terhubung
+                                          </span>
+                                        )}
+                                      </div>
                                       {team.deskripsi && (
                                         <p className="text-[10px] text-slate-500 mt-0.5 truncate">{team.deskripsi}</p>
                                       )}

@@ -302,7 +302,7 @@ export const isDisposisiAuthorizedOfficial = (user, allUsersList = null) => {
  * Menentukan daftar tujuan disposisi hirarkis (Top-Down Subordinate Targets)
  * berdasarkan level pimpinan sesuai MATRIKS KEWENANGAN & OTK UNSIL.
  */
-export const getHierarchicalDisposisiTargets = (currentUser) => {
+export const getHierarchicalDisposisiTargets = (currentUser, allUsersList = []) => {
   if (!currentUser) return BKU_STRUCTURAL_TEAMS;
 
   const roleLevel = String(currentUser?.roleLevel || '').toLowerCase();
@@ -310,13 +310,15 @@ export const getHierarchicalDisposisiTargets = (currentUser) => {
   const unitId = String(currentUser?.unit_kerja_id || '');
   const unitName = String(currentUser?.unit || '').toLowerCase();
 
+  let baseTargets = [];
+
   // 1. Level Rektorat / Pimpinan Tertinggi Universitas (Rektor / Wakil Rektor)
   // Sesuai 33 Pejabat Struktural + Pilihan Manual pada Format Resmi Contoh 21
   if (
     jabatan.includes('rektor') ||
     roleLevel.includes('level 1: pimpinan') && (unitId === 'UN58' || unitName.includes('rektorat'))
   ) {
-    return [
+    baseTargets = [
       { id: 'tgt-1', nama: 'Ketua Senat Universitas', deskripsi: 'Pimpinan Organ Pertimbangan Akademik', badge: 'Senat' },
       { id: 'tgt-2', nama: 'Ketua SPI', deskripsi: 'Pengawasan Kepatuhan & Audit Internal', badge: 'SPI' },
       { id: 'tgt-3', nama: 'Wakil Rektor Bidang Akademik', deskripsi: 'Bidang Pembelajaran, Kurikulum & Mutu', badge: 'Pimpinan' },
@@ -351,17 +353,14 @@ export const getHierarchicalDisposisiTargets = (currentUser) => {
       { id: 'tgt-32', nama: 'Ketua Tim Kerumahtanggan dan BMN', deskripsi: 'Pengelolaan Barang Milik Negara & Sarpras', badge: 'Tim' },
       { id: 'tgt-33', nama: 'Ketua Tim Keprotokolan dan Humas', deskripsi: 'Protokoler Pimpinan & Komunikasi Publik', badge: 'Tim' }
     ];
-  }
-
-  // 2. Level Dekan / Wakil Dekan / Direktur Pascasarjana
-  if (
+  } else if (
     jabatan.includes('dekan') ||
     jabatan.includes('direktur') ||
     unitName.includes('fakultas') ||
     unitName.includes('pascasarjana')
   ) {
     const unitTag = unitName.includes('fkip') ? 'FKIP' : unitName.includes('ft') || unitName.includes('teknik') ? 'FT' : 'Fakultas';
-    return [
+    baseTargets = [
       { id: 'wadek-1', nama: `Wakil Dekan Bidang Akademik (${unitTag})`, deskripsi: 'Koordinasi Kurikulum, Perkuliahan & Penjaminan Mutu', badge: 'Pimpinan' },
       { id: 'wadek-2', nama: `Wakil Dekan Bidang Keuangan dan Umum (${unitTag})`, deskripsi: 'Koordinasi Keuangan, Sarana Prasarana & Kepegawaian', badge: 'Pimpinan' },
       { id: 'wadek-3', nama: `Wakil Dekan Bidang Kemahasiswaan & Alumni (${unitTag})`, deskripsi: 'Koordinasi Organisasi Mahasiswa, Prestasi & Alumni', badge: 'Pimpinan' },
@@ -371,16 +370,13 @@ export const getHierarchicalDisposisiTargets = (currentUser) => {
       { id: 'lab-fak', nama: `Kepala Laboratorium Terpadu (${unitTag})`, deskripsi: 'Praktikum, Fasilitas Riset & Pengujian', badge: 'Lab' },
       { id: 'dosen-fak', nama: `Tim Dosen & Tenaga Kependidikan (${unitTag})`, deskripsi: 'Pelaksana Teknis Tridharma & Administrasi', badge: 'Pelaksana' }
     ];
-  }
-
-  // 3. Level Ketua Jurusan / Koordinator Program Studi
-  if (
+  } else if (
     jabatan.includes('jurusan') ||
     jabatan.includes('prodi') ||
     jabatan.includes('kajur') ||
     jabatan.includes('kaprodi')
   ) {
-    return [
+    baseTargets = [
       { id: 'sekjur', nama: 'Sekretaris Jurusan / Program Studi', deskripsi: 'Administrasi Tridharma & Penjadwalan Kuliah', badge: 'Jurusan' },
       { id: 'kalab', nama: 'Kepala / Koordinator Laboratorium Prodi', deskripsi: 'Pengelolaan Praktikum, Alat & Bahan Uji', badge: 'Lab' },
       { id: 'koor-ta', nama: 'Koordinator Skripsi / Tugas Akhir', deskripsi: 'Bimbingan, Seminar Proposal & Sidang Ujian', badge: 'Akademik' },
@@ -388,35 +384,112 @@ export const getHierarchicalDisposisiTargets = (currentUser) => {
       { id: 'dosen-homebase', nama: 'Dosen Homebase Program Studi', deskripsi: 'Pengampu Mata Kuliah & Pembimbing Akademik', badge: 'Dosen' },
       { id: 'staf-adm-jurusan', nama: 'Staf Administrasi Akademik Jurusan', deskripsi: 'Pelaksana Surat Menyurat & Pelayanan Mahasiswa', badge: 'Staf' }
     ];
-  }
-
-  // 4. Level Kepala Biro BKU
-  if (unitId === 'UN58.6' || unitName.includes('keuangan dan umum')) {
-    return BKU_STRUCTURAL_TEAMS;
-  }
-
-  // 5. Level Kepala Biro BAKPK
-  if (unitId === 'UN58.5' || unitName.includes('bakpk')) {
-    return [
+  } else if (unitId === 'UN58.6' || unitName.includes('keuangan dan umum')) {
+    baseTargets = BKU_STRUCTURAL_TEAMS;
+  } else if (unitId === 'UN58.5' || unitName.includes('bakpk')) {
+    baseTargets = [
       { id: 'kbg_akademik', nama: 'Kepala Bagian Akademik', deskripsi: 'Registrasi, kelulusan, dan data pangkalan Dikti', badge: 'Bagian' },
       { id: 'tim_akademik', nama: 'Ketua Tim Bidang Akademik', deskripsi: 'Layanan administrasi kurikulum dan kalender akademik', badge: 'Tim' },
       { id: 'tim_kemahasiswaan', nama: 'Ketua Tim Bidang Kemahasiswaan & Alumni', deskripsi: 'Beasiswa, ormawa, dan tracer study alumni', badge: 'Tim' },
       { id: 'tim_perencanaan', nama: 'Ketua Tim Bidang Perencanaan', deskripsi: 'Renstra, pagu anggaran, dan program kerja', badge: 'Tim' },
       { id: 'tim_kerjasama', nama: 'Ketua Tim Bidang Kerjasama', deskripsi: 'MoU, PKS mitra instansi luar, dan humas kerjasama', badge: 'Tim' }
     ];
-  }
-
-  // 6. Level Kepala Lembaga (LPPM / LPMPP) & UPA
-  if (unitName.includes('lppm') || unitName.includes('lpmpp') || unitName.includes('upa') || unitName.includes('spi')) {
-    return [
+  } else if (unitName.includes('lppm') || unitName.includes('lpmpp') || unitName.includes('upa') || unitName.includes('spi')) {
+    baseTargets = [
       { id: 'sek_lembaga', nama: 'Sekretaris Lembaga / Koordinator Unit', deskripsi: 'Koordinasi program dan tata kelola unit kerja', badge: 'Sekretaris' },
       { id: 'kapus_1', nama: 'Kepala Pusat / Koordinator Bidang I', deskripsi: 'Program kerja spesifik bidang utama', badge: 'Pusat' },
       { id: 'kapus_2', nama: 'Kepala Pusat / Koordinator Bidang II', deskripsi: 'Program kerja spesifik bidang pendukung', badge: 'Pusat' },
       { id: 'kasubbag_tu', nama: 'Kepala Subbagian / Tata Usaha Unit', deskripsi: 'Administrasi umum, persuratan, dan kearsipan unit', badge: 'Tata Usaha' },
       { id: 'staf_pelaksana', nama: 'Staf Pelaksana Teknis & Fungsional', deskripsi: 'Pelaksana kegiatan dinas operasional unit', badge: 'Pelaksana' }
     ];
+  } else {
+    baseTargets = BKU_STRUCTURAL_TEAMS;
   }
 
-  // Default fallback
-  return BKU_STRUCTURAL_TEAMS;
+  // INTEGRASI REAL-TIME DENGAN MANAJEMEN PENGGUNA (allUsersList):
+  // Menghubungkan setiap opsi tujuan disposisi ke akun riil pejabat aktif yang sedang menjabat di sistem
+  if (!Array.isArray(allUsersList) || allUsersList.length === 0) {
+    return baseTargets;
+  }
+
+  const currentUserId = String(currentUser?.id || currentUser?.id_user || '');
+  const normalize = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const mappedUserIds = new Set();
+
+  const enrichedTargets = baseTargets.map((target) => {
+    const tNorm = normalize(target.nama);
+    const matchedUser = allUsersList.find((u) => {
+      if (!u || isSuperAdminUser(u)) return false;
+      const uId = String(u.id || u.id_user || '');
+      if (uId && uId === currentUserId) return false;
+
+      const uJab = normalize(u.jabatan || u.roleLabel || u.sotk_position_label || '');
+      if (!uJab || !tNorm) return false;
+
+      if (uJab === tNorm || uJab.includes(tNorm) || tNorm.includes(uJab)) return true;
+
+      // Pencocokan kata kunci posisi spesifik UNSIL
+      if (tNorm.includes('keuangandanumum') && (uJab.includes('keuangandanumum') || uJab.includes('wr2') || uJab.includes('warek2'))) return true;
+      if (tNorm.includes('akademik') && (uJab.includes('akademik') || uJab.includes('wr1') || uJab.includes('warek1'))) return true;
+      if (tNorm.includes('kemahasiswaan') && (uJab.includes('kemahasiswaan') || uJab.includes('wr3') || uJab.includes('warek3'))) return true;
+      if (tNorm.includes('kepalabku') && (uJab.includes('bku') || uJab.includes('kepalabirokeuangan'))) return true;
+      if (tNorm.includes('kepalabakpk') && (uJab.includes('bakpk') || uJab.includes('kepalabiroakademik'))) return true;
+      if (tNorm.includes('dekanft') && (uJab.includes('dekanfakultasteknik') || uJab.includes('dekanft'))) return true;
+      if (tNorm.includes('dekanfkip') && (uJab.includes('dekanfakultaskeguruan') || uJab.includes('dekanfkip'))) return true;
+
+      return false;
+    });
+
+    if (matchedUser) {
+      const uId = String(matchedUser.id || matchedUser.id_user || '');
+      mappedUserIds.add(uId);
+      const uNama = matchedUser.nama_lengkap || matchedUser.name || '';
+      const uNip = matchedUser.nip || matchedUser.nip_nik || '-';
+      return {
+        ...target,
+        user_id: uId,
+        user_email: matchedUser.email || '',
+        user_nip: uNip,
+        user_nama: uNama,
+        deskripsi: `${uNama} — NIP. ${uNip}`,
+        is_active_account: true
+      };
+    }
+
+    return target;
+  });
+
+  // Tambahkan juga akun pejabat struktural aktif lain dari Manajemen Pengguna yang belum terdaftar di target baku
+  allUsersList.forEach((u) => {
+    if (!u || isSuperAdminUser(u)) return;
+    const uId = String(u.id || u.id_user || '');
+    if (!uId || uId === currentUserId) return;
+    if (mappedUserIds.has(uId)) return;
+
+    const isPejabat =
+      Boolean(u.is_pejabat) ||
+      u.role === 'PEJABAT' ||
+      u.role_slug === 'pimpinan' ||
+      matchesOfficialDisposisiPosition(u.jabatan || u.roleLabel);
+
+    if (isPejabat) {
+      mappedUserIds.add(uId);
+      const uJab = u.jabatan || u.roleLabel || 'Pejabat Struktural';
+      const uNama = u.nama_lengkap || u.name || '';
+      const uNip = u.nip || u.nip_nik || '-';
+      enrichedTargets.push({
+        id: `usr-${uId}`,
+        nama: uJab,
+        deskripsi: `${uNama} — NIP. ${uNip}`,
+        badge: u.unit || 'Pejabat',
+        user_id: uId,
+        user_email: u.email || '',
+        user_nip: uNip,
+        user_nama: uNama,
+        is_active_account: true
+      });
+    }
+  });
+
+  return enrichedTargets;
 };

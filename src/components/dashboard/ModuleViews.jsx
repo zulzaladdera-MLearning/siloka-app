@@ -55,10 +55,12 @@ export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi
             letterId: letter.id,
             nomorAgenda: letter.disposisi.nomorAgenda || `AGD-2026/${letter.id}`,
             status: 'Dalam Proses',
-            pemberiDisposisi: letter.disposisi.pemberiDisposisi || 'Pimpinan Biro BKU',
-            penerimaDisposisi: letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || 'Unit Terkait',
+            pemberiDisposisi: letter.disposisi.pemberiDisposisi || 'Pimpinan Unit',
+            penerimaDisposisi: letter.disposisi.target_pejabat_nama
+              ? `${letter.disposisi.targetUnit} — ${letter.disposisi.target_pejabat_nama}`
+              : (letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || 'Unit Terkait'),
             instruksi: letter.disposisi.instruksi || 'Tindak lanjuti sesuai arahan pimpinan',
-            tanggalDisposisi: letter.disposisi.timestamp || letter.tanggal || 'Hari ini',
+            tanggalDisposisi: letter.disposisi.timestamp || letter.disposisi.tanggalDisposisi || letter.tanggal || 'Hari ini',
             sifatInstruksi: letter.disposisi.sifatInstruksi || 'Segera'
           });
         }
