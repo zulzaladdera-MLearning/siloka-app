@@ -126,19 +126,20 @@ export default function App() {
 
   const [letters, setLetters] = useState(() => {
     try {
-      // Periksa flag pembersihan riwayat naskah dummy lama (Surat Masuk & Surat Keluar) di browser
-      const isLettersPurged = localStorage.getItem('siloka_letters_purged_v3');
+      // Periksa flag pembersihan riwayat naskah dummy/uji coba lama di browser
+      const isLettersPurged = localStorage.getItem('siloka_letters_purged_v5');
 
       const savedLetters = localStorage.getItem('siloka_letters_data');
       if (savedLetters) {
         let parsed = JSON.parse(savedLetters);
         if (Array.isArray(parsed)) {
-          // Bersihkan seluruh riwayat naskah dinas dummy lama dari penyimpanan lokal peramban
+          // Bersihkan seluruh riwayat naskah dinas dummy/uji coba lama dari penyimpanan peramban
           if (!isLettersPurged) {
             parsed = [];
             try {
               localStorage.setItem('siloka_letters_data', JSON.stringify([]));
-              localStorage.setItem('siloka_letters_purged_v3', 'true');
+              localStorage.setItem('siloka_deleted_letter_ids', JSON.stringify([]));
+              localStorage.setItem('siloka_letters_purged_v5', 'true');
             } catch (err) {
               // ignore
             }
@@ -147,7 +148,7 @@ export default function App() {
           return parsed;
         }
       } else {
-        localStorage.setItem('siloka_letters_purged_v3', 'true');
+        localStorage.setItem('siloka_letters_purged_v5', 'true');
       }
     } catch (e) {
       console.error('Error loading saved letters', e);
@@ -1320,6 +1321,34 @@ export default function App() {
     });
   };
 
+  // Pembersihan Menyeluruh Riwayat Naskah Uji Coba (Clean Slate Database & Storage)
+  const handleClearAllLetters = () => {
+    setLetters([]);
+    setDeletedLetterIds([]);
+    try {
+      localStorage.setItem('siloka_letters_data', JSON.stringify([]));
+      localStorage.setItem('siloka_deleted_letter_ids', JSON.stringify([]));
+      localStorage.setItem('siloka_letters_purged_v5', 'true');
+    } catch (e) {
+      console.warn('Gagal membersihkan localStorage:', e);
+    }
+
+    // Bersihkan juga antrean memori backend jika server aktif
+    try {
+      fetch('/api/surat-masuk', { method: 'DELETE' }).catch(() => {});
+    } catch (err) {
+      // ignore
+    }
+
+    handleLogAction({
+      action: 'ALL_TEST_LETTERS_PURGED',
+      details: `Pembersihan seluruh riwayat naskah uji coba oleh ${currentUser?.nama_lengkap || currentUser?.name || 'Super Admin'}`,
+      severity: 'INFO'
+    });
+
+    showToast('Seluruh data persuratan berhasil dibersihkan. Sistem siap untuk entri naskah baru.', 'success');
+  };
+
   // Pembatalan Registrasi Naskah Dinas Resmi (Menjaga Keutuhan Buku Agenda & JRA)
   const handleCancelLetter = (letterToCancel, reason, note) => {
     if (!letterToCancel || !letterToCancel.id) return;
@@ -2001,8 +2030,23 @@ export default function App() {
                   Pencatatan, verifikasi, dan tindak lanjut disposisi naskah dinas masuk dari instansi eksternal maupun antar-unit kerja UNSIL.
                 </p>
               </div>
-              {canUserRegisterIncomingLetter(currentUser) && (
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
+                {(isSuperAdminUser(currentUser) || canUserRegisterIncomingLetter(currentUser)) && letters.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm('Kosongkan seluruh data naskah masuk uji coba dari sistem? Seluruh entri lama akan dihapus bersih agar siap untuk registrasi data baru.')) {
+                        handleClearAllLetters();
+                      }
+                    }}
+                    className="px-3.5 py-2.5 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-xs font-semibold hover:bg-rose-100 hover:border-rose-300 transition-colors shadow-2xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                    title="Hapus bersih seluruh naskah uji coba dari database dan penyimpanan lokal"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                    <span>Kosongkan Data Uji Coba</span>
+                  </button>
+                )}
+                {canUserRegisterIncomingLetter(currentUser) && (
                   <button
                     onClick={() => setIsQuickRegisterOpen(true)}
                     className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -2010,8 +2054,8 @@ export default function App() {
                     <Plus className="w-4 h-4" />
                     <span>Registrasi Surat Masuk</span>
                   </button>
-                </div>
-              )}
+                )}
+              </div>
             </div>
             <ActivityTable
               letters={scopedLetters}

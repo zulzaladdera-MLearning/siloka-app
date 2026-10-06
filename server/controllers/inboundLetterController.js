@@ -100,3 +100,17 @@ export const getInboundList = async (req, res) => {
     data: inMemoryInboundLetters
   });
 };
+
+/**
+ * DELETE /api/surat-masuk
+ * Menghapus dan membersihkan seluruh riwayat surat masuk uji coba
+ */
+export const clearInboundLetters = async (req, res) => {
+  inMemoryInboundLetters.length = 0;
+  localInboundSequence = 1;
+  return res.status(200).json({
+    status: 200,
+    success: true,
+    message: 'Seluruh riwayat surat masuk uji coba berhasil dibersihkan dari server.'
+  });
+};

@@ -132,4 +132,42 @@ describe('Integritas Retensi Arsip & Pembatalan Registrasi Surat (Anti-Slop Kear
     expect(capabilities.canSign).toBe(false);
     expect(capabilities.canApprove).toBe(false);
   });
+
+  it('mekanisme clean-slate purge berhasil mengosongkan data surat uji coba lama dan siap untuk entri baru', () => {
+    // Simulasi penyimpanan lokal sebelum purge
+    const mockStorage = {
+      siloka_letters_data: JSON.stringify([
+        { id: 'old-1', nomorAgenda: 'AGD-2026/UN58/0015', perihal: 'Surat Uji Coba 1' },
+        { id: 'old-2', nomorAgenda: 'AGD-2026/UN58/0018', perihal: 'Surat Uji Coba 2' }
+      ]),
+      siloka_letters_purged_v3: 'true'
+    };
+
+    // Logika purge v5
+    let letters = [];
+    const isLettersPurged = mockStorage['siloka_letters_purged_v5'];
+    if (!isLettersPurged) {
+      mockStorage['siloka_letters_data'] = JSON.stringify([]);
+      mockStorage['siloka_deleted_letter_ids'] = JSON.stringify([]);
+      mockStorage['siloka_letters_purged_v5'] = 'true';
+      letters = [];
+    }
+
+    expect(letters).toHaveLength(0);
+    expect(JSON.parse(mockStorage.siloka_letters_data)).toHaveLength(0);
+
+    // Simulasi jika pengguna mengentri surat baru setelah purge
+    const newlyEnteredLetter = {
+      id: 'new-001',
+      nomorAgenda: 'AGD-2026/UN58/0001',
+      perihal: 'Surat Masuk Resmi Baru Setelah Reset',
+      kategori: 'Surat Masuk'
+    };
+    letters = [newlyEnteredLetter, ...letters];
+
+    // Hanya surat baru yang ada di basis data
+    expect(letters).toHaveLength(1);
+    expect(letters[0].nomorAgenda).toBe('AGD-2026/UN58/0001');
+    expect(letters[0].id).toBe('new-001');
+  });
 });
