@@ -25,7 +25,12 @@ export const MainLayout = ({
   const toggleSidebar = () => setIsSidebarOpen((prev) => !prev);
 
   const suratMasukCount = letters.filter(
-    (l) => l.kategori === 'Surat Masuk' && l.status !== 'Diarsipkan'
+    (l) =>
+      l.kategori === 'Surat Masuk' &&
+      l.status !== 'Diarsipkan' &&
+      l.status !== 'Dibatalkan' &&
+      l.status !== 'Dianulir' &&
+      !l.isDibatalkan
   ).length;
 
   const unreadCounts = {

@@ -573,13 +573,13 @@ export const LetterDetailModal = ({
         </div>
 
         {/* Banner Status Dibatalkan (Jika Registrasi Surat Dianulir) */}
-        {letter.status === 'Dibatalkan' && (
+        {(letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || letter.isDibatalkan) && (
           <div className="mx-3 sm:mx-6 mt-3 p-3.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-950 flex items-start gap-3 shrink-0">
             <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="text-xs space-y-1">
               <div className="font-bold text-rose-900 text-sm">Registrasi Surat Masuk Telah Dibatalkan</div>
               <p className="text-rose-800">
-                Surat ini telah dibatalkan oleh <strong className="font-semibold">{letter.dibatalkan_oleh || 'Petugas'}</strong> pada {letter.dibatalkan_pada || '-'}.
+                Surat ini telah dibatalkan oleh <strong className="font-semibold">{letter.dibatalkan_oleh || 'Petugas Persuratan'}</strong>{letter.dibatalkan_pada ? ` pada ${letter.dibatalkan_pada}` : ''}.
               </p>
               {letter.alasan_pembatalan && (
                 <div className="bg-white/80 p-2 rounded-lg border border-rose-200/80 text-rose-900">
@@ -588,8 +588,8 @@ export const LetterDetailModal = ({
                   {letter.catatan_pembatalan && <span className="text-slate-600 italic"> — "{letter.catatan_pembatalan}"</span>}
                 </div>
               )}
-              <p className="text-[11px] text-rose-700">
-                * Sesuai ketentuan kearsipan dan JRA, nomor agenda tetap tercatat di Buku Agenda dengan status Dibatalkan untuk menjaga keutuhan penomoran.
+              <p className="text-[11px] text-rose-700 font-medium">
+                * Naskah dinas ini terkunci mutlak dan <strong>tidak dapat didisposisikan</strong>, ditandatangani, maupun disetujui. Nomor agenda tetap dipertahankan di Buku Agenda sesuai kaidah kearsipan.
               </p>
             </div>
           </div>

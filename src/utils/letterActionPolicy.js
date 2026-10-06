@@ -45,6 +45,11 @@ export const isLetterSignatureRequest = (letter) => {
 export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) => {
   if (!letter || !currentUser) return false;
 
+  // 0. STRICT RULE: Naskah yang dibatalkan / dianulir DILARANG KERAS didisposisikan!
+  if (letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || letter.isDibatalkan) {
+    return false;
+  }
+
   // 1. STRICT RULE: Surat berstatus Permohonan Tanda Tangan (TTD) DILARANG KERAS didisposisikan!
   if (isLetterSignatureRequest(letter)) {
     return false;
@@ -140,6 +145,21 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
 
   const isSuratMasuk = letter.kategori === 'Surat Masuk' || letter.kategori === 'Inbound';
   const isSigReq = isLetterSignatureRequest(letter);
+  const isCancelled = letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || Boolean(letter.isDibatalkan);
+
+  // Jika naskah berstatus Dibatalkan, seluruh tindakan (disposisi, tte, approval, revisi, arsip) terkunci mutlak
+  if (isCancelled) {
+    return {
+      isSignatureRequest: false,
+      canDispose: false,
+      canSign: false,
+      canApprove: false,
+      canReject: false,
+      canArchive: false,
+      canEditDraft: false
+    };
+  }
+
   const canDispose = canLetterBeDisposed(letter, currentUser);
 
   // Super Admin adalah Administrator Sistem IT, BUKAN pejabat penandatangan tata usaha negara

@@ -45,6 +45,10 @@ export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi
   const mergedDispositions = useMemo(() => {
     const list = [...dispositionsData];
     letters.forEach((letter) => {
+      // Surat yang dibatalkan tidak boleh masuk ke antrean disposisi aktif
+      if (letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || letter.isDibatalkan) {
+        return;
+      }
       if (letter.disposisi) {
         const exists = list.some(
           (d) => d.letterId === letter.id || d.nomorAgenda === letter.disposisi.nomorAgenda
@@ -66,7 +70,11 @@ export const DisposisiView = ({ onSelectLetter, letters = [], onOpenNewDisposisi
         }
       }
     });
-    return list;
+
+    return list.filter((disp) => {
+      const corresponding = letters.find((l) => l.id === disp.letterId);
+      return !corresponding || (corresponding.status !== 'Dibatalkan' && corresponding.status !== 'Dianulir' && !corresponding.isDibatalkan);
+    });
   }, [letters]);
 
   return (

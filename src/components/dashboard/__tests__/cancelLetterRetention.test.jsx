@@ -82,4 +82,54 @@ describe('Integritas Retensi Arsip & Pembatalan Registrasi Surat (Anti-Slop Kear
     expect(agendaList[1].ekspedisiStatus).toBe('Dibatalkan');
     expect(agendaList[2].nomorAgenda).toBe('AGD-2026/UN58/0014');
   });
+
+  it('pejabat/pimpinan DILARANG KERAS mendisposisikan naskah yang berstatus Dibatalkan atau Dianulir', async () => {
+    const { canLetterBeDisposed, getLetterActionCapabilities } = await import('../../../utils/letterActionPolicy');
+
+    const pejabatUser = {
+      id: 'usr-01',
+      nama: 'Prof. Dr. Ir. H. Aripin, M.Pd.',
+      role: 'PIMPINAN',
+      roleLevel: 'PIMPINAN',
+      jabatan: 'Rektor'
+    };
+
+    const suratAktif = {
+      id: 'sm-010',
+      nomorAgenda: 'AGD-2026/UN58/0020',
+      nomorSurat: '020/AKTIF/2026',
+      kategori: 'Surat Masuk',
+      status: 'Diterima'
+    };
+
+    const suratDibatalkan = {
+      id: 'sm-011',
+      nomorAgenda: 'AGD-2026/UN58/0021',
+      nomorSurat: '021/BATAL/2026',
+      kategori: 'Surat Masuk',
+      status: 'Dibatalkan',
+      alasan_pembatalan: 'Salah unggah berkas'
+    };
+
+    const suratDianulir = {
+      id: 'sm-012',
+      nomorAgenda: 'AGD-2026/UN58/0022',
+      nomorSurat: '022/ANULIR/2026',
+      kategori: 'Surat Masuk',
+      status: 'Dianulir'
+    };
+
+    // Naskah aktif dapat didisposisikan oleh Rektor
+    expect(canLetterBeDisposed(suratAktif, pejabatUser)).toBe(true);
+
+    // Naskah yang dibatalkan / dianulir HARUS FALSE mutlak
+    expect(canLetterBeDisposed(suratDibatalkan, pejabatUser)).toBe(false);
+    expect(canLetterBeDisposed(suratDianulir, pejabatUser)).toBe(false);
+
+    // Seluruh kapabilitas tindakan pimpinan juga harus terkunci (false)
+    const capabilities = getLetterActionCapabilities(suratDibatalkan, pejabatUser);
+    expect(capabilities.canDispose).toBe(false);
+    expect(capabilities.canSign).toBe(false);
+    expect(capabilities.canApprove).toBe(false);
+  });
 });

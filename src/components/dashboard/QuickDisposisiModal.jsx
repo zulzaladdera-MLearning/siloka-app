@@ -14,7 +14,8 @@ import {
   Check,
   CheckSquare,
   Clock,
-  Sparkles
+  Sparkles,
+  Ban
 } from 'lucide-react';
 import { isLetterSignatureRequest } from '../../utils/letterActionPolicy';
 import {
@@ -58,12 +59,19 @@ export const QuickDisposisiModal = ({
     return isDisposisiAuthorizedOfficial(effectiveCurrentUser, allUsers);
   }, [effectiveCurrentUser, allUsers]);
 
-  // STRICT BUSINESS RULE: Saring hanya naskah yang sah didisposisikan (kecualikan Permohonan TTD)
+  // STRICT BUSINESS RULE: Saring hanya naskah yang sah didisposisikan (kecualikan Permohonan TTD dan Surat yang Dibatalkan/Diarsipkan)
   const disposableLetters = useMemo(() => {
-    return allLetters.filter((l) => !isLetterSignatureRequest(l));
+    return allLetters.filter(
+      (l) =>
+        !isLetterSignatureRequest(l) &&
+        l.status !== 'Dibatalkan' &&
+        l.status !== 'Dianulir' &&
+        l.status !== 'Diarsipkan'
+    );
   }, [allLetters]);
 
   const isTargetSignatureRequest = letter ? isLetterSignatureRequest(letter) : false;
+  const isTargetCancelled = letter ? (letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || Boolean(letter.isDibatalkan)) : false;
 
   // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
   // Terintegrasi langsung dengan Manajemen Pengguna (allUsers)
@@ -211,6 +219,11 @@ export const QuickDisposisiModal = ({
   const handleSubmit = (e) => {
     e.preventDefault();
 
+    if (isTargetCancelled || selectedLetterObj?.status === 'Dibatalkan' || selectedLetterObj?.status === 'Dianulir') {
+      alert('ATURAN KETAT SISTEM: Naskah dinas ini berstatus Dibatalkan dan TIDAK DAPAT didisposisikan.');
+      return;
+    }
+
     if (!selectedLetterObj || isLetterSignatureRequest(selectedLetterObj)) {
       alert('ATURAN KETAT SISTEM: Naskah dinas ini berstatus Permohonan Tanda Tangan Elektronik (TTE) dan TIDAK DAPAT didisposisikan.');
       return;
@@ -299,8 +312,31 @@ export const QuickDisposisiModal = ({
           </button>
         </div>
 
-        {/* Peringatan jika naskah Permohonan TTE */}
-        {isTargetSignatureRequest ? (
+        {/* Peringatan jika naskah dibatalkan */}
+        {isTargetCancelled ? (
+          <div className="p-8 space-y-4 text-center">
+            <div className="w-12 h-12 rounded-full bg-rose-100 border border-rose-300 text-rose-800 flex items-center justify-center mx-auto shadow-sm">
+              <Ban className="w-6 h-6 text-rose-600" />
+            </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Fitur Disposisi Ditiadakan (Naskah Dibatalkan)
+              </h3>
+              <p className="text-xs text-slate-600 mt-2 max-w-md mx-auto leading-relaxed">
+                Naskah dinas <strong>{letter?.nomorAgenda || letter?.nomorSurat}</strong> telah <strong>Dibatalkan</strong> oleh petugas persuratan. Sesuai asas kepatuhan administrasi kearsipan, naskah yang dibatalkan terkunci mutlak dan <strong>DILARANG didisposisikan</strong> kepada unit atau pejabat bawahan.
+              </p>
+            </div>
+            <div className="pt-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
+              >
+                Tutup & Kembali
+              </button>
+            </div>
+          </div>
+        ) : isTargetSignatureRequest ? (
           <div className="p-8 space-y-4 text-center">
             <div className="w-12 h-12 rounded-full bg-amber-100 border border-amber-300 text-amber-800 flex items-center justify-center mx-auto shadow-sm">
               <ShieldAlert className="w-6 h-6 text-amber-700" />

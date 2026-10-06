@@ -1282,6 +1282,11 @@ export default function App() {
       showToast('Akses Dibatasi: Fitur disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
       return;
     }
+    // STRICT BUSINESS RULE: Naskah yang dibatalkan / dianulir DILARANG KERAS didisposisikan
+    if (letter?.status === 'Dibatalkan' || letter?.status === 'Dianulir' || letter?.isDibatalkan) {
+      showToast('Naskah Dibatalkan: Surat yang telah dibatalkan tidak dapat didisposisikan.', 'warning');
+      return;
+    }
     // STRICT BUSINESS RULE: Naskah permohonan TTE DILARANG KERAS didisposisikan
     if (isLetterSignatureRequest(letter)) {
       showToast('ATURAN KETAT: Naskah Permohonan Tanda Tangan (TTE) DILARANG didisposisikan.', 'warning');
@@ -1838,7 +1843,14 @@ export default function App() {
             showToast('Akses Dibatasi: Fitur disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
             return;
           }
-          const firstDisposable = scopedLetters.find((l) => !isLetterSignatureRequest(l));
+          const firstDisposable = scopedLetters.find(
+            (l) =>
+              !isLetterSignatureRequest(l) &&
+              l.status !== 'Dibatalkan' &&
+              l.status !== 'Dianulir' &&
+              !l.isDibatalkan &&
+              l.status !== 'Diarsipkan'
+          );
           if (!firstDisposable) {
             showToast('Tidak ada naskah yang memenuhi syarat untuk disposisi saat ini.', 'info');
             return;

@@ -39,9 +39,12 @@ export const Navbar = ({
   const notifications = useMemo(() => {
     const list = [];
 
+    const isCancelled = (item) => item.status === 'Dibatalkan' || item.status === 'Dianulir' || Boolean(item.isDibatalkan);
+
     // 1. Antrean TTE / Approval untuk Pejabat & Pimpinan
     if (isPejabat) {
       letters.forEach((l) => {
+        if (isCancelled(l)) return;
         if (l.kategori !== 'Surat Masuk' && !l.tteVerified && (l.status === 'Diparaf' || l.status === 'DRAFT_MENUNGGU_PARAF' || l.tujuan_aksi === 'TTD')) {
           list.push({
             id: `tte-${l.id}`,
@@ -57,6 +60,7 @@ export const Navbar = ({
 
     // 2. Disposisi Diterima untuk Unit / Role / Akun Pejabat Pengguna
     letters.forEach((l) => {
+      if (isCancelled(l)) return;
       if (l.disposisi) {
         const targetDesc = String(l.disposisi.tujuanDisposisi || l.disposisi.targetUnit || '').toLowerCase();
         const targetUserId = String(l.disposisi.target_user_id || '');
@@ -90,6 +94,7 @@ export const Navbar = ({
 
     // 3. Surat Masuk Baru untuk Pejabat Terkait & Unit Pengguna
     letters.forEach((l) => {
+      if (isCancelled(l)) return;
       if (l.kategori === 'Surat Masuk') {
         const userJabatanLower = String(user?.jabatan || user?.roleLabel || '').toLowerCase();
         const letterTujuanLower = String(l.target_jabatan || l.tujuan || '').toLowerCase();
