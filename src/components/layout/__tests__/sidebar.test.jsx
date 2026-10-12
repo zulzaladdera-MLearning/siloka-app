@@ -37,7 +37,7 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
     expect(topLevelIds).toContain('surat');
   });
 
-  it('harus tetap memuat menu induk "Manajemen" dengan 4 sub-menu untuk Super Admin', () => {
+  it('harus tetap memuat menu induk "Manajemen" dengan 4 sub-menu untuk Super Admin dan penamaan selaras', () => {
     const items = buildSidebarMenuItems({
       user: { role: 'Super Admin' },
       unreadCounts: {}
@@ -48,6 +48,14 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
     expect(manajemenMenu.children).toHaveLength(4);
     const childIds = manajemenMenu.children.map((c) => c.id);
     expect(childIds).toEqual(['settings', 'manajemen-unit', 'manajemen-role', 'manajemen-permission']);
+
+    const labels = manajemenMenu.children.map((c) => c.label);
+    expect(labels).toEqual([
+      'Manajemen Pengguna',
+      'Manajemen Unit Kerja',
+      'Manajemen Peran',
+      'Manajemen Hak Akses & Izin'
+    ]);
   });
 
   it('tidak boleh menampilkan badge "Aman" pada menu Brankas Digital', () => {

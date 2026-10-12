@@ -175,7 +175,7 @@ export const buildSidebarMenuItems = ({
           {
             id: 'manajemen',
             label: 'Manajemen',
-            icon: Users,
+            icon: Settings,
             badge: 'Admin',
             badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
             children: [
@@ -196,7 +196,7 @@ export const buildSidebarMenuItems = ({
               },
               {
                 id: 'manajemen-permission',
-                label: 'Hak Akses & Izin',
+                label: 'Manajemen Hak Akses & Izin',
                 icon: KeyRound,
               },
             ],
@@ -259,12 +259,12 @@ export const Sidebar = ({
 
   return (
     <aside
-      className={`fixed md:sticky top-0 left-0 z-50 h-screen transition-transform duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white shrink-0 select-none shadow-2xl md:shadow-none ${
+      className={`fixed md:sticky top-0 left-0 z-50 h-screen transition-transform duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white shrink-0 select-none shadow-2xl md:shadow-none overflow-hidden ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
       } md:translate-x-0 ${isCollapsed ? 'w-20' : 'w-64'} ${className}`}
     >
-      {/* Sidebar Header */}
-      <div>
+      {/* Sidebar Header & Nav Wrapper */}
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
         {isCollapsed ? (
           <div className="h-16 flex items-center justify-center border-b border-unsil-green-900/60 bg-unsil-green-900/30 relative shrink-0">
             <button
@@ -530,7 +530,7 @@ export const Sidebar = ({
       </div>
 
       {/* Sidebar Footer Info */}
-      <div className="p-3 border-t border-unsil-green-900/60 bg-unsil-green-950/90 shrink-0">
+      <div className="p-3 border-t border-unsil-green-900/60 bg-unsil-green-950 shrink-0">
         {!isCollapsed ? (
           <div className="space-y-3">
             <div className="p-2.5 rounded-lg bg-unsil-green-900/40 border border-unsil-green-800/50 flex items-center gap-2.5">
