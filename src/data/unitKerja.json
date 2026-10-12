@@ -60,7 +60,22 @@
     "singkatan": "FKIP",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-penmas", "kode": "PENMAS", "nama": "Pendidikan Masyarakat" },
+      { "id": "jur-pbsi", "kode": "PBSI", "nama": "Pendidikan Bahasa Indonesia" },
+      { "id": "jur-pbi", "kode": "PBI", "nama": "Pendidikan Bahasa Inggris" },
+      { "id": "jur-pmtk", "kode": "PMTK", "nama": "Pendidikan Matematika" },
+      { "id": "jur-pbio", "kode": "PBIO", "nama": "Pendidikan Biologi" },
+      { "id": "jur-peko", "kode": "PEKO", "nama": "Pendidikan Ekonomi" },
+      { "id": "jur-pgeo", "kode": "PGEO", "nama": "Pendidikan Geografi" },
+      { "id": "jur-penjas", "kode": "PENJAS", "nama": "Pendidikan Jasmani" },
+      { "id": "jur-psej", "kode": "PSEJ", "nama": "Pendidikan Sejarah" },
+      { "id": "jur-pfis", "kode": "PFIS", "nama": "Pendidikan Fisika" },
+      { "id": "jur-ppg", "kode": "PPG", "nama": "Pendidikan Profesi Guru" },
+      { "id": "jur-pko", "kode": "PKO", "nama": "Pendidikan Kepelatihan Olahraga" },
+      { "id": "jur-psp", "kode": "PSP", "nama": "Pendidikan Seni Pertunjukan" }
+    ]
   },
   {
     "id": 8,
@@ -69,7 +84,14 @@
     "singkatan": "FEB",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-ep", "kode": "EP", "nama": "Ekonomi Pembangunan" },
+      { "id": "jur-mnj", "kode": "MNJ", "nama": "Manajemen" },
+      { "id": "jur-akt", "kode": "AKT", "nama": "Akuntansi" },
+      { "id": "jur-pkd3", "kode": "PK_D3", "nama": "Perbankan dan Keuangan (D3)" },
+      { "id": "jur-pkd4", "kode": "PKD_D4", "nama": "Perbankan dan Keuangan Digital (D4)" }
+    ]
   },
   {
     "id": 9,
@@ -78,7 +100,12 @@
     "singkatan": "FP",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-agrotek", "kode": "AGROTEK", "nama": "Agroteknologi" },
+      { "id": "jur-agribisnis", "kode": "AGRIBISNIS", "nama": "Agribisnis" },
+      { "id": "jur-tphp", "kode": "TPHP", "nama": "Teknologi Pangan dan Hasil Pertanian" }
+    ]
   },
   {
     "id": 10,
@@ -87,7 +114,14 @@
     "singkatan": "FT",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-sipil", "kode": "SIPIL", "nama": "Teknik Sipil" },
+      { "id": "jur-elektro", "kode": "ELEKTRO", "nama": "Teknik Elektro" },
+      { "id": "jur-if", "kode": "INFORMATIKA", "nama": "Informatika" },
+      { "id": "jur-si", "kode": "SI", "nama": "Sistem Informasi" },
+      { "id": "jur-data", "kode": "SAINS_DATA", "nama": "Sains Data" }
+    ]
   },
   {
     "id": 11,
@@ -96,7 +130,11 @@
     "singkatan": "FISIP",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-ilpol", "kode": "ILPOL", "nama": "Ilmu Politik" },
+      { "id": "jur-hbisnis", "kode": "HUKUM_BISNIS", "nama": "Hukum Bisnis" }
+    ]
   },
   {
     "id": 12,
@@ -105,7 +143,11 @@
     "singkatan": "FIK",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-kesmas", "kode": "KESMAS", "nama": "Kesehatan Masyarakat" },
+      { "id": "jur-gizi", "kode": "GIZI", "nama": "Gizi" }
+    ]
   },
   {
     "id": 13,
@@ -114,7 +156,11 @@
     "singkatan": "FAI",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-eksyar", "kode": "EKSYAR", "nama": "Ekonomi Syariah" },
+      { "id": "jur-mmh", "kode": "MMH", "nama": "Manajemen Mutu Halal" }
+    ]
   },
   {
     "id": 14,
@@ -123,7 +169,14 @@
     "singkatan": "PASCA",
     "tipe_unit": "FAKULTAS",
     "parent_kode": "UN58",
-    "is_active": true
+    "is_active": true,
+    "jurusan": [
+      { "id": "jur-pasca-mm", "kode": "MM", "nama": "Magister Manajemen" },
+      { "id": "jur-pasca-mpklh", "kode": "MPKLH", "nama": "Magister Pendidikan Kependudukan dan Lingkungan Hidup" },
+      { "id": "jur-pasca-mpmtk", "kode": "MPMTK", "nama": "Magister Pendidikan Matematika" },
+      { "id": "jur-pasca-magro", "kode": "MAGRO", "nama": "Magister Agroteknologi" },
+      { "id": "jur-pasca-mip", "kode": "MIP", "nama": "Magister Ilmu Pertanian" }
+    ]
   },
   {
     "id": 15,

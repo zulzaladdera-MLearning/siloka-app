@@ -83,31 +83,32 @@ describe('Penyelarasan 4 Modul Manajemen Terhadap Matriks 4 Aksi Utama Persurata
   };
 
   describe('1. Modul Hak Akses & Izin (Matriks 4 Aksi & Zero Technical Slop)', () => {
-    it('memastikan definisi Super Admin tidak mengandung kata simulasi dan memiliki otoritas penuh', () => {
+    it('memastikan definisi Super Admin tidak mengandung kata simulasi dan menegaskan batasan wewenang', () => {
       const roles = getRolesCatalog();
       const adminRole = roles.find((r) => r.slug === 'super_admin');
       expect(adminRole).toBeDefined();
       expect(adminRole.description).not.toMatch(/simulasi/i);
-      expect(adminRole.description).toContain('Wewenang administratif penuh');
+      expect(adminRole.description).toContain('Wewenang administratif sistem persuratan');
     });
 
-    it('mengelompokkan izin ke dalam 4 blok bahasa Indonesia institusi yang jelas', () => {
+    it('mengelompokkan izin ke dalam 4 blok bahasa Indonesia institusi yang jelas (Sesuai Gambar 1)', () => {
       const matrix = getPermissionMatrix();
       const titles = matrix.map((c) => c.title);
 
-      expect(titles).toContain('Loket Registrasi Surat Masuk & E-Disposisi');
-      expect(titles).toContain('Penyusunan Draf Naskah Keluar & Pengesahan TTE');
-      expect(titles).toContain('Kearsipan & Brankas Digital (SKKAAD)');
-      expect(titles).toContain('Tata Kelola Sistem & Master Data');
+      expect(titles).toContain('Sistem & Administrasi');
+      expect(titles).toContain('Tata Naskah Dinas & Drafting');
+      expect(titles).toContain('E-Disposisi & Agenda');
+      expect(titles).toContain('Kearsipan & Klasifikasi JRA/SKKAAD');
     });
   });
 
   describe('2. Modul Manajemen Peran (Core Capabilities & Boundaries)', () => {
-    it('Super Admin: Otoritas penuh pada seluruh 4 aksi utama (POV Nyata)', () => {
-      expect(canUserRegisterIncomingLetter(superAdmin)).toBe(true);
-      expect(getAuthorizedTemplates(superAdmin).length).toBe(DOCUMENT_TEMPLATES.length);
-      expect(canLetterBeDisposed(sampleSuratMasuk, superAdmin)).toBe(true);
-      expect(getLetterActionCapabilities(sampleSuratKeluarSiapTte, superAdmin).canSign).toBe(true);
+    it('Super Admin: Administrator sistem murni, Terkunci dari seluruh 4 aksi operasional persuratan', () => {
+      expect(canUserRegisterIncomingLetter(superAdmin)).toBe(false);
+      expect(getNavbarActionConfig('surat-masuk', superAdmin).isActionVisible).toBe(false);
+      expect(getNavbarActionConfig('surat-keluar', superAdmin).isActionVisible).toBe(false);
+      expect(canLetterBeDisposed(sampleSuratMasuk, superAdmin)).toBe(false);
+      expect(getLetterActionCapabilities(sampleSuratKeluarSiapTte, superAdmin).canSign).toBe(false);
     });
 
     it('Pejabat Struktural: Berwenang E-Disposisi & TTE BSrE, Terkunci dari Registrasi Masuk', () => {
@@ -168,42 +169,35 @@ describe('Penyelarasan 4 Modul Manajemen Terhadap Matriks 4 Aksi Utama Persurata
     });
   });
 
-  describe('4. Modul Manajemen Unit Kerja (SOTK Persuratan Mapping)', () => {
-    it('memetakan Pimpinan Unit (TTE & Disposisi) dan Loket TU (Surat Masuk) pada SOTK', () => {
-      const unitFakultasTeknik = {
-        kode_unit: 'UN58.13',
-        nama_unit: 'Fakultas Teknik',
-        singkatan: 'FT'
-      };
+  describe('4. Modul Manajemen Unit Kerja (Master Data & Kalkulasi Pegawai Terdaftar)', () => {
+    it('memperkaya unit kerja dengan jumlah pegawai terdaftar dan relasi induk secara efisien', () => {
+      const units = [
+        { kode_unit: 'UN58', nama_unit: 'Universitas Siliwangi', tipe_unit: 'UNIVERSITAS' },
+        { kode_unit: 'UN58.13', nama_unit: 'Fakultas Teknik', singkatan: 'FT', parent_kode: 'UN58' }
+      ];
 
-      // Logika pemetaan SOTK yang diterapkan pada UnitManagementView
-      const unitUsers = sampleUsers.filter(
-        (u) =>
-          u.unit === unitFakultasTeknik.nama_unit ||
-          u.kode_unit === unitFakultasTeknik.kode_unit ||
-          u.unit_kerja_id === unitFakultasTeknik.kode_unit
-      );
+      const enrichedUnits = units.map((unit) => {
+        const memberCount = sampleUsers.filter(
+          (u) =>
+            u.unit === unit.nama_unit ||
+            u.kode_unit === unit.kode_unit ||
+            u.unitKerja === unit.nama_unit ||
+            u.unit_kerja_id === unit.kode_unit
+        ).length;
 
-      const pimpinan = unitUsers.find(
-        (u) =>
-          u.role_slug === 'pimpinan' ||
-          u.role === 'PEJABAT' ||
-          u.is_pejabat === true
-      );
+        const parentObj = units.find((p) => p.kode_unit === unit.parent_kode);
 
-      const operatorTu = unitUsers.find(
-        (u) =>
-          u.role_slug === 'admin_tu' ||
-          u.role === 'ADMIN_TU' ||
-          u.role === 'STAF'
-      );
+        return {
+          ...unit,
+          parent_name: parentObj ? parentObj.nama_unit : unit.parent_kode || 'Universitas Siliwangi',
+          memberCount
+        };
+      });
 
-      expect(pimpinan).toBeDefined();
-      expect(pimpinan.nama_lengkap).toBe('Dr. Nurul Hiron, S.T., M.Eng.');
-      expect(pimpinan.jabatan).toBe('Dekan Fakultas Teknik');
-
-      expect(operatorTu).toBeDefined();
-      expect(operatorTu.nama_lengkap).toBe('Siti Rahmawati, S.AP.');
+      const ftUnit = enrichedUnits.find((u) => u.kode_unit === 'UN58.13');
+      expect(ftUnit).toBeDefined();
+      expect(ftUnit.memberCount).toBe(3); // pejabat, staf tu, dosen
+      expect(ftUnit.parent_name).toBe('Universitas Siliwangi');
     });
   });
 });

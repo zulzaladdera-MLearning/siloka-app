@@ -216,9 +216,10 @@ export const isDisposisiAuthorizedOfficial = (user, allUsersList = null) => {
     }
   }
 
-  // 2. Super Admin diperbolehkan untuk kebutuhan pengujian / simulasi sistem
+  // 2. Sesuai Tata Naskah Dinas UNSIL (Peraturan Rektor No. 3/2023) & UU No. 30/2014:
+  // Disposisi adalah hak eksklusif Pejabat Struktural. Administrator Sistem (Super Admin) terkunci dari penerbitan E-Disposisi.
   if (isSuperAdminUser(effectiveUser)) {
-    return true;
+    return false;
   }
 
   // 3. Normalisasi Role dari Manajemen Role & Manajemen User

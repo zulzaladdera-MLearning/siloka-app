@@ -13,13 +13,13 @@ describe('PermissionManagementView Data Integrity (SILOKA UNSIL)', () => {
     expect(roleIds).toContain('auditor_spi');
   });
 
-  it('harus memuat 4 Kategori Permisi domain SILOKA UNSIL', () => {
+  it('harus memuat 4 Kategori Permisi domain SILOKA UNSIL (Sesuai Gambar 1 & Pertor No. 3/2023)', () => {
     expect(DEFAULT_PERMISSION_CATEGORIES).toHaveLength(4);
     const catTitles = DEFAULT_PERMISSION_CATEGORIES.map((c) => c.title);
-    expect(catTitles).toContain('Sistem & Akses');
+    expect(catTitles).toContain('Sistem & Administrasi');
     expect(catTitles).toContain('Tata Naskah Dinas & Drafting');
-    expect(catTitles).toContain('E-Disposisi & Surat Masuk');
-    expect(catTitles).toContain('Kearsipan & Hak Akses Rahasia (SKKAAD)');
+    expect(catTitles).toContain('E-Disposisi & Agenda');
+    expect(catTitles).toContain('Kearsipan & Klasifikasi JRA/SKKAAD');
   });
 
   it('harus memverifikasi izin Impersonate hanya untuk Super Administrator', () => {
@@ -28,11 +28,11 @@ describe('PermissionManagementView Data Integrity (SILOKA UNSIL)', () => {
     expect(impersonatePerm.allowedRoles).toEqual(['super_admin']);
   });
 
-  it('harus memverifikasi izin TTE hanya untuk Super Admin dan Pimpinan', () => {
+  it('harus memverifikasi izin TTE hanya untuk Pimpinan (Terkunci dari Super Admin, Staf TU, dan Dosen)', () => {
     const naskahCat = DEFAULT_PERMISSION_CATEGORIES.find((c) => c.id === 'naskah');
     const ttePerm = naskahCat.permissions.find((p) => p.slug === 'naskah.tte');
-    expect(ttePerm.allowedRoles).toContain('super_admin');
     expect(ttePerm.allowedRoles).toContain('pimpinan');
+    expect(ttePerm.allowedRoles).not.toContain('super_admin');
     expect(ttePerm.allowedRoles).not.toContain('dosen_drafter');
     expect(ttePerm.allowedRoles).not.toContain('admin_tu');
   });

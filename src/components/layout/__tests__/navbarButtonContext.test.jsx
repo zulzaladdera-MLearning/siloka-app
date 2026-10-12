@@ -54,15 +54,15 @@ describe('Navbar Dynamic Action Button (Contextual Action Label & RBAC Visibilit
       jabatan: 'Dosen Biasa Teknik Informatika'
     };
 
-    it('Super Admin & Staf TU melihat tombol Registrasi Surat di tab surat-masuk', () => {
-      const superAdminConfig = getNavbarActionConfig('surat-masuk', superAdminUser);
-      expect(superAdminConfig.isActionVisible).toBe(true);
-
+    it('Staf TU melihat tombol Registrasi Surat di tab surat-masuk', () => {
       const stafConfig = getNavbarActionConfig('surat-masuk', stafTuUser);
       expect(stafConfig.isActionVisible).toBe(true);
     });
 
-    it('Pejabat Struktural & Dosen Fungsional DIHAPUS TOTAL dari DOM (isActionVisible = false) di tab surat-masuk', () => {
+    it('Super Admin, Pejabat Struktural & Dosen Fungsional DIHAPUS TOTAL dari DOM (isActionVisible = false) di tab surat-masuk', () => {
+      const superAdminConfig = getNavbarActionConfig('surat-masuk', superAdminUser);
+      expect(superAdminConfig.isActionVisible).toBe(false);
+
       const pejabatConfig = getNavbarActionConfig('surat-masuk', pejabatUser);
       expect(pejabatConfig.isActionVisible).toBe(false);
 
@@ -70,11 +70,11 @@ describe('Navbar Dynamic Action Button (Contextual Action Label & RBAC Visibilit
       expect(dosenConfig.isActionVisible).toBe(false);
     });
 
-    it('Seluruh pengguna tetap melihat tombol Buat Surat di modul Surat Keluar', () => {
+    it('Pengguna operasional (Staf, Dosen, Pejabat) melihat tombol Buat Surat, sedangkan Super Admin terkunci', () => {
       expect(getNavbarActionConfig('surat-keluar', pejabatUser).isActionVisible).toBe(true);
       expect(getNavbarActionConfig('surat-keluar', dosenUser).isActionVisible).toBe(true);
       expect(getNavbarActionConfig('surat-keluar', stafTuUser).isActionVisible).toBe(true);
-      expect(getNavbarActionConfig('surat-keluar', superAdminUser).isActionVisible).toBe(true);
+      expect(getNavbarActionConfig('surat-keluar', superAdminUser).isActionVisible).toBe(false);
     });
   });
 });

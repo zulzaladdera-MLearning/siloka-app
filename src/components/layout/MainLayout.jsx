@@ -106,6 +106,7 @@ export const MainLayout = ({
 
         {/* Bottom Navigation Bar Khusus Mobile */}
         <MobileBottomNav
+          user={user}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           unreadCounts={unreadCounts}

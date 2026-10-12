@@ -65,12 +65,30 @@ export const buildSidebarMenuItems = ({
   const canAccessAgenda =
     hasTupoksiPerm('surat:agenda_access') ||
     hasUserPermission(user, 'agenda.manage') ||
+    hasUserPermission(user, 'ekspedisi.manage') ||
     hasUserPermission(user, 'surat_masuk.register');
-  // Menu Khusus Super Admin / User Management (Eksklusif Hanya untuk Super Admin)
-  const canManageUsers = isSuperAdmin;
+
+  const canAccessDisposisi =
+    !isSuperAdmin &&
+    (hasUserPermission(user, 'disposisi.read') ||
+      hasUserPermission(user, 'disposisi.create') ||
+      hasUserPermission(user, 'disposisi.forward'));
+
+  const canAccessParafTte =
+    !isSuperAdmin &&
+    (hasUserPermission(user, 'naskah.tte') ||
+      hasUserPermission(user, 'naskah.verify'));
+
   const canAccessBrankas =
     canAccessBrankasDigital(user) ||
     hasUserPermission(user, 'arsip.view_rahasia');
+
+  const canAccessRetensi =
+    hasUserPermission(user, 'arsip.manage_jra') ||
+    hasUserPermission(user, 'arsip.view_biasa');
+
+  // Menu Khusus Super Admin / User Management (Eksklusif Hanya untuk Super Admin)
+  const canManageUsers = isSuperAdmin;
 
   return [
     {
@@ -79,20 +97,28 @@ export const buildSidebarMenuItems = ({
       icon: LayoutDashboard,
       badge: null,
     },
-    {
-      id: 'disposisi',
-      label: 'E-Disposisi',
-      icon: SendHorizontal,
-      badge: unreadCounts.disposisi > 0 ? unreadCounts.disposisi : null,
-      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
-    },
-    {
-      id: 'paraf-tte',
-      label: 'E-Paraf & TTE',
-      icon: FileSignature,
-      badge: unreadCounts.tte > 0 ? unreadCounts.tte : null,
-      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
-    },
+    ...(canAccessDisposisi
+      ? [
+          {
+            id: 'disposisi',
+            label: 'E-Disposisi',
+            icon: SendHorizontal,
+            badge: unreadCounts.disposisi > 0 ? unreadCounts.disposisi : null,
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+          },
+        ]
+      : []),
+    ...(canAccessParafTte
+      ? [
+          {
+            id: 'paraf-tte',
+            label: 'E-Paraf & TTE',
+            icon: FileSignature,
+            badge: unreadCounts.tte > 0 ? unreadCounts.tte : null,
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+          },
+        ]
+      : []),
     {
       id: 'surat',
       label: 'Surat',
@@ -151,13 +177,17 @@ export const buildSidebarMenuItems = ({
           },
         ]
       : []),
-    {
-      id: 'retensi-arsip',
-      label: 'Retensi Arsip',
-      icon: Archive,
-      badge: unreadCounts.retensi > 0 ? unreadCounts.retensi : null,
-      badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
-    },
+    ...(canAccessRetensi
+      ? [
+          {
+            id: 'retensi-arsip',
+            label: 'Retensi Arsip',
+            icon: Archive,
+            badge: unreadCounts.retensi > 0 ? unreadCounts.retensi : null,
+            badgeColor: 'bg-yellow-400 text-slate-950 font-bold',
+          },
+        ]
+      : []),
     // Menu Khusus Brankas Digital: Hanya untuk Pejabat Struktural (Rektor, Dekan, Kepala LPPM/LPMPP, Ketua SPI, dll.) & Staf Khusus Arsiparis Pusat/Biro
     ...(canAccessBrankas
       ? [

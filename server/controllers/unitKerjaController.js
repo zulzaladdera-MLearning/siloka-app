@@ -83,7 +83,7 @@ export const getAllUnits = async (req, res) => {
  */
 export const createUnit = async (req, res) => {
   try {
-    const { kode_unit, nama_unit, singkatan, tipe_unit, parent_kode, is_active } = req.body;
+    const { kode_unit, nama_unit, singkatan, tipe_unit, parent_kode, is_active, jurusan, struktur_organisasi } = req.body;
 
     if (!kode_unit || !nama_unit) {
       return res.status(400).json({
@@ -118,7 +118,9 @@ export const createUnit = async (req, res) => {
       singkatan: cleanSingkatan,
       tipe_unit: cleanTipe,
       parent_kode: cleanParent,
-      is_active: cleanActive
+      is_active: cleanActive,
+      jurusan: Array.isArray(jurusan) ? jurusan : [],
+      struktur_organisasi: Array.isArray(struktur_organisasi) ? struktur_organisasi : []
     };
 
     memoryUnits = sortUnitsByOtk([...memoryUnits, newUnit]);
@@ -160,7 +162,7 @@ export const createUnit = async (req, res) => {
 export const updateUnit = async (req, res) => {
   try {
     const { id } = req.params;
-    const { kode_unit, nama_unit, singkatan, tipe_unit, parent_kode, is_active } = req.body;
+    const { kode_unit, nama_unit, singkatan, tipe_unit, parent_kode, is_active, jurusan, struktur_organisasi } = req.body;
 
     const unitIdx = memoryUnits.findIndex(
       (u) => String(u.id) === String(id) || String(u.kode_unit) === String(id)
@@ -181,7 +183,9 @@ export const updateUnit = async (req, res) => {
       ...(singkatan !== undefined ? { singkatan: String(singkatan).trim().toUpperCase() } : {}),
       ...(tipe_unit !== undefined ? { tipe_unit: String(tipe_unit).trim().toUpperCase() } : {}),
       ...(parent_kode !== undefined ? { parent_kode: String(parent_kode).trim() } : {}),
-      ...(is_active !== undefined ? { is_active: Boolean(is_active) } : {})
+      ...(is_active !== undefined ? { is_active: Boolean(is_active) } : {}),
+      ...(jurusan !== undefined ? { jurusan: Array.isArray(jurusan) ? jurusan : [] } : {}),
+      ...(struktur_organisasi !== undefined ? { struktur_organisasi: Array.isArray(struktur_organisasi) ? struktur_organisasi : [] } : {})
     };
 
     memoryUnits[unitIdx] = updated;

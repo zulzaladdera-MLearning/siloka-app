@@ -30,7 +30,12 @@ import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
 import { fetchUsersList, createUser, updateUser } from '../../services/adminService';
 import { matchesOfficialDisposisiPosition } from '../../utils/disposisiStandards';
-import { getPositionsByUnitAndRole, getUnitByCode } from '../../utils/unitJabatanOptions';
+import {
+  getPositionsByUnitAndRole,
+  getUnitByCode,
+  getActiveUnitKerjaList,
+  getJurusanByUnitCode
+} from '../../utils/unitJabatanOptions';
 import {
   getRolesCatalog,
   resolveUserRoleSlug,
@@ -201,7 +206,8 @@ const resolveDisplayUnit = (u) => {
     return u.unit;
   }
   if (u?.unit_kerja_id) {
-    const found = unitKerjaList.find(
+    const list = getActiveUnitKerjaList();
+    const found = list.find(
       (item) => item.kode_unit === u.unit_kerja_id || item.id === u.unit_kerja_id
     );
     if (found) return found.nama_unit;
@@ -366,6 +372,24 @@ export const SystemSettingsView = ({
   const [isCustomJabatanEdit, setIsCustomJabatanEdit] = useState(false);
   const [isCustomJabatanAdd, setIsCustomJabatanAdd] = useState(false);
 
+  // Unit Kerja Aktif & Tersinkronisasi
+  const [activeUnits, setActiveUnits] = useState(() => getActiveUnitKerjaList());
+  useEffect(() => {
+    const handleUnitChange = (e) => {
+      if (e?.detail?.units && Array.isArray(e.detail.units)) {
+        setActiveUnits(e.detail.units);
+      } else {
+        setActiveUnits(getActiveUnitKerjaList());
+      }
+    };
+    window.addEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitChange);
+    window.addEventListener('storage', handleUnitChange);
+    return () => {
+      window.removeEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitChange);
+      window.removeEventListener('storage', handleUnitChange);
+    };
+  }, []);
+
   // State Edit User Form
   const [editFormData, setEditFormData] = useState({
     name: '',
@@ -373,6 +397,7 @@ export const SystemSettingsView = ({
     email: '',
     unit: '',
     unit_kerja_id: 'UN58',
+    jurusan: '',
     jabatan: '',
     role_slug: 'pimpinan',
     role: 'PEJABAT',
@@ -384,11 +409,13 @@ export const SystemSettingsView = ({
   // State Tambah User Form
   const [newUserData, setNewUserData] = useState(() => {
     const defaultPositions = getPositionsByUnitAndRole('UN58.13', 'pimpinan');
+    const defaultJurusanList = getJurusanByUnitCode('UN58.13');
     return {
       name: '',
       nip: '',
       email: '',
       unit_kerja_id: 'UN58.13',
+      jurusan: defaultJurusanList[0]?.nama || '',
       role_slug: 'pimpinan',
       role: 'PEJABAT',
       jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
@@ -396,14 +423,23 @@ export const SystemSettingsView = ({
     };
   });
 
-  // Pilihan Jabatan Dinamis Berdasarkan Unit Kerja & Peran
+  // Pilihan Jabatan Dinamis Berdasarkan Unit Kerja & Peran (Mendukung Prioritas Jurusan Spesifik)
   const editUnitPositions = useMemo(() => {
-    return getPositionsByUnitAndRole(editFormData.unit_kerja_id, editFormData.role_slug);
-  }, [editFormData.unit_kerja_id, editFormData.role_slug]);
+    return getPositionsByUnitAndRole(editFormData.unit_kerja_id, editFormData.role_slug, activeUnits, editFormData.jurusan);
+  }, [editFormData.unit_kerja_id, editFormData.role_slug, activeUnits, editFormData.jurusan]);
 
   const newUnitPositions = useMemo(() => {
-    return getPositionsByUnitAndRole(newUserData.unit_kerja_id, newUserData.role_slug);
-  }, [newUserData.unit_kerja_id, newUserData.role_slug]);
+    return getPositionsByUnitAndRole(newUserData.unit_kerja_id, newUserData.role_slug, activeUnits, newUserData.jurusan);
+  }, [newUserData.unit_kerja_id, newUserData.role_slug, activeUnits, newUserData.jurusan]);
+
+  // Daftar Jurusan Sesuai Unit yang Sedang Dipilih
+  const editSelectedUnitJurusan = useMemo(() => {
+    return getJurusanByUnitCode(editFormData.unit_kerja_id, activeUnits);
+  }, [editFormData.unit_kerja_id, activeUnits]);
+
+  const newSelectedUnitJurusan = useMemo(() => {
+    return getJurusanByUnitCode(newUserData.unit_kerja_id, activeUnits);
+  }, [newUserData.unit_kerja_id, activeUnits]);
 
   // Role Display Badge Styling Helper
   const getRoleBadgeStyle = (displayRole = '') => {
@@ -482,8 +518,17 @@ export const SystemSettingsView = ({
     const currentPassword = targetUser.raw_password || targetUser.password || 'Siloka2026!';
     const userUnitId = targetUser.unit_kerja_id || 'UN58.13';
     const userJabatan = resolveDisplayRole(targetUser);
-    const unitPositions = getPositionsByUnitAndRole(userUnitId, userRoleSlug);
+    const unitPositions = getPositionsByUnitAndRole(userUnitId, userRoleSlug, activeUnits);
     const isStandardPosition = unitPositions.includes(userJabatan);
+
+    let userJurusan = targetUser.jurusan || '';
+    if (!userJurusan && userUnitId) {
+      const jurList = getJurusanByUnitCode(userUnitId, activeUnits);
+      const matchJur = jurList.find((j) => userJabatan.toLowerCase().includes(j.nama.toLowerCase()));
+      if (matchJur) {
+        userJurusan = matchJur.nama;
+      }
+    }
 
     setEditFormData({
       name: targetUser.nama_lengkap || targetUser.name || '',
@@ -491,6 +536,7 @@ export const SystemSettingsView = ({
       email: targetUser.email || targetUser.username || '',
       unit: resolveDisplayUnit(targetUser),
       unit_kerja_id: userUnitId,
+      jurusan: userJurusan,
       jabatan: userJabatan,
       role_slug: userRoleSlug,
       role: targetUser.role || 'DOSEN',
@@ -514,9 +560,13 @@ export const SystemSettingsView = ({
       return;
     }
 
-    const unitObj = unitKerjaList.find(
-      (item) => item.kode_unit === editFormData.unit_kerja_id || item.id === editFormData.unit_kerja_id
-    );
+    const unitObj =
+      activeUnits.find(
+        (item) => item.kode_unit === editFormData.unit_kerja_id || item.id === editFormData.unit_kerja_id
+      ) ||
+      unitKerjaList.find(
+        (item) => item.kode_unit === editFormData.unit_kerja_id || item.id === editFormData.unit_kerja_id
+      );
 
     const selectedRole = rolesCatalog.find(
       (r) => (r.slug || r.id) === editFormData.role_slug
@@ -574,6 +624,7 @@ export const SystemSettingsView = ({
       email: editFormData.email.trim(),
       username: editFormData.email.trim(),
       unit_kerja_id: editFormData.unit_kerja_id,
+      jurusan: editFormData.jurusan || '',
       unit: unitObj ? unitObj.nama_unit : editFormData.unit,
       role_slug: selectedRole.slug,
       role: mappedRole,
@@ -611,6 +662,7 @@ export const SystemSettingsView = ({
         email: updatedUser.email,
         kode_unit: updatedUser.unit_kerja_id,
         unit_kerja_id: updatedUser.unit_kerja_id,
+        jurusan: updatedUser.jurusan,
         jabatan: updatedUser.jabatan,
         role: updatedUser.role,
         password: cleanPassword,
@@ -674,9 +726,9 @@ export const SystemSettingsView = ({
         return;
       }
 
-      const unitObj = unitKerjaList.find(
-        (item) => item.kode_unit === newUserData.unit_kerja_id
-      );
+      const unitObj =
+        activeUnits.find((item) => item.kode_unit === newUserData.unit_kerja_id) ||
+        unitKerjaList.find((item) => item.kode_unit === newUserData.unit_kerja_id);
 
       const selectedRole = rolesCatalog.find(
         (r) => (r.slug || r.id) === (newUserData.role_slug || newUserData.role)
@@ -740,6 +792,7 @@ export const SystemSettingsView = ({
         password: newUserData.password.trim(),
         raw_password: newUserData.password.trim(),
         unit_kerja_id: newUserData.unit_kerja_id,
+        jurusan: newUserData.jurusan || '',
         unit: unitObj
           ? unitObj.nama_unit
           : isSuper
@@ -796,6 +849,7 @@ export const SystemSettingsView = ({
           email: newUser.email,
           kode_unit: newUser.unit_kerja_id,
           unit_kerja_id: newUser.unit_kerja_id,
+          jurusan: newUser.jurusan,
           jabatan: cleanJabatan,
           role: mappedRole,
           password: newUser.password,
@@ -831,15 +885,17 @@ export const SystemSettingsView = ({
       setSelectedRoleFilter('ALL');
       setSearchQuery('');
 
+      const resetJurusan = getJurusanByUnitCode('UN58.13', activeUnits);
       setIsAddUserModalOpen(false);
       setNewUserData({
         name: '',
         nip: '',
         email: '',
         unit_kerja_id: 'UN58.13',
+        jurusan: resetJurusan[0]?.nama || '',
         role_slug: 'drafter',
         role: 'DOSEN',
-        jabatan: 'Dosen Fungsional (Tridharma)',
+        jabatan: resetJurusan[0]?.nama ? `Dosen Jurusan ${resetJurusan[0].nama}` : 'Dosen Fungsional (Tridharma)',
         password: 'Siloka2026!'
       });
       setShowNewPassword(false);
@@ -908,12 +964,14 @@ export const SystemSettingsView = ({
             onClick={() => {
               const defaultUnit = 'UN58.13';
               const defaultSlug = 'pimpinan';
-              const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug);
+              const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug, activeUnits);
+              const jurList = getJurusanByUnitCode(defaultUnit, activeUnits);
               setNewUserData({
                 name: '',
                 nip: '',
                 email: '',
                 unit_kerja_id: defaultUnit,
+                jurusan: jurList[0]?.nama || '',
                 role_slug: defaultSlug,
                 role: 'PEJABAT',
                 jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
@@ -932,13 +990,13 @@ export const SystemSettingsView = ({
       </div>
 
       {/* =========================================================================
-          KONTROL FILTER & PENCARIAN (DENGAN TAB FILTER 4 PERAN UTAMA)
+          KONTROL FILTER & PENCARIAN (DENGAN TAB FILTER PERAN RESMI)
           ========================================================================= */}
       <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
-        {/* Tab Filter Cepat 4 Kategori Peran Utama Persuratan */}
+        {/* Tab Filter Peran Utama Persuratan */}
         <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
           <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-            Filter Cepat:
+            Filter:
           </span>
           <button
             type="button"
@@ -954,46 +1012,46 @@ export const SystemSettingsView = ({
           <button
             type="button"
             onClick={() => setSelectedRoleFilter('pimpinan')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
               selectedRoleFilter === 'pimpinan' || selectedRoleFilter === 'PIMPINAN'
                 ? 'bg-blue-600 text-white shadow-2xs'
                 : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
             }`}
           >
-            <span>👑 Pejabat Struktural</span>
+            Pejabat Struktural
           </button>
           <button
             type="button"
             onClick={() => setSelectedRoleFilter('admin_tu')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
               selectedRoleFilter === 'admin_tu' || selectedRoleFilter === 'OPERATOR'
                 ? 'bg-emerald-600 text-white shadow-2xs'
                 : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
             }`}
           >
-            <span>📥 Staf TU / Operator</span>
+            Staf TU / Operator
           </button>
           <button
             type="button"
             onClick={() => setSelectedRoleFilter('drafter')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
               selectedRoleFilter === 'drafter' || selectedRoleFilter === 'DOSEN'
                 ? 'bg-slate-800 text-white shadow-2xs'
                 : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
             }`}
           >
-            <span>🎓 Dosen Fungsional</span>
+            Dosen Fungsional
           </button>
           <button
             type="button"
             onClick={() => setSelectedRoleFilter('super_admin')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
               selectedRoleFilter === 'super_admin' || selectedRoleFilter === 'SUPER_ADMIN'
                 ? 'bg-rose-600 text-white shadow-2xs'
                 : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
             }`}
           >
-            <span>🛡️ Super Admin</span>
+            Super Administrator
           </button>
         </div>
 
@@ -1115,6 +1173,11 @@ export const SystemSettingsView = ({
                         <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 max-w-[240px] truncate">
                           {unitName}
                         </span>
+                        {u.jurusan && (
+                          <span className="block text-[10.5px] text-slate-500 font-semibold mt-0.5 truncate">
+                            Jurusan {u.jurusan}
+                          </span>
+                        )}
                       </td>
 
                       {/* 4. ROLE (Peran Aktual yang Diemban & Sinkron RBAC) */}
@@ -1296,14 +1359,30 @@ export const SystemSettingsView = ({
                     value={editFormData.unit_kerja_id}
                     onChange={(e) => {
                       const nextUnitId = e.target.value;
-                      const unitObj = unitKerjaList.find((u) => u.kode_unit === nextUnitId);
-                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, editFormData.role_slug);
+                      const unitObj =
+                        activeUnits.find((u) => u.kode_unit === nextUnitId) ||
+                        unitKerjaList.find((u) => u.kode_unit === nextUnitId);
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, editFormData.role_slug, activeUnits);
+                      const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
+                      let updatedJurusan = editFormData.jurusan;
                       let updatedJabatan = editFormData.jabatan;
+
+                      if (jurList.length > 0) {
+                        if (!jurList.some((j) => j.nama === updatedJurusan)) {
+                          updatedJurusan = jurList[0].nama;
+                        }
+                        if (editFormData.role_slug === 'drafter') {
+                          updatedJabatan = `Dosen Jurusan ${updatedJurusan}`;
+                          setIsCustomJabatanEdit(false);
+                        }
+                      } else {
+                        updatedJurusan = '';
+                      }
 
                       if (editFormData.role_slug === 'pimpinan') {
                         updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
                         setIsCustomJabatanEdit(false);
-                      } else if (!isCustomJabatanEdit && unitPositions.length > 0) {
+                      } else if (editFormData.role_slug !== 'drafter' && !isCustomJabatanEdit && unitPositions.length > 0) {
                         updatedJabatan = unitPositions[0];
                       }
 
@@ -1311,12 +1390,13 @@ export const SystemSettingsView = ({
                         ...prev,
                         unit_kerja_id: nextUnitId,
                         unit: unitObj?.nama_unit || prev.unit,
+                        jurusan: updatedJurusan,
                         jabatan: updatedJabatan
                       }));
                     }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                   >
-                    {unitKerjaList.map((unit) => (
+                    {activeUnits.map((unit) => (
                       <option key={unit.kode_unit || unit.id} value={unit.kode_unit}>
                         {unit.kode_unit} — {unit.nama_unit}
                       </option>
@@ -1342,14 +1422,20 @@ export const SystemSettingsView = ({
                       onChange={(e) => {
                         const newSlug = e.target.value;
                         const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
-                        const unitPositions = getPositionsByUnitAndRole(editFormData.unit_kerja_id, newSlug);
+                        const unitPositions = getPositionsByUnitAndRole(editFormData.unit_kerja_id, newSlug, activeUnits);
+                        const jurList = getJurusanByUnitCode(editFormData.unit_kerja_id, activeUnits);
+                        const defaultJurusan = editFormData.jurusan || (jurList.length > 0 ? jurList[0].nama : '');
                         const updatedTte = newSlug === 'pimpinan' || newSlug === 'super_admin';
-                        const updatedJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        let updatedJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        if (newSlug === 'drafter' && defaultJurusan) {
+                          updatedJabatan = `Dosen Jurusan ${defaultJurusan}`;
+                        }
                         setIsCustomJabatanEdit(false);
 
                         setEditFormData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
+                          jurusan: newSlug === 'drafter' ? defaultJurusan : prev.jurusan,
                           jabatan: updatedJabatan,
                           signatureReady: updatedTte
                         }));
@@ -1363,7 +1449,37 @@ export const SystemSettingsView = ({
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-1">
+
+                  {editSelectedUnitJurusan.length > 0 && editFormData.role_slug === 'drafter' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        Jurusan / Program Studi
+                      </label>
+                      <select
+                        value={editFormData.jurusan || ''}
+                        onChange={(e) => {
+                          const chosen = e.target.value;
+                          const nextJabatan = chosen ? `Dosen Jurusan ${chosen}` : (editUnitPositions[0] || 'Dosen Fungsional (Tridharma)');
+                          setIsCustomJabatanEdit(false);
+                          setEditFormData((prev) => ({
+                            ...prev,
+                            jurusan: chosen,
+                            jabatan: nextJabatan
+                          }));
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                      >
+                        <option value="">Pilih Jurusan...</option>
+                        {editSelectedUnitJurusan.map((j) => (
+                          <option key={j.id || j.kode || j.nama} value={j.nama}>
+                            {j.nama} {j.kode ? `(${j.kode})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={`space-y-1 ${editSelectedUnitJurusan.length > 0 && editFormData.role_slug === 'drafter' ? 'sm:col-span-2' : ''}`}>
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-700 block">
                         Jabatan Struktural / Peran Institusi
@@ -1396,7 +1512,7 @@ export const SystemSettingsView = ({
                             {pos}
                           </option>
                         ))}
-                        <option value="__CUSTOM__">✍️ Ketik Jabatan Lainnya (Kustom)...</option>
+                        <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
                       </select>
                     ) : (
                       <input
@@ -1662,25 +1778,40 @@ export const SystemSettingsView = ({
                     value={newUserData.unit_kerja_id}
                     onChange={(e) => {
                       const nextUnitId = e.target.value;
-                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, newUserData.role_slug);
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, newUserData.role_slug, activeUnits);
+                      const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
+                      let updatedJurusan = newUserData.jurusan;
                       let updatedJabatan = newUserData.jabatan;
+
+                      if (jurList.length > 0) {
+                        if (!jurList.some((j) => j.nama === updatedJurusan)) {
+                          updatedJurusan = jurList[0].nama;
+                        }
+                        if (newUserData.role_slug === 'drafter') {
+                          updatedJabatan = `Dosen Jurusan ${updatedJurusan}`;
+                          setIsCustomJabatanAdd(false);
+                        }
+                      } else {
+                        updatedJurusan = '';
+                      }
 
                       if (newUserData.role_slug === 'pimpinan') {
                         updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
                         setIsCustomJabatanAdd(false);
-                      } else if (!isCustomJabatanAdd && unitPositions.length > 0) {
+                      } else if (newUserData.role_slug !== 'drafter' && !isCustomJabatanAdd && unitPositions.length > 0) {
                         updatedJabatan = unitPositions[0];
                       }
 
                       setNewUserData((prev) => ({
                         ...prev,
                         unit_kerja_id: nextUnitId,
+                        jurusan: updatedJurusan,
                         jabatan: updatedJabatan
                       }));
                     }}
                     className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                   >
-                    {unitKerjaList.map((unit) => (
+                    {activeUnits.map((unit) => (
                       <option key={unit.kode_unit || unit.id} value={unit.kode_unit}>
                         {unit.kode_unit} — {unit.nama_unit}
                       </option>
@@ -1706,19 +1837,26 @@ export const SystemSettingsView = ({
                       onChange={(e) => {
                         const newSlug = e.target.value;
                         const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
-                        const unitPositions = getPositionsByUnitAndRole(newUserData.unit_kerja_id, newSlug);
-                        const defaultJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        const nextUnitId =
+                          newSlug === 'super_admin' && newUserData.unit_kerja_id === 'UN58.13'
+                            ? 'UN58.32'
+                            : newUserData.unit_kerja_id;
+                        const unitPositions = getPositionsByUnitAndRole(nextUnitId, newSlug, activeUnits);
+                        const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
+                        const defaultJurusan = newUserData.jurusan || (jurList.length > 0 ? jurList[0].nama : '');
+                        let defaultJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
+                        if (newSlug === 'drafter' && defaultJurusan) {
+                          defaultJabatan = `Dosen Jurusan ${defaultJurusan}`;
+                        }
                         setIsCustomJabatanAdd(false);
 
                         setNewUserData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
                           role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'STAF' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
+                          jurusan: newSlug === 'drafter' ? defaultJurusan : prev.jurusan,
                           jabatan: defaultJabatan,
-                          unit_kerja_id:
-                            newSlug === 'super_admin' && prev.unit_kerja_id === 'UN58.13'
-                              ? 'UN58.32'
-                              : prev.unit_kerja_id
+                          unit_kerja_id: nextUnitId
                         }));
                       }}
                       className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
@@ -1730,7 +1868,37 @@ export const SystemSettingsView = ({
                       ))}
                     </select>
                   </div>
-                  <div className="space-y-1">
+
+                  {newSelectedUnitJurusan.length > 0 && newUserData.role_slug === 'drafter' && (
+                    <div className="space-y-1">
+                      <label className="text-xs font-semibold text-slate-700 block">
+                        Jurusan / Program Studi
+                      </label>
+                      <select
+                        value={newUserData.jurusan || ''}
+                        onChange={(e) => {
+                          const chosen = e.target.value;
+                          const nextJabatan = chosen ? `Dosen Jurusan ${chosen}` : (newUnitPositions[0] || 'Dosen Fungsional (Tridharma)');
+                          setIsCustomJabatanAdd(false);
+                          setNewUserData((prev) => ({
+                            ...prev,
+                            jurusan: chosen,
+                            jabatan: nextJabatan
+                          }));
+                        }}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                      >
+                        <option value="">Pilih Jurusan...</option>
+                        {newSelectedUnitJurusan.map((j) => (
+                          <option key={j.id || j.kode || j.nama} value={j.nama}>
+                            {j.nama} {j.kode ? `(${j.kode})` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className={`space-y-1 ${newSelectedUnitJurusan.length > 0 && newUserData.role_slug === 'drafter' ? 'sm:col-span-2' : ''}`}>
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-700 block">
                         Jabatan Struktural / Peran Institusi
@@ -1763,7 +1931,7 @@ export const SystemSettingsView = ({
                             {pos}
                           </option>
                         ))}
-                        <option value="__CUSTOM__">✍️ Ketik Jabatan Lainnya (Kustom)...</option>
+                        <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
                       </select>
                     ) : (
                       <input

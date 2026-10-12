@@ -84,4 +84,26 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
       expect(manajemenMenu).toBeUndefined();
     }
   });
+
+  it('harus menyembunyikan menu E-Disposisi dan E-Paraf & TTE untuk akun Super Admin', () => {
+    const items = buildSidebarMenuItems({
+      user: { role: 'Super Admin', is_super_admin: true },
+      unreadCounts: { disposisi: 3, tte: 5 }
+    });
+
+    const topLevelIds = items.map((i) => i.id);
+    expect(topLevelIds).not.toContain('disposisi');
+    expect(topLevelIds).not.toContain('paraf-tte');
+  });
+
+  it('harus tetap memuat menu E-Disposisi dan E-Paraf & TTE untuk Pejabat Struktural', () => {
+    const items = buildSidebarMenuItems({
+      user: { role: 'PEJABAT', is_pejabat: true },
+      unreadCounts: { disposisi: 3, tte: 5 }
+    });
+
+    const topLevelIds = items.map((i) => i.id);
+    expect(topLevelIds).toContain('disposisi');
+    expect(topLevelIds).toContain('paraf-tte');
+  });
 });

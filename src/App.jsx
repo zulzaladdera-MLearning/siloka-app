@@ -31,6 +31,7 @@ import { initialAuditLogs, createAuditEntry } from './utils/security';
 import { DOCUMENT_TEMPLATES } from './components/documents/DocumentTemplates';
 import { ProcessMiningLogger, PROCESS_ACTIVITIES } from './domain';
 import { isLetterSignatureRequest, canUserRegisterIncomingLetter } from './utils/letterActionPolicy';
+import { hasUserPermission, RBAC_CHANGE_EVENT } from './utils/rbacSyncService';
 import {
   isSuperAdminUser,
   canAccessBrankasDigital,
@@ -284,6 +285,14 @@ export default function App() {
       window.removeEventListener('storage', handleUserDeleted);
     };
   }, [currentUser]);
+
+  // Sinkronisasi RBAC Real-Time: Perbarui antarmuka seketika saat hak akses permission diperbarui
+  const [, setRbacSyncTick] = useState(0);
+  useEffect(() => {
+    const handleRbacUpdate = () => setRbacSyncTick((t) => t + 1);
+    window.addEventListener(RBAC_CHANGE_EVENT, handleRbacUpdate);
+    return () => window.removeEventListener(RBAC_CHANGE_EVENT, handleRbacUpdate);
+  }, []);
 
   // Sinkronisasi data pengguna dari basis data PostgreSQL ke state allUsers saat Super Admin aktif
   useEffect(() => {
@@ -1935,7 +1944,7 @@ export default function App() {
               </div>
 
               <div className="flex flex-wrap sm:flex-nowrap items-center gap-2 shrink-0">
-                {canUserRegisterIncomingLetter(currentUser) && (
+                {hasUserPermission(currentUser, 'surat_masuk.register') && (
                   <button
                     onClick={() => setIsQuickRegisterOpen(true)}
                     className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-50 text-unsil-green-900 border border-emerald-200 hover:bg-emerald-100 transition-colors"
@@ -1944,13 +1953,15 @@ export default function App() {
                     <span>Registrasi Surat Masuk</span>
                   </button>
                 )}
-                <button
-                  onClick={() => setIsCreateSuratKeluarOpen(true)}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
-                >
-                  <Send className="w-3.5 h-3.5 text-unsil-gold-300" />
-                  <span>+ Surat Keluar / Nota Dinas</span>
-                </button>
+                {(hasUserPermission(currentUser, 'naskah.draft') || hasUserPermission(currentUser, 'naskah.create_mandiri')) && (
+                  <button
+                    onClick={() => setIsCreateSuratKeluarOpen(true)}
+                    className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
+                  >
+                    <Send className="w-3.5 h-3.5 text-unsil-gold-300" />
+                    <span>+ Surat Keluar / Nota Dinas</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1993,28 +2004,48 @@ export default function App() {
 
         {/* Dedicated Module Views */}
         {activeTab === 'disposisi' && (
-          <DisposisiView
-            letters={scopedLetters}
-            currentUser={currentUser}
-            onSelectLetter={(letter) => setSelectedLetter(letter)}
-            onOpenNewDisposisi={() => {
-              if (!isDisposisiAuthorizedOfficial(currentUser, allUsers)) {
-                showToast('Akses Dibatasi: Fitur penerbitan disposisi khusus untuk Pimpinan dan Pejabat Struktural UNSIL.', 'warning');
-                return;
-              }
-              setDisposisiTargetLetter(scopedLetters[0] || null);
-              setIsDisposisiOpen(true);
-            }}
-          />
+          (hasUserPermission(currentUser, 'disposisi.read') ||
+            hasUserPermission(currentUser, 'disposisi.create') ||
+            hasUserPermission(currentUser, 'disposisi.forward')) ? (
+            <DisposisiView
+              letters={scopedLetters}
+              currentUser={currentUser}
+              onSelectLetter={(letter) => setSelectedLetter(letter)}
+              onOpenNewDisposisi={() => {
+                if (!hasUserPermission(currentUser, 'disposisi.create')) {
+                  showToast('Akses Dibatasi: Fitur penerbitan disposisi khusus untuk Pejabat Struktural yang berwenang.', 'warning');
+                  return;
+                }
+                setDisposisiTargetLetter(scopedLetters[0] || null);
+                setIsDisposisiOpen(true);
+              }}
+            />
+          ) : (
+            <div className="p-8 max-w-4xl mx-auto text-center">
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+                <p className="font-bold text-sm">Akses Dibatasi: Izin E-Disposisi Tidak Aktif</p>
+                <p className="text-xs mt-1 text-amber-700">Peran akun Anda saat ini tidak memiliki hak akses untuk membuka modul E-Disposisi.</p>
+              </div>
+            </div>
+          )
         )}
 
         {activeTab === 'paraf-tte' && (
-          <ParafTteView
-            letters={scopedLetters}
-            currentUser={currentUser}
-            onSelectLetter={(letter) => setSelectedLetter(letter)}
-            onSignSuccess={handleInitiateTte}
-          />
+          (hasUserPermission(currentUser, 'naskah.tte') || hasUserPermission(currentUser, 'naskah.verify')) ? (
+            <ParafTteView
+              letters={scopedLetters}
+              currentUser={currentUser}
+              onSelectLetter={(letter) => setSelectedLetter(letter)}
+              onSignSuccess={handleInitiateTte}
+            />
+          ) : (
+            <div className="p-8 max-w-4xl mx-auto text-center">
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+                <p className="font-bold text-sm">Akses Dibatasi: Izin E-Paraf & TTE Tidak Aktif</p>
+                <p className="text-xs mt-1 text-amber-700">Peran akun Anda saat ini tidak memiliki hak akses untuk penelaahan paraf atau pengesahan TTE.</p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Modul Surat Masuk */}
@@ -2046,7 +2077,7 @@ export default function App() {
                     <span>Kosongkan Data Uji Coba</span>
                   </button>
                 )}
-                {canUserRegisterIncomingLetter(currentUser) && (
+                {hasUserPermission(currentUser, 'surat_masuk.register') && (
                   <button
                     onClick={() => setIsQuickRegisterOpen(true)}
                     className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
@@ -2090,13 +2121,15 @@ export default function App() {
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setIsCreateSuratKeluarOpen(true)}
-                  className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Buat Surat Keluar / Nota Dinas</span>
-                </button>
+                {(hasUserPermission(currentUser, 'naskah.draft') || hasUserPermission(currentUser, 'naskah.create_mandiri')) && (
+                  <button
+                    onClick={() => setIsCreateSuratKeluarOpen(true)}
+                    className="px-4 py-2.5 rounded-lg bg-unsil-green-800 text-white text-xs font-semibold hover:bg-unsil-green-900 transition-colors shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Buat Surat Keluar / Nota Dinas</span>
+                  </button>
+                )}
               </div>
             </div>
             <ActivityTable
@@ -2120,12 +2153,23 @@ export default function App() {
 
         {/* Modul Buku Agenda Masuk & Ekspedisi */}
         {activeTab === 'buku-agenda' && (
-          <BukuAgendaView
-            letters={scopedLetters}
-            currentUser={currentUser}
-            currentUnit={currentUnit}
-            onSelectLetter={(letter) => setSelectedLetter(letter)}
-          />
+          (hasUserPermission(currentUser, 'agenda.manage') ||
+            hasUserPermission(currentUser, 'ekspedisi.manage') ||
+            hasUserPermission(currentUser, 'surat_masuk.register')) ? (
+            <BukuAgendaView
+              letters={scopedLetters}
+              currentUser={currentUser}
+              currentUnit={currentUnit}
+              onSelectLetter={(letter) => setSelectedLetter(letter)}
+            />
+          ) : (
+            <div className="p-8 max-w-4xl mx-auto text-center">
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+                <p className="font-bold text-sm">Akses Dibatasi: Izin Buku Agenda Tidak Aktif</p>
+                <p className="text-xs mt-1 text-amber-700">Peran akun Anda saat ini tidak memiliki hak akses untuk membuka modul Buku Agenda & Ekspedisi.</p>
+              </div>
+            </div>
+          )
         )}
 
         {/* Modul Brankas Keuangan / Verifikasi SPM */}
@@ -2166,9 +2210,21 @@ export default function App() {
 
         {activeTab === 'retensi-arsip' && <RetensiArsipView letters={letters} currentUser={currentUser} />}
 
-        {activeTab === 'brankas-digital' && canAccessBrankasDigital(currentUser) && <BrankasDigitalView />}
+        {activeTab === 'brankas-digital' && (
+          hasUserPermission(currentUser, 'arsip.view_rahasia') ? (
+            <BrankasDigitalView />
+          ) : (
+            <div className="p-8 max-w-4xl mx-auto text-center">
+              <div className="p-6 bg-amber-50 border border-amber-200 rounded-xl text-amber-800">
+                <p className="font-bold text-sm">Akses Dibatasi: Brankas Digital Terkunci</p>
+                <p className="text-xs mt-1 text-amber-700">Peran akun Anda saat ini tidak memiliki izin akses naskah rahasia atau brankas digital.</p>
+              </div>
+            </div>
+          )
+        )}
 
-        {(activeTab === 'settings' || activeTab === 'manajemen-user') && isSuperAdminUser(currentUser) && (
+        {(activeTab === 'settings' || activeTab === 'manajemen-user') &&
+          (isSuperAdminUser(currentUser) || hasUserPermission(currentUser, 'admin.access') || hasUserPermission(currentUser, 'role.manage')) && (
           <SystemSettingsView
             user={currentUser}
             allUsers={allUsers}
@@ -2178,7 +2234,8 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'manajemen-unit' && isSuperAdminUser(currentUser) && (
+        {activeTab === 'manajemen-unit' &&
+          (isSuperAdminUser(currentUser) || hasUserPermission(currentUser, 'unit.manage')) && (
           <UnitManagementView
             currentUser={currentUser}
             allUsers={allUsers}
@@ -2186,7 +2243,8 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'manajemen-role' && isSuperAdminUser(currentUser) && (
+        {activeTab === 'manajemen-role' &&
+          (isSuperAdminUser(currentUser) || hasUserPermission(currentUser, 'role.manage')) && (
           <RoleManagementView
             currentUser={currentUser}
             allUsers={allUsers}
@@ -2197,7 +2255,8 @@ export default function App() {
           />
         )}
 
-        {activeTab === 'manajemen-permission' && isSuperAdminUser(currentUser) && (
+        {activeTab === 'manajemen-permission' &&
+          (isSuperAdminUser(currentUser) || hasUserPermission(currentUser, 'role.manage')) && (
           <PermissionManagementView
             currentUser={currentUser}
             showToast={showToast}

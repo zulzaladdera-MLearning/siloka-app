@@ -15,10 +15,14 @@ describe('RoleManagementView Data Integrity & SKKAAD Restriction (SILOKA UNSIL)'
   it('harus memverifikasi detail role Super Administrator', () => {
     const superAdmin = INITIAL_ROLES_DATA.find((r) => r.slug === 'super_admin');
     expect(superAdmin.name).toBe('Super Administrator');
-    expect(superAdmin.permissionCount).toBe(32);
+    expect(superAdmin.permissionCount).toBe(24);
     expect(superAdmin.userCount).toBe(2);
     expect(superAdmin.keySlugs).toContain('user.impersonate');
     expect(superAdmin.keySlugs).toContain('arsip.jra_manage');
+    expect(superAdmin.keySlugs).not.toContain('naskah.tte');
+    expect(superAdmin.keySlugs).not.toContain('disposisi.create');
+    expect(superAdmin.keySlugs).not.toContain('surat_masuk.register');
+    expect(superAdmin.keySlugs).not.toContain('naskah.draft');
   });
 
   it('harus memverifikasi wewenang TTE dan Disposisi pada Pimpinan', () => {

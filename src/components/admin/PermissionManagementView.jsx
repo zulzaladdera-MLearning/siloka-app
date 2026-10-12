@@ -6,20 +6,15 @@ import {
   SlidersHorizontal,
   RotateCcw,
   Info,
-  Lock,
-  Layers,
-  FileText,
-  SendHorizontal,
-  Archive,
-  History,
-  AlertCircle
+  History
 } from 'lucide-react';
 import { isSuperAdminUser } from '../../utils/authGuards';
 import {
   getPermissionMatrix,
   savePermissionMatrix,
   RBAC_CHANGE_EVENT,
-  DEFAULT_PERMISSION_MATRIX
+  DEFAULT_PERMISSION_MATRIX,
+  PERMISSION_ALIASES
 } from '../../utils/rbacSyncService';
 
 /**
@@ -34,6 +29,7 @@ import {
 export const ROLES_LIST = [
   {
     id: 'super_admin',
+    slug: 'super_admin',
     name: 'Super Administrator',
     colorClass: 'text-rose-600',
     bgClass: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -41,6 +37,7 @@ export const ROLES_LIST = [
   },
   {
     id: 'admin_tu',
+    slug: 'admin_tu',
     name: 'Administrator TU / Sekretariat',
     colorClass: 'text-emerald-600',
     bgClass: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -48,6 +45,7 @@ export const ROLES_LIST = [
   },
   {
     id: 'pimpinan',
+    slug: 'pimpinan',
     name: 'Pimpinan / Penandatangan',
     colorClass: 'text-blue-600',
     bgClass: 'bg-blue-50 text-blue-700 border-blue-200',
@@ -55,6 +53,7 @@ export const ROLES_LIST = [
   },
   {
     id: 'verifikator',
+    slug: 'verifikator',
     name: 'Verifikator / Atasan Hierarki',
     colorClass: 'text-amber-600',
     bgClass: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -70,6 +69,7 @@ export const ROLES_LIST = [
   },
   {
     id: 'auditor_spi',
+    slug: 'auditor_spi',
     name: 'Auditor / SPI',
     colorClass: 'text-purple-600',
     bgClass: 'bg-purple-50 text-purple-700 border-purple-200',
@@ -90,7 +90,7 @@ export const PermissionManagementView = ({
       <div className="p-8 max-w-4xl mx-auto text-center">
         <div className="p-6 bg-rose-50 border border-rose-200 rounded-xl text-rose-800">
           <p className="font-bold text-sm">Akses Dibatasi: Khusus Super Administrator</p>
-          <p className="text-xs mt-1 text-rose-600">Modul Hak Akses & Izin hanya dapat diakses oleh akun Super Administrator SILOKA UNSIL.</p>
+          <p className="text-xs mt-1 text-rose-600">Modul Hak Akses &amp; Izin hanya dapat diakses oleh akun Super Administrator SILOKA UNSIL.</p>
         </div>
       </div>
     );
@@ -134,22 +134,61 @@ export const PermissionManagementView = ({
     }
   }, [isManageModalOpen, permissionCategories]);
 
+  // Hitung jumlah izin terpilih untuk peran yang sedang aktif diedit di modal
+  const selectedCount = useMemo(() => {
+    const roleAliases = selectedRoleForEdit === 'dosen_drafter'
+      ? ['dosen_drafter', 'drafter']
+      : selectedRoleForEdit === 'drafter'
+      ? ['drafter', 'dosen_drafter']
+      : [selectedRoleForEdit];
+
+    let count = 0;
+    editableCategories.forEach((cat) => {
+      cat.permissions.forEach((p) => {
+        const isForbiddenForSuperAdmin =
+          selectedRoleForEdit === 'super_admin' &&
+          [
+            'naskah.tte',
+            'naskah.tte_sign',
+            'disposisi.create',
+            'surat_masuk.register',
+            'naskah.draft',
+            'naskah.create_draft'
+          ].includes(p.slug);
+
+        if (!isForbiddenForSuperAdmin && p.allowedRoles.some((r) => roleAliases.includes(r))) {
+          count++;
+        }
+      });
+    });
+    return count;
+  }, [editableCategories, selectedRoleForEdit]);
+
   // Handler: Toggle Permission untuk Role Tertentu di dalam Modal
   const handleTogglePermission = (catId, slug, roleId) => {
+    const roleAliases = roleId === 'dosen_drafter'
+      ? ['dosen_drafter', 'drafter']
+      : roleId === 'drafter'
+      ? ['drafter', 'dosen_drafter']
+      : [roleId];
+
     setEditableCategories((prev) =>
       prev.map((cat) => {
         if (cat.id !== catId) return cat;
         return {
           ...cat,
           permissions: cat.permissions.map((p) => {
-            if (p.slug !== slug) return p;
-            const hasRole = p.allowedRoles.includes(roleId);
+            const alias = PERMISSION_ALIASES ? PERMISSION_ALIASES[p.slug] : null;
+            if (p.slug !== slug && alias !== slug) return p;
+
+            const hasRole = p.allowedRoles.some((r) => roleAliases.includes(r));
             const newRoles = hasRole
-              ? p.allowedRoles.filter((r) => r !== roleId)
-              : [...p.allowedRoles, roleId];
+              ? p.allowedRoles.filter((r) => !roleAliases.includes(r))
+              : [...p.allowedRoles, ...roleAliases];
+
             return {
               ...p,
-              allowedRoles: newRoles
+              allowedRoles: Array.from(new Set(newRoles))
             };
           })
         };
@@ -199,7 +238,7 @@ export const PermissionManagementView = ({
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto space-y-6">
       {/* =========================================================================
-          HEADER HALAMAN (PERSIS SESUAI GAMBAR 2 & DESKRIPSI)
+          HEADER HALAMAN
           ========================================================================= */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
@@ -224,283 +263,70 @@ export const PermissionManagementView = ({
       </div>
 
       {/* =========================================================================
-          PAPAN MATRIKS 4 AKSI UTAMA PERSURATAN (QUICK REFERENCE BOARD)
-          ========================================================================= */}
-      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-100 bg-gradient-to-r from-slate-50 via-white to-emerald-50/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-emerald-100 text-unsil-green-950 flex items-center justify-center font-bold shrink-0">
-              <ShieldCheck className="w-5 h-5 text-unsil-green-800" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm sm:text-base font-bold text-slate-900">
-                  Matriks 4 Aksi Utama Persuratan
-                </h2>
-                <span className="text-[10px] uppercase font-bold tracking-wider px-2 py-0.5 rounded-full bg-emerald-50 text-unsil-green-900 border border-emerald-200">
-                  Pedoman Resmi
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Penegakan hak akses operasional antar peran di lingkungan Universitas Siliwangi
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-semibold">
-              <Check className="w-3 h-3 text-emerald-600" /> Bisa
-            </span>
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200 text-[11px] font-semibold">
-              <Lock className="w-3 h-3 text-slate-400" /> Terkunci (Dihapus dari DOM)
-            </span>
-          </div>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-slate-600 text-[11px] font-bold uppercase tracking-wider">
-                <th className="py-3.5 px-5 min-w-[240px]">Aksi Utama Persuratan</th>
-                <th className="py-3.5 px-4 min-w-[170px] text-center">
-                  <span className="inline-block text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded border border-emerald-200 font-bold">
-                    Staf TU / Operator
-                  </span>
-                </th>
-                <th className="py-3.5 px-4 min-w-[190px] text-center">
-                  <span className="inline-block text-slate-700 bg-slate-100 px-2.5 py-1 rounded border border-slate-200 font-bold">
-                    Dosen Fungsional
-                  </span>
-                </th>
-                <th className="py-3.5 px-4 min-w-[170px] text-center">
-                  <span className="inline-block text-blue-800 bg-blue-50 px-2.5 py-1 rounded border border-blue-200 font-bold">
-                    Pejabat Struktural
-                  </span>
-                </th>
-                <th className="py-3.5 px-4 min-w-[170px] text-center">
-                  <span className="inline-block text-rose-800 bg-rose-50 px-2.5 py-1 rounded border border-rose-200 font-bold">
-                    Super Administrator
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100">
-              {/* Baris 1: Registrasi Surat Masuk */}
-              <tr className="hover:bg-slate-50/50 transition">
-                <td className="py-3.5 px-5">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <span className="text-base">📥</span>
-                    <span>Registrasi Surat Masuk</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Loket Penerimaan TU &amp; Nomor Agenda
-                  </div>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-              </tr>
-
-              {/* Baris 2: Buat Draf Naskah Keluar */}
-              <tr className="hover:bg-slate-50/50 transition">
-                <td className="py-3.5 px-5">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <span className="text-base">✍️</span>
-                    <span>Buat Draf Naskah Keluar</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Penyusunan Konsep &amp; Template Dinas
-                  </div>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa (23 Template Dinas)
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa (6 Naskah Tridharma)
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa (23 Template Dinas)
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa (23 Template Dinas)
-                  </span>
-                </td>
-              </tr>
-
-              {/* Baris 3: Penerbitan E-Disposisi */}
-              <tr className="hover:bg-slate-50/50 transition">
-                <td className="py-3.5 px-5">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <span className="text-base">↗️</span>
-                    <span>Penerbitan E-Disposisi</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Instruksi Tindak Lanjut Naskah Masuk
-                  </div>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-              </tr>
-
-              {/* Baris 4: Pengesahan TTE BSrE */}
-              <tr className="hover:bg-slate-50/50 transition">
-                <td className="py-3.5 px-5">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <span className="text-base">🔏</span>
-                    <span>Pengesahan TTE BSrE</span>
-                  </div>
-                  <div className="text-[11px] text-slate-500 mt-0.5">
-                    Penandatanganan Elektronik Tersertifikasi
-                  </div>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-500 border border-slate-200">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    Terkunci
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-                <td className="py-3.5 px-4 text-center">
-                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                    <Check className="w-3.5 h-3.5 text-emerald-600" />
-                    Bisa
-                  </span>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* =========================================================================
-          TABEL-TABEL MATRIKS PERMISSION DETAIL PER KATEGORI
+          MATRIKS HAK AKSES & IZIN TERINTEGRASI PER KATEGORI MODUL (GAMBAR 1)
           ========================================================================= */}
       <div className="space-y-6">
-        <div className="flex items-center justify-between pt-2">
-          <div>
-            <h3 className="text-sm font-bold text-slate-800">
-              Rincian Izin Granular Fitur
-            </h3>
-            <p className="text-xs text-slate-500">
-              Pengaturan 32 izin teknis persuratan dan kearsipan berdasarkan kategori institusi
-            </p>
-          </div>
+        <div className="pt-2">
+          <h2 className="text-sm sm:text-base font-bold text-slate-800 flex items-center gap-2">
+            <ShieldCheck className="w-4 h-4 text-unsil-green-800" />
+            <span>Matriks Wewenang &amp; Izin Per Kategori Modul</span>
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5">
+            Distribusi 22 hak akses dalam 4 pilar tata kelola persuratan dinas UNSIL
+          </p>
         </div>
+
+        {/* Tabel Matriks Terkelompok per Kategori */}
         {permissionCategories.map((category) => (
           <div
             key={category.id}
-            className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden"
+            className="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs"
           >
             {/* Header Kategori */}
-            <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/40">
+            <div className="bg-slate-50/80 px-5 py-3 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <h2 className="text-sm font-bold text-slate-900">
+                <h3 className="text-xs sm:text-sm font-bold text-slate-900 tracking-wide uppercase">
                   {category.title}
-                </h2>
+                </h3>
                 <p className="text-[11px] text-slate-500 mt-0.5">
                   {category.description}
                 </p>
               </div>
+              <span className="text-[11px] font-semibold text-unsil-green-800 bg-unsil-green-50 border border-unsil-green-200 px-2.5 py-1 rounded-full self-start sm:self-auto">
+                {category.permissions.length} Hak Akses
+              </span>
             </div>
 
-            {/* Tabel Permission Matriks */}
+            {/* Tabel Permission dalam Kategori */}
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
+              <table className="w-full text-left border-collapse text-xs">
                 <thead>
-                  <tr className="border-b border-slate-200 bg-white text-[11px] text-slate-500 font-semibold">
-                    <th className="py-3 px-5 w-60">Hak Akses &amp; Wewenang</th>
-                    <th className="py-3 px-4 w-48 text-[11px]">Cakupan Fitur</th>
+                  <tr className="border-b border-slate-200 bg-slate-50/40 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                    <th className="py-3 px-5 w-2/5 min-w-[280px]">Hak Akses &amp; Deskripsi</th>
+                    <th className="py-3 px-4 w-1/5 min-w-[160px]">Kategori Modul</th>
                     {ROLES_LIST.map((role) => (
                       <th
                         key={role.id}
-                        className="py-3 px-3 text-center min-w-[120px]"
+                        className={`py-3 px-3 text-center min-w-[80px] font-bold ${role.colorClass}`}
                       >
-                        <span
-                          className={`inline-block font-semibold text-[11px] ${role.colorClass}`}
-                        >
-                          {role.name}
-                        </span>
+                        {role.name.split(' ')[0]}
                       </th>
                     ))}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
+                <tbody className="divide-y divide-slate-100">
                   {category.permissions.map((perm) => (
                     <tr
                       key={perm.slug}
-                      className="hover:bg-slate-50/50 transition"
+                      className="hover:bg-slate-50/60 transition group"
                     >
-                      {/* 1. Nama Permission */}
+                      {/* 1. Nama Fitur & Deskripsi */}
                       <td className="py-3.5 px-5">
-                        <span className="font-medium text-slate-900 block">
+                        <span className="font-semibold text-slate-900 block">
                           {perm.name}
                         </span>
                         {perm.description && (
-                          <span className="text-[11px] text-slate-400 block mt-0.5 leading-tight">
+                          <span className="text-[11px] text-slate-500 block mt-0.5 leading-tight">
                             {perm.description}
                           </span>
                         )}
@@ -513,15 +339,22 @@ export const PermissionManagementView = ({
 
                       {/* 3. Kolom Ceklis per Role */}
                       {ROLES_LIST.map((role) => {
-                        const isAllowed = perm.allowedRoles.includes(role.id);
+                        const roleAliases = role.id === 'dosen_drafter'
+                          ? ['dosen_drafter', 'drafter']
+                          : role.slug
+                          ? [role.id, role.slug]
+                          : [role.id];
+
+                        const isAllowed = perm.allowedRoles.some((r) => roleAliases.includes(r));
+
                         return (
                           <td
                             key={role.id}
                             className="py-3.5 px-3 text-center"
                           >
                             {isAllowed ? (
-                              <span className="inline-flex items-center justify-center w-6 h-6 text-emerald-600 font-bold text-base">
-                                ✓
+                              <span className="inline-flex items-center justify-center w-6 h-6 text-emerald-600">
+                                <Check className="w-4 h-4 text-emerald-600 stroke-[2.5]" />
                               </span>
                             ) : (
                               <span className="text-slate-300 font-medium">
@@ -561,30 +394,30 @@ export const PermissionManagementView = ({
       </div>
 
       {/* =========================================================================
-          MODAL INTERAKTIF: KELOLA ROLE
+          MODAL INTERAKTIF: ATUR IZIN PERAN (IDENTIK GAMBAR 1)
           ========================================================================= */}
       {isManageModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-3xl w-full max-h-[90vh] flex flex-col overflow-hidden text-slate-800 animate-in zoom-in-95 duration-200">
             {/* Header Modal */}
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 shrink-0">
+            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50 shrink-0">
               <div className="flex items-center gap-2.5">
                 <div className="w-8 h-8 rounded-lg bg-unsil-green-900 text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-4 h-4" />
+                  <SlidersHorizontal className="w-4 h-4" />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-slate-900">
-                    Pengaturan Hak Akses Peran
+                    Pengaturan Hak Akses Peran Pengguna
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    Aktifkan atau nonaktifkan wewenang dan hak akses fitur persuratan per peran.
+                    Pilih peran dan sesuaikan centang wewenang fitur persuratan dinas.
                   </p>
                 </div>
               </div>
               <button
                 type="button"
                 onClick={() => setIsManageModalOpen(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition"
+                className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-200 transition cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -614,8 +447,8 @@ export const PermissionManagementView = ({
               })}
             </div>
 
-            {/* Badan Konfigurasi Checkbox */}
-            <div className="p-6 overflow-y-auto flex-1 space-y-6 text-xs">
+            {/* Badan Konfigurasi Checkbox (Identik Gambar 1: 4 Kategori, 2 Kolom Grid) */}
+            <div className="p-6 overflow-y-auto flex-1 space-y-5 text-xs">
               <div className="bg-amber-50 border border-amber-200 text-amber-900 rounded-xl p-3 flex items-start gap-2.5">
                 <Info className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
                 <div className="text-[11px] leading-relaxed">
@@ -623,51 +456,93 @@ export const PermissionManagementView = ({
                   <strong className="font-bold underline">
                     {ROLES_LIST.find((r) => r.id === selectedRoleForEdit)?.name}
                   </strong>{' '}
-                  akan langsung diterapkan ke sistem SILOKA dan dicatat ke dalam riwayat pembaruan.
+                  akan langsung disinkronkan ke sistem SILOKA dan diterapkan secara real-time.
                 </div>
               </div>
 
+              {/* Header DAFTAR HAK AKSES & WEWENANG persis Gambar 1 */}
+              <div className="flex items-center justify-between border-b border-slate-200 pb-2">
+                <span className="font-bold text-slate-800 uppercase tracking-wide text-[11px]">
+                  Daftar Hak Akses &amp; Wewenang
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-unsil-green-100 text-unsil-green-900 border border-unsil-green-300">
+                  {selectedCount} Dipilih
+                </span>
+              </div>
+
+              {/* 4 Kategori & 22 Hak Akses Gambar 1 */}
               {editableCategories.map((cat) => (
-                <div
-                  key={cat.id}
-                  className="border border-slate-200 rounded-xl overflow-hidden"
-                >
-                  <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-200 font-bold text-slate-800 flex items-center justify-between">
-                    <span>{cat.title}</span>
-                    <span className="text-[11px] font-normal text-slate-500">
+                <div key={cat.id} className="space-y-2">
+                  <div className="flex items-center justify-between bg-slate-50 px-2.5 py-1 rounded border border-slate-200/80">
+                    <span className="text-[11px] font-bold text-slate-700">
+                      {cat.title}
+                    </span>
+                    <span className="text-[10px] text-slate-500 font-medium">
                       {cat.permissions.length} Hak Akses
                     </span>
                   </div>
 
-                  <div className="p-4 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {cat.permissions.map((p) => {
-                      const isChecked = p.allowedRoles.includes(selectedRoleForEdit);
+                      const isForbiddenForSuperAdmin =
+                        selectedRoleForEdit === 'super_admin' &&
+                        [
+                          'naskah.tte',
+                          'naskah.tte_sign',
+                          'disposisi.create',
+                          'surat_masuk.register',
+                          'naskah.draft',
+                          'naskah.create_draft'
+                        ].includes(p.slug);
+
+                      const roleAliases = selectedRoleForEdit === 'dosen_drafter'
+                        ? ['dosen_drafter', 'drafter']
+                        : selectedRoleForEdit === 'drafter'
+                        ? ['drafter', 'dosen_drafter']
+                        : [selectedRoleForEdit];
+
+                      const isChecked = !isForbiddenForSuperAdmin && p.allowedRoles.some((r) => roleAliases.includes(r));
+
                       return (
                         <label
                           key={p.slug}
-                          className={`flex items-start gap-3 p-3 rounded-lg border transition cursor-pointer select-none ${
-                            isChecked
-                              ? 'bg-emerald-50/40 border-emerald-300/80'
-                              : 'bg-white border-slate-200 hover:bg-slate-50'
+                          className={`flex items-start gap-2.5 p-2 rounded-lg border transition select-none ${
+                            isForbiddenForSuperAdmin
+                              ? 'bg-slate-100/70 border-slate-200 opacity-60 cursor-not-allowed'
+                              : isChecked
+                              ? 'bg-emerald-50/50 border-emerald-300 cursor-pointer shadow-2xs'
+                              : 'bg-white border-slate-200 hover:bg-slate-50 cursor-pointer'
                           }`}
                         >
                           <input
                             type="checkbox"
                             checked={isChecked}
-                            onChange={() =>
-                              handleTogglePermission(cat.id, p.slug, selectedRoleForEdit)
-                            }
-                            className="w-4 h-4 mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 cursor-pointer"
+                            disabled={isForbiddenForSuperAdmin}
+                            onChange={() => {
+                              if (!isForbiddenForSuperAdmin) {
+                                handleTogglePermission(cat.id, p.slug, selectedRoleForEdit);
+                              }
+                            }}
+                            className={`w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700 ${
+                              isForbiddenForSuperAdmin ? 'cursor-not-allowed' : 'cursor-pointer'
+                            }`}
                           />
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-bold text-slate-900">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center justify-between gap-1">
+                              <span className="font-medium text-slate-800 block text-[11px] leading-tight">
                                 {p.name}
                               </span>
+                              {isForbiddenForSuperAdmin && (
+                                <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200 text-slate-600 shrink-0">
+                                  Terkunci Regulasi
+                                </span>
+                              )}
                             </div>
-                            <p className="text-[11px] text-slate-500 mt-0.5 leading-relaxed">
-                              {p.description}
-                            </p>
+                            {p.description && (
+                              <p className="text-[10px] text-slate-500 mt-0.5 line-clamp-2 leading-relaxed">
+                                {p.description}
+                              </p>
+                            )}
                           </div>
                         </label>
                       );

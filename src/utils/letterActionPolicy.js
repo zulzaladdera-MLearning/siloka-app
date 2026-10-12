@@ -15,6 +15,7 @@ import {
   isSuperAdminUser
 } from './authGuards.js';
 import { isDisposisiAuthorizedOfficial } from './disposisiStandards.js';
+import { hasUserPermission } from './rbacSyncService.js';
 
 /**
  * Menentukan apakah naskah dinas merupakan permohonan tanda tangan (Tujuan TTD)
@@ -60,9 +61,11 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
     return false;
   }
 
-  // 3. Super Admin memiliki wewenang administratif penuh atas seluruh naskah persuratan (POV Nyata)
+  // 3. Sesuai Hukum Tata Naskah Dinas UNSIL (Peraturan Rektor No. 3/2023) & UU No. 30/2014:
+  // Disposisi adalah instruksi kedinasan yang melekat eksklusif pada Pejabat Struktural (Rektor, Dekan, Ka Biro/Unit).
+  // Super Admin adalah administrator teknologi sistem dan terkunci dari penerbitan E-Disposisi.
   if (isSuperAdminUser(currentUser)) {
-    return true;
+    return false;
   }
 
   // 4. Staf TU dan Dosen dilarang keras menerbitkan disposisi
@@ -98,45 +101,14 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
 export const canUserRegisterIncomingLetter = (currentUser) => {
   if (!currentUser) return false;
 
-  // Super Admin memiliki akses administratif penuh persuratan
+  // Sesuai Hukum Tata Naskah Dinas UNSIL (Peraturan Rektor No. 3/2023):
+  // Pengentrian agenda naskah masuk dari luar adalah kewenangan eksklusif Pengadministrasi Persuratan / Petugas Loket TU.
+  // Super Admin (Administrator IT) bukan petugas loket penerimaan dan terkunci dari registrasi naskah masuk.
   if (isSuperAdminUser(currentUser)) {
-    return true;
-  }
-
-  // Pimpinan dan Pejabat Struktural DILARANG mengentri surat (fokus penelaahan & disposisi)
-  if (
-    currentUser?.is_pejabat === true ||
-    currentUser?.role === 'PEJABAT' ||
-    currentUser?.role === 'PIMPINAN' ||
-    currentUser?.role_slug === 'pimpinan' ||
-    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'))
-  ) {
     return false;
   }
 
-  // Pengawas SPI dan Dosen biasa bukan petugas loket penerimaan TU
-  if (
-    currentUser?.role === 'PENGAWAS' ||
-    currentUser?.role === 'DOSEN' ||
-    currentUser?.role_slug === 'drafter' ||
-    currentUser?.role_slug === 'auditor_spi' ||
-    isDosenTanpaJabatan(currentUser)
-  ) {
-    return false;
-  }
-
-  // Staf Tata Usaha / Operator Unit
-  const isStaffOrOperator =
-    currentUser?.role === 'STAF' ||
-    currentUser?.role === 'STAF_PERSURATAN' ||
-    currentUser?.role === 'OPERATOR_UNIT' ||
-    currentUser?.role === 'OPERATOR' ||
-    currentUser?.role === 'ADMIN_TU' ||
-    currentUser?.role_slug === 'admin_tu' ||
-    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pelaksana')) ||
-    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('staf'));
-
-  return Boolean(isStaffOrOperator);
+  return hasUserPermission(currentUser, 'surat_masuk.register');
 };
 
 /**
@@ -175,11 +147,14 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
     };
   }
 
-  const canDispose = canLetterBeDisposed(letter, currentUser);
+  const canDispose =
+    canLetterBeDisposed(letter, currentUser) &&
+    (hasUserPermission(currentUser, 'disposisi.create') ||
+      hasUserPermission(currentUser, 'disposisi.forward'));
 
-  // Matriks Kewenangan TTE BSrE:
-  // - Pejabat Struktural & Super Admin (Otoritas Administratif Penuh): Berwenang
-  // - Staf TU & Dosen Fungsional: Terkunci total (dihapus dari DOM)
+  // Matriks Kewenangan TTE BSrE (Sesuai Regulasi BSSN & Tata Naskah Dinas UNSIL):
+  // - Pejabat Struktural definitif berwenang menandatangani dengan TTE BSrE tersertifikasi
+  // - Super Admin, Staf TU, dan Dosen Fungsional: Terkunci total (dihapus dari DOM)
   const isSuperAdmin = isSuperAdminUser(currentUser);
 
   const isDosen =
@@ -196,6 +171,7 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
     currentUser?.role_slug === 'admin_tu';
 
   const isPejabatOrPimpinan =
+    !isSuperAdmin &&
     !isDosen &&
     !isStaff &&
     (currentUser?.role === 'PEJABAT' ||
@@ -205,6 +181,7 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
       (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan')));
 
   const isAssignedSigner = Boolean(
+    !isSuperAdmin &&
     !isDosen &&
     !isStaff &&
     letter.signerId &&
@@ -212,35 +189,38 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
     String(letter.signerId) === String(currentUser.pejabat_id)
   );
 
-  const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner || isSuperAdmin) && !isDosen && !isStaff;
+  const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner) && !isSuperAdmin && !isDosen && !isStaff;
 
   // Tanda Tangan BSrE:
-  // - Pejabat berwenang & Super Admin (Otoritas Penuh)
-  // - Staf TU & Dosen Fungsional DILARANG KERAS (Terkunci & Dihapus Total dari DOM)
+  // - Pejabat berwenang dengan sertifikat BSSN sah dan memiliki hak akses naskah.tte
+  // - Super Admin, Staf TU & Dosen Fungsional DILARANG KERAS (Terkunci & Dihapus Total dari DOM)
   // - Surat Masuk TIDAK BOLEH ditandatangani TTE internal
   // - Belum memiliki TTE sah, bukan arsip, dan bukan Draf mentah
   const canSign = Boolean(
     !isSuratMasuk &&
     hasSignerAuthority &&
+    hasUserPermission(currentUser, 'naskah.tte') &&
     !letter.tteVerified &&
     letter.status !== 'Diarsipkan' &&
     (letter.status !== 'Draft' && letter.status !== 'Didisposisikan')
   );
 
-  // Approval Naskah: Pejabat menyetujui naskah yang diajukan (status DRAFT_MENUNGGU_PARAF atau Diparaf atau Dikirim)
+  // Approval Naskah: Pejabat/Verifikator menyetujui naskah yang diajukan
   // Surat Masuk tidak melalui approval konsep
   const canApprove = Boolean(
     !isSuratMasuk &&
     hasSignerAuthority &&
+    hasUserPermission(currentUser, 'naskah.verify') &&
     (letter.status === 'Dikirim' || letter.status === 'Diparaf' || letter.status === 'DRAFT_MENUNGGU_PARAF') &&
     letter.status !== 'Disetujui' &&
     letter.status !== 'Diarsipkan'
   );
 
-  // Reject / Minta Revisi: Pejabat dapat mengembalikan surat dengan catatan revisi
+  // Reject / Minta Revisi: Verifikator/Pejabat dapat mengembalikan surat dengan catatan revisi
   const canReject = Boolean(
     !isSuratMasuk &&
     hasSignerAuthority &&
+    (hasUserPermission(currentUser, 'draft.return_koreksi') || hasUserPermission(currentUser, 'naskah.verify')) &&
     (letter.status === 'Dikirim' || letter.status === 'Diparaf' || letter.status === 'DRAFT_MENUNGGU_PARAF' || isSigReq) &&
     letter.status !== 'Diarsipkan' &&
     letter.status !== 'Ditolak'
@@ -249,7 +229,8 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
   // Arsip Digital JRA: Staf atau Pejabat dapat mengarsipkan jika sudah disetujui (atau Surat Masuk yang sudah selesai ditindaklanjuti)
   const canArchive = Boolean(
     (letter.status === 'Disetujui' || (isSuratMasuk && letter.status === 'Didisposisikan')) &&
-    letter.status !== 'Diarsipkan'
+    letter.status !== 'Diarsipkan' &&
+    (hasUserPermission(currentUser, 'arsip.manage_jra') || hasUserPermission(currentUser, 'arsip.view_biasa'))
   );
 
   // Edit Draf: Pengusul dapat menyunting naskah jika masih berstatus Draft atau Ditolak (Revisi)

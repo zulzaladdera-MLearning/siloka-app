@@ -66,7 +66,7 @@ describe('RBAC Synchronization Service & Matrix Engine (SILOKA UNSIL)', () => {
       expect(matrix).toHaveLength(4);
       expect(matrix.map((c) => c.id)).toContain('sistem');
       expect(matrix.map((c) => c.id)).toContain('naskah');
-      expect(matrix.map((c) => c.id)).toContain('disposisi');
+      expect(matrix.map((c) => c.id)).toContain('surat_masuk_disposisi');
       expect(matrix.map((c) => c.id)).toContain('kearsipan');
     });
   });
@@ -173,14 +173,16 @@ describe('RBAC Synchronization Service & Matrix Engine (SILOKA UNSIL)', () => {
   });
 
   describe('4. Evaluasi Hak Akses Efektif (getUserEffectivePermissions & hasUserPermission)', () => {
-    it('memberikan seluruh hak akses untuk Super Administrator', () => {
+    it('memberikan hak akses administratif untuk Super Administrator dengan pembatasan TTE & Disposisi', () => {
       const superUser = { role: 'Super Admin' };
       const permissions = getUserEffectivePermissions(superUser);
       expect(permissions).toContain('user.impersonate');
       expect(permissions).toContain('arsip.view_rahasia');
-      expect(permissions).toContain('naskah.tte');
+      expect(permissions).not.toContain('naskah.tte');
       expect(hasUserPermission(superUser, 'user.impersonate')).toBe(true);
       expect(hasUserPermission(superUser, 'arsip.view_rahasia')).toBe(true);
+      expect(hasUserPermission(superUser, 'naskah.tte')).toBe(false);
+      expect(hasUserPermission(superUser, 'disposisi.create')).toBe(false);
     });
 
     it('memberikan hak TTE BSrE dan Disposisi hanya untuk Pimpinan', () => {

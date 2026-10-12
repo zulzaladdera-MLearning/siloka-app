@@ -72,22 +72,21 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   };
 
   describe('1. Registrasi Surat Masuk', () => {
-    it('BISA untuk Staf TU / Operator Loket & Super Admin (Otoritas Penuh)', () => {
+    it('BISA untuk Staf TU / Operator Loket (Eksklusif Petugas Loket Penerimaan)', () => {
       expect(canUserRegisterIncomingLetter(stafTu)).toBe(true);
-      expect(canUserRegisterIncomingLetter(superAdmin)).toBe(true);
 
       const navStaf = getNavbarActionConfig('surat-masuk', stafTu);
       expect(navStaf.isActionVisible).toBe(true);
       expect(navStaf.createButtonLabel).toBe('Registrasi Surat');
-
-      const navAdmin = getNavbarActionConfig('surat-masuk', superAdmin);
-      expect(navAdmin.isActionVisible).toBe(true);
-      expect(navAdmin.createButtonLabel).toBe('Registrasi Surat');
     });
 
-    it('DIHAPUS TOTAL DARI DOM untuk Dosen Fungsional & Pejabat Struktural', () => {
+    it('DIHAPUS TOTAL DARI DOM untuk Super Admin, Dosen Fungsional & Pejabat Struktural', () => {
+      expect(canUserRegisterIncomingLetter(superAdmin)).toBe(false);
       expect(canUserRegisterIncomingLetter(dosenFungsional)).toBe(false);
       expect(canUserRegisterIncomingLetter(pejabatStruktural)).toBe(false);
+
+      const navAdmin = getNavbarActionConfig('surat-masuk', superAdmin);
+      expect(navAdmin.isActionVisible).toBe(false);
 
       const navDosen = getNavbarActionConfig('surat-masuk', dosenFungsional);
       expect(navDosen.isActionVisible).toBe(false);
@@ -121,26 +120,25 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   });
 
   describe('3. Penerbitan E-Disposisi', () => {
-    it('BISA untuk Pejabat Struktural & Super Admin (Otoritas Penuh)', () => {
+    it('BISA untuk Pejabat Struktural (Eksklusif Pimpinan)', () => {
       expect(isDisposisiAuthorizedOfficial(pejabatStruktural)).toBe(true);
-      expect(isDisposisiAuthorizedOfficial(superAdmin)).toBe(true);
-
       expect(canLetterBeDisposed(sampleSuratMasuk, pejabatStruktural)).toBe(true);
-      expect(canLetterBeDisposed(sampleSuratMasuk, superAdmin)).toBe(true);
 
       const capPejabat = getLetterActionCapabilities(sampleSuratMasuk, pejabatStruktural);
       expect(capPejabat.canDispose).toBe(true);
-
-      const capAdmin = getLetterActionCapabilities(sampleSuratMasuk, superAdmin);
-      expect(capAdmin.canDispose).toBe(true);
     });
 
-    it('DIHAPUS TOTAL DARI DOM untuk Staf TU & Dosen Fungsional (Terkunci)', () => {
+    it('DIHAPUS TOTAL DARI DOM untuk Super Admin, Staf TU & Dosen Fungsional (Terkunci)', () => {
+      expect(isDisposisiAuthorizedOfficial(superAdmin)).toBe(false);
       expect(isDisposisiAuthorizedOfficial(stafTu)).toBe(false);
       expect(isDisposisiAuthorizedOfficial(dosenFungsional)).toBe(false);
 
+      expect(canLetterBeDisposed(sampleSuratMasuk, superAdmin)).toBe(false);
       expect(canLetterBeDisposed(sampleSuratMasuk, stafTu)).toBe(false);
       expect(canLetterBeDisposed(sampleSuratMasuk, dosenFungsional)).toBe(false);
+
+      const capAdmin = getLetterActionCapabilities(sampleSuratMasuk, superAdmin);
+      expect(capAdmin.canDispose).toBe(false);
 
       const capStaf = getLetterActionCapabilities(sampleSuratMasuk, stafTu);
       expect(capStaf.canDispose).toBe(false);
@@ -151,15 +149,15 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   });
 
   describe('4. Pengesahan TTE BSrE', () => {
-    it('BISA untuk Pejabat Struktural & Super Admin (Otoritas Penuh)', () => {
+    it('BISA untuk Pejabat Struktural (Eksklusif Penandatangan BSSN)', () => {
       const capPejabat = getLetterActionCapabilities(sampleSuratKeluarSiapTte, pejabatStruktural);
       expect(capPejabat.canSign).toBe(true);
-
-      const capAdmin = getLetterActionCapabilities(sampleSuratKeluarSiapTte, superAdmin);
-      expect(capAdmin.canSign).toBe(true);
     });
 
-    it('DIHAPUS TOTAL DARI DOM untuk Staf TU & Dosen Fungsional (Terkunci)', () => {
+    it('DIHAPUS TOTAL DARI DOM untuk Super Admin, Staf TU & Dosen Fungsional (Terkunci)', () => {
+      const capAdmin = getLetterActionCapabilities(sampleSuratKeluarSiapTte, superAdmin);
+      expect(capAdmin.canSign).toBe(false);
+
       const capStaf = getLetterActionCapabilities(sampleSuratKeluarSiapTte, stafTu);
       expect(capStaf.canSign).toBe(false);
 

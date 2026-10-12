@@ -20,59 +20,16 @@ import {
   computeUserCountPerRole,
   RBAC_CHANGE_EVENT,
   DEFAULT_CANONICAL_ROLES,
-  getPermissionLabel
+  getPermissionLabel,
+  AVAILABLE_PERMISSIONS_CATALOG,
+  isSlugActive,
+  toggleSlugWithAlias
 } from '../../utils/rbacSyncService';
 
 /**
  * 5 Role Standar SILOKA Sesuai Spesifikasi:
  */
 export const INITIAL_ROLES_DATA = DEFAULT_CANONICAL_ROLES;
-
-// Opsi Pilihan Hak Akses untuk Modal Buat & Edit Role
-const AVAILABLE_PERMISSIONS_CATALOG = [
-  {
-    category: 'Sistem & Administrasi',
-    items: [
-      { slug: 'admin.access', name: 'Akses Portal Administrasi' },
-      { slug: 'dashboard.view', name: 'Melihat Ringkasan Dashboard' },
-      { slug: 'role.manage', name: 'Mengelola Peran & Hak Akses' },
-      { slug: 'user.impersonate', name: 'Akses Tampilan Pengguna Lain' },
-      { slug: 'unit.manage', name: 'Pengelolaan Unit Kerja' },
-      { slug: 'audit.view', name: 'Melihat Riwayat Perubahan Sistem' }
-    ]
-  },
-  {
-    category: 'Tata Naskah Dinas & Drafting',
-    items: [
-      { slug: 'naskah.create_draft', name: 'Menyusun Konsep Surat (Draf)' },
-      { slug: 'naskah.create_mandiri', name: 'Menerbitkan Naskah Mandiri' },
-      { slug: 'naskah.verify_paraf', name: 'Paraf Digital Berjenjang' },
-      { slug: 'naskah.tte_sign', name: 'Pengesahan Tanda Tangan TTE BSrE' },
-      { slug: 'surat_keluar.numbering', name: 'Penomoran Otomatis Naskah Keluar' },
-      { slug: 'draft.return_koreksi', name: 'Mengembalikan Draf untuk Revisi' }
-    ]
-  },
-  {
-    category: 'E-Disposisi & Agenda',
-    items: [
-      { slug: 'surat_masuk.register', name: 'Registrasi Agenda Surat Masuk' },
-      { slug: 'disposisi.create', name: 'Menerbitkan Arahan Disposisi' },
-      { slug: 'disposisi.forward', name: 'Meneruskan Instruksi Disposisi' },
-      { slug: 'disposisi.read_action', name: 'Melihat & Melaksanakan Disposisi' },
-      { slug: 'agenda.manage', name: 'Kelola Buku Agenda Universitas' },
-      { slug: 'ekspedisi.manage', name: 'Kelola Tanda Terima Ekspedisi Fisik' }
-    ]
-  },
-  {
-    category: 'Kearsipan & Klasifikasi JRA/SKKAAD',
-    items: [
-      { slug: 'arsip.view_biasa', name: 'Membuka Arsip Biasa / Terbuka' },
-      { slug: 'arsip.view_rahasia', name: 'Akses Surat Rahasia (R / SR)' },
-      { slug: 'arsip.jra_manage', name: 'Jadwal Retensi & Pemusnahan Arsip' },
-      { slug: 'klasifikasi.manage', name: 'Master Kode Klasifikasi SK 2803' }
-    ]
-  }
-];
 
 /**
  * Resolusi 4 Chip Wewenang Kunci Persuratan untuk setiap kartu peran
@@ -82,10 +39,10 @@ const getRoleCoreActionChips = (role) => {
 
   if (slug === 'super_admin') {
     return [
-      { id: 'reg', label: 'Registrasi Surat Masuk', allowed: true },
-      { id: 'draft', label: '23 Template Dinas', allowed: true },
-      { id: 'disp', label: 'E-Disposisi', allowed: true },
-      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: true }
+      { id: 'reg', label: 'Registrasi Surat Masuk', allowed: false },
+      { id: 'draft', label: '23 Template Dinas', allowed: false },
+      { id: 'disp', label: 'E-Disposisi', allowed: false },
+      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: false }
     ];
   }
 
@@ -197,15 +154,10 @@ export const RoleManagementView = ({
 
   // Toggle Slug di Modal Edit
   const handleToggleEditSlug = (slug) => {
-    setEditFormData((prev) => {
-      const exists = prev.selectedSlugs.includes(slug);
-      return {
-        ...prev,
-        selectedSlugs: exists
-          ? prev.selectedSlugs.filter((s) => s !== slug)
-          : [...prev.selectedSlugs, slug]
-      };
-    });
+    setEditFormData((prev) => ({
+      ...prev,
+      selectedSlugs: toggleSlugWithAlias(prev.selectedSlugs, slug)
+    }));
   };
 
   // Simpan Perubahan Edit Role
@@ -234,15 +186,10 @@ export const RoleManagementView = ({
 
   // Toggle Slug di Modal Buat Role Baru
   const handleToggleNewRoleSlug = (slug) => {
-    setNewRoleData((prev) => {
-      const exists = prev.selectedSlugs.includes(slug);
-      return {
-        ...prev,
-        selectedSlugs: exists
-          ? prev.selectedSlugs.filter((s) => s !== slug)
-          : [...prev.selectedSlugs, slug]
-      };
-    });
+    setNewRoleData((prev) => ({
+      ...prev,
+      selectedSlugs: toggleSlugWithAlias(prev.selectedSlugs, slug)
+    }));
   };
 
   // Simpan Role Baru
@@ -502,7 +449,10 @@ export const RoleManagementView = ({
                     Daftar Hak Akses &amp; Wewenang
                   </h4>
                   <span className="text-[11px] font-semibold text-unsil-green-800 bg-unsil-green-50 px-2 py-0.5 rounded-full">
-                    {editFormData.selectedSlugs.length} Dipilih
+                    {AVAILABLE_PERMISSIONS_CATALOG.reduce(
+                      (acc, cat) => acc + cat.items.filter((item) => isSlugActive(editFormData.selectedSlugs, item.slug)).length,
+                      0
+                    )} Dipilih
                   </span>
                 </div>
 
@@ -513,19 +463,33 @@ export const RoleManagementView = ({
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {catGroup.items.map((item) => {
-                        const isChecked = editFormData.selectedSlugs.includes(item.slug);
+                        const isChecked = isSlugActive(editFormData.selectedSlugs, item.slug);
                         
+                        // Restriksi Regulasi (Pertor UNSIL No. 3/2023): Super Admin terkunci dari 4 aksi operasional kedinasan
+                        const isSuperAdminRestricted =
+                          editingRole?.slug === 'super_admin' &&
+                          [
+                            'naskah.tte',
+                            'naskah.tte_sign',
+                            'disposisi.create',
+                            'surat_masuk.register',
+                            'naskah.draft',
+                            'naskah.create_draft'
+                          ].includes(item.slug);
+
                         // Restriksi Keamanan (SKKAAD): arsip.view_rahasia terkunci kecuali untuk pimpinan / super admin
                         const isSecretRestricted =
                           item.slug === 'arsip.view_rahasia' &&
-                          editingRole.slug !== 'pimpinan' &&
-                          editingRole.slug !== 'super_admin';
+                          editingRole?.slug !== 'pimpinan' &&
+                          editingRole?.slug !== 'super_admin';
+
+                        const isDisabled = isSuperAdminRestricted || isSecretRestricted;
 
                         return (
                           <label
                             key={item.slug}
                             className={`flex items-start gap-2.5 p-2 rounded-lg border transition ${
-                              isSecretRestricted
+                              isDisabled
                                 ? 'bg-slate-50 border-slate-200 opacity-60 cursor-not-allowed'
                                 : isChecked
                                 ? 'bg-emerald-50/50 border-emerald-300 cursor-pointer'
@@ -534,15 +498,22 @@ export const RoleManagementView = ({
                           >
                             <input
                               type="checkbox"
-                              checked={isChecked}
-                              disabled={isSecretRestricted}
+                              checked={!isSuperAdminRestricted && isChecked}
+                              disabled={isDisabled}
                               onChange={() => handleToggleEditSlug(item.slug)}
                               className="w-3.5 h-3.5 mt-0.5 rounded border-slate-300 text-unsil-green-800 focus:ring-unsil-green-700"
                             />
                             <div className="min-w-0 flex-1">
-                              <span className="font-medium text-slate-800 block text-[11px]">
-                                {item.name}
-                              </span>
+                              <div className="flex items-center justify-between gap-1">
+                                <span className="font-medium text-slate-800 block text-[11px]">
+                                  {item.name}
+                                </span>
+                                {isSuperAdminRestricted && (
+                                  <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[9px] font-semibold bg-slate-200 text-slate-600 shrink-0">
+                                    Terkunci Regulasi
+                                  </span>
+                                )}
+                              </div>
                             </div>
                             {isSecretRestricted && (
                               <Lock className="w-3 h-3 text-slate-400 shrink-0 mt-0.5" />
@@ -658,7 +629,10 @@ export const RoleManagementView = ({
                     Pilih Hak Akses &amp; Wewenang
                   </h4>
                   <span className="text-[11px] font-semibold text-unsil-green-800 bg-unsil-green-50 px-2 py-0.5 rounded-full">
-                    {newRoleData.selectedSlugs.length} Dipilih
+                    {AVAILABLE_PERMISSIONS_CATALOG.reduce(
+                      (acc, cat) => acc + cat.items.filter((item) => isSlugActive(newRoleData.selectedSlugs, item.slug)).length,
+                      0
+                    )} Dipilih
                   </span>
                 </div>
 
@@ -669,7 +643,7 @@ export const RoleManagementView = ({
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {catGroup.items.map((item) => {
-                        const isChecked = newRoleData.selectedSlugs.includes(item.slug);
+                        const isChecked = isSlugActive(newRoleData.selectedSlugs, item.slug);
                         return (
                           <label
                             key={item.slug}

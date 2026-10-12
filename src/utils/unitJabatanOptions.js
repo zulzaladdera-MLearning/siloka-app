@@ -7,6 +7,182 @@
 import unitKerjaList from '../data/unitKerja.json' with { type: 'json' };
 
 /**
+ * Peta Jurusan Default per Fakultas di Lingkungan UNSIL
+ */
+export const DEFAULT_FAKULTAS_JURUSAN_MAP = {
+  // 1. FKIP (UN58.10)
+  'UN58.10': [
+    { id: 'jur-penmas', kode: 'PENMAS', nama: 'Pendidikan Masyarakat' },
+    { id: 'jur-pbsi', kode: 'PBSI', nama: 'Pendidikan Bahasa Indonesia' },
+    { id: 'jur-pbi', kode: 'PBI', nama: 'Pendidikan Bahasa Inggris' },
+    { id: 'jur-pmtk', kode: 'PMTK', nama: 'Pendidikan Matematika' },
+    { id: 'jur-pbio', kode: 'PBIO', nama: 'Pendidikan Biologi' },
+    { id: 'jur-peko', kode: 'PEKO', nama: 'Pendidikan Ekonomi' },
+    { id: 'jur-pgeo', kode: 'PGEO', nama: 'Pendidikan Geografi' },
+    { id: 'jur-penjas', kode: 'PENJAS', nama: 'Pendidikan Jasmani' },
+    { id: 'jur-psej', kode: 'PSEJ', nama: 'Pendidikan Sejarah' },
+    { id: 'jur-pfis', kode: 'PFIS', nama: 'Pendidikan Fisika' },
+    { id: 'jur-ppg', kode: 'PPG', nama: 'Pendidikan Profesi Guru' },
+    { id: 'jur-pko', kode: 'PKO', nama: 'Pendidikan Kepelatihan Olahraga' },
+    { id: 'jur-psp', kode: 'PSP', nama: 'Pendidikan Seni Pertunjukan' }
+  ],
+  FKIP: [
+    { id: 'jur-penmas', kode: 'PENMAS', nama: 'Pendidikan Masyarakat' },
+    { id: 'jur-pbsi', kode: 'PBSI', nama: 'Pendidikan Bahasa Indonesia' },
+    { id: 'jur-pbi', kode: 'PBI', nama: 'Pendidikan Bahasa Inggris' },
+    { id: 'jur-pmtk', kode: 'PMTK', nama: 'Pendidikan Matematika' },
+    { id: 'jur-pbio', kode: 'PBIO', nama: 'Pendidikan Biologi' },
+    { id: 'jur-peko', kode: 'PEKO', nama: 'Pendidikan Ekonomi' },
+    { id: 'jur-pgeo', kode: 'PGEO', nama: 'Pendidikan Geografi' },
+    { id: 'jur-penjas', kode: 'PENJAS', nama: 'Pendidikan Jasmani' },
+    { id: 'jur-psej', kode: 'PSEJ', nama: 'Pendidikan Sejarah' },
+    { id: 'jur-pfis', kode: 'PFIS', nama: 'Pendidikan Fisika' },
+    { id: 'jur-ppg', kode: 'PPG', nama: 'Pendidikan Profesi Guru' },
+    { id: 'jur-pko', kode: 'PKO', nama: 'Pendidikan Kepelatihan Olahraga' },
+    { id: 'jur-psp', kode: 'PSP', nama: 'Pendidikan Seni Pertunjukan' }
+  ],
+  // 2. FEB (UN58.11)
+  'UN58.11': [
+    { id: 'jur-ep', kode: 'EP', nama: 'Ekonomi Pembangunan' },
+    { id: 'jur-mnj', kode: 'MNJ', nama: 'Manajemen' },
+    { id: 'jur-akt', kode: 'AKT', nama: 'Akuntansi' },
+    { id: 'jur-pkd3', kode: 'PK_D3', nama: 'Perbankan dan Keuangan (D3)' },
+    { id: 'jur-pkd4', kode: 'PKD_D4', nama: 'Perbankan dan Keuangan Digital (D4)' }
+  ],
+  FEB: [
+    { id: 'jur-ep', kode: 'EP', nama: 'Ekonomi Pembangunan' },
+    { id: 'jur-mnj', kode: 'MNJ', nama: 'Manajemen' },
+    { id: 'jur-akt', kode: 'AKT', nama: 'Akuntansi' },
+    { id: 'jur-pkd3', kode: 'PK_D3', nama: 'Perbankan dan Keuangan (D3)' },
+    { id: 'jur-pkd4', kode: 'PKD_D4', nama: 'Perbankan dan Keuangan Digital (D4)' }
+  ],
+  // 3. FP (UN58.12)
+  'UN58.12': [
+    { id: 'jur-agrotek', kode: 'AGROTEK', nama: 'Agroteknologi' },
+    { id: 'jur-agribisnis', kode: 'AGRIBISNIS', nama: 'Agribisnis' },
+    { id: 'jur-tphp', kode: 'TPHP', nama: 'Teknologi Pangan dan Hasil Pertanian' }
+  ],
+  FP: [
+    { id: 'jur-agrotek', kode: 'AGROTEK', nama: 'Agroteknologi' },
+    { id: 'jur-agribisnis', kode: 'AGRIBISNIS', nama: 'Agribisnis' },
+    { id: 'jur-tphp', kode: 'TPHP', nama: 'Teknologi Pangan dan Hasil Pertanian' }
+  ],
+  // 4. FT (UN58.13)
+  'UN58.13': [
+    { id: 'jur-sipil', kode: 'SIPIL', nama: 'Teknik Sipil' },
+    { id: 'jur-elektro', kode: 'ELEKTRO', nama: 'Teknik Elektro' },
+    { id: 'jur-if', kode: 'INFORMATIKA', nama: 'Informatika' },
+    { id: 'jur-si', kode: 'SI', nama: 'Sistem Informasi' },
+    { id: 'jur-data', kode: 'SAINS_DATA', nama: 'Sains Data' }
+  ],
+  FT: [
+    { id: 'jur-sipil', kode: 'SIPIL', nama: 'Teknik Sipil' },
+    { id: 'jur-elektro', kode: 'ELEKTRO', nama: 'Teknik Elektro' },
+    { id: 'jur-if', kode: 'INFORMATIKA', nama: 'Informatika' },
+    { id: 'jur-si', kode: 'SI', nama: 'Sistem Informasi' },
+    { id: 'jur-data', kode: 'SAINS_DATA', nama: 'Sains Data' }
+  ],
+  // 5. FISIP (UN58.14)
+  'UN58.14': [
+    { id: 'jur-ilpol', kode: 'ILPOL', nama: 'Ilmu Politik' },
+    { id: 'jur-hbisnis', kode: 'HUKUM_BISNIS', nama: 'Hukum Bisnis' }
+  ],
+  FISIP: [
+    { id: 'jur-ilpol', kode: 'ILPOL', nama: 'Ilmu Politik' },
+    { id: 'jur-hbisnis', kode: 'HUKUM_BISNIS', nama: 'Hukum Bisnis' }
+  ],
+  // 6. FIK (UN58.15)
+  'UN58.15': [
+    { id: 'jur-kesmas', kode: 'KESMAS', nama: 'Kesehatan Masyarakat' },
+    { id: 'jur-gizi', kode: 'GIZI', nama: 'Gizi' }
+  ],
+  FIK: [
+    { id: 'jur-kesmas', kode: 'KESMAS', nama: 'Kesehatan Masyarakat' },
+    { id: 'jur-gizi', kode: 'GIZI', nama: 'Gizi' }
+  ],
+  // 7. FAI (UN58.16)
+  'UN58.16': [
+    { id: 'jur-eksyar', kode: 'EKSYAR', nama: 'Ekonomi Syariah' },
+    { id: 'jur-mmh', kode: 'MMH', nama: 'Manajemen Mutu Halal' }
+  ],
+  FAI: [
+    { id: 'jur-eksyar', kode: 'EKSYAR', nama: 'Ekonomi Syariah' },
+    { id: 'jur-mmh', kode: 'MMH', nama: 'Manajemen Mutu Halal' }
+  ],
+  // 8. Pascasarjana (UN58.17)
+  'UN58.17': [
+    { id: 'jur-pasca-mm', kode: 'MM', nama: 'Magister Manajemen' },
+    { id: 'jur-pasca-mpklh', kode: 'MPKLH', nama: 'Magister Pendidikan Kependudukan dan Lingkungan Hidup' },
+    { id: 'jur-pasca-mpmtk', kode: 'MPMTK', nama: 'Magister Pendidikan Matematika' },
+    { id: 'jur-pasca-magro', kode: 'MAGRO', nama: 'Magister Agroteknologi' },
+    { id: 'jur-pasca-mip', kode: 'MIP', nama: 'Magister Ilmu Pertanian' }
+  ],
+  PASCA: [
+    { id: 'jur-pasca-mm', kode: 'MM', nama: 'Magister Manajemen' },
+    { id: 'jur-pasca-mpklh', kode: 'MPKLH', nama: 'Magister Pendidikan Kependudukan dan Lingkungan Hidup' },
+    { id: 'jur-pasca-mpmtk', kode: 'MPMTK', nama: 'Magister Pendidikan Matematika' },
+    { id: 'jur-pasca-magro', kode: 'MAGRO', nama: 'Magister Agroteknologi' },
+    { id: 'jur-pasca-mip', kode: 'MIP', nama: 'Magister Ilmu Pertanian' }
+  ]
+};
+
+/**
+ * Memastikan unit kerja fakultas memiliki array jurusan default jika belum terisi
+ */
+export const enrichUnitsWithDefaultJurusan = (unitList = []) => {
+  if (!Array.isArray(unitList)) return [];
+  return unitList.map((unit) => {
+    if (Array.isArray(unit.jurusan) && unit.jurusan.length > 0) {
+      return unit;
+    }
+    const defaults =
+      DEFAULT_FAKULTAS_JURUSAN_MAP[unit.kode_unit] ||
+      DEFAULT_FAKULTAS_JURUSAN_MAP[unit.singkatan];
+    if (defaults && (!unit.jurusan || unit.jurusan.length === 0)) {
+      return {
+        ...unit,
+        jurusan: [...defaults]
+      };
+    }
+    return unit;
+  });
+};
+
+/**
+ * Mengambil daftar unit kerja aktif dari localStorage atau JSON bawaan
+ */
+export const getActiveUnitKerjaList = () => {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const saved = window.localStorage.getItem('siloka_unit_kerja_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return enrichUnitsWithDefaultJurusan(parsed);
+        }
+      }
+    }
+  } catch (e) {
+    // fallback
+  }
+  return enrichUnitsWithDefaultJurusan(unitKerjaList);
+};
+
+/**
+ * Mengambil daftar jurusan untuk unit kerja tertentu
+ */
+export const getJurusanByUnitCode = (unitCode = '', customUnitsList = null) => {
+  const clean = String(unitCode || '').trim().toUpperCase();
+  const list = customUnitsList || getActiveUnitKerjaList();
+  const unit = list.find((u) => u.kode_unit === clean || u.singkatan === clean);
+  if (Array.isArray(unit?.jurusan)) {
+    return unit.jurusan;
+  }
+  const fallback = DEFAULT_FAKULTAS_JURUSAN_MAP[clean];
+  return Array.isArray(fallback) ? fallback : [];
+};
+
+/**
  * Peta Referensi Jabatan Khusus per Kode Unit Kerja
  */
 const UNIT_POSITIONS_MAP = {
@@ -497,13 +673,52 @@ const UNIT_POSITIONS_MAP = {
  * @param {string} roleSlug - Slug peran ('pimpinan', 'drafter', 'admin_tu', 'verifikator', 'super_admin', 'auditor_spi')
  * @returns {Array<string>} Daftar opsi nama jabatan resmi
  */
-export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpinan') => {
-  const cleanUnit = String(unitCode || 'UN58').trim().toUpperCase();
-  const cleanRole = String(roleSlug || 'pimpinan').trim().toLowerCase();
+/**
+ * Menghasilkan opsi jabatan bawaan berdasarkan SOTK statis / jurusan jika belum ada struktur kustom
+ */
+export const getDefaultPositionsByUnitAndRole = (cleanUnit, cleanRole, activeList, unitObj) => {
+  const tipeUnit = String(unitObj?.tipe_unit || '').toUpperCase();
+  const unitName = unitObj?.nama_unit || 'Unit Terkait';
+  const unitShort = unitObj?.singkatan || '';
 
-  // 1. Super Administrator selalu memiliki opsi Super Administrator
-  if (cleanRole === 'super_admin') {
-    return ['Super Administrator', 'Administrator Sistem SILOKA'];
+  // 1. Jika unit memiliki daftar jurusan, generate jabatan berbasis jurusan dinamis
+  const jurusanList = Array.isArray(unitObj?.jurusan) && unitObj.jurusan.length > 0
+    ? unitObj.jurusan
+    : (DEFAULT_FAKULTAS_JURUSAN_MAP[cleanUnit] || DEFAULT_FAKULTAS_JURUSAN_MAP[unitShort] || []);
+
+  if (jurusanList.length > 0) {
+    if (cleanRole === 'drafter') {
+      const positions = [
+        `Dosen Fungsional (Tridharma) ${unitShort || unitName}`.trim(),
+        ...jurusanList.map((j) => `Dosen Jurusan ${j.nama}`),
+        `Dosen Pengajar / Peneliti ${unitShort || unitName}`.trim(),
+        `Sekretaris Jurusan ${unitShort || unitName}`.trim()
+      ];
+      return Array.from(new Set(positions));
+    }
+
+    if (cleanRole === 'pimpinan') {
+      const positions = [
+        `Dekan ${unitName}`,
+        `Wakil Dekan Bidang Akademik dan Kemahasiswaan ${unitShort}`.trim(),
+        `Wakil Dekan Bidang Keuangan dan Umum ${unitShort}`.trim(),
+        ...jurusanList.map((j) => `Ketua Jurusan ${j.nama}`),
+        ...jurusanList.map((j) => `Sekretaris Jurusan ${j.nama}`),
+        `Koordinator Program Studi ${unitShort}`.trim()
+      ];
+      return Array.from(new Set(positions));
+    }
+
+    if (cleanRole === 'verifikator') {
+      const positions = [
+        `Wakil Dekan Bidang Akademik dan Kemahasiswaan ${unitShort}`.trim(),
+        `Wakil Dekan Bidang Keuangan dan Umum ${unitShort}`.trim(),
+        ...jurusanList.map((j) => `Ketua Jurusan ${j.nama}`),
+        `Kepala Bagian Tata Usaha ${unitShort}`.trim(),
+        `Verifikator Naskah Dinas ${unitShort}`.trim()
+      ];
+      return Array.from(new Set(positions));
+    }
   }
 
   // 2. Ambil referensi dari peta unit spesifik jika tersedia
@@ -520,10 +735,6 @@ export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpina
   }
 
   // 3. Fallback cerdas berdasarkan tipe unit jika kode unit belum terdaftar di peta spesifik
-  const unitObj = unitKerjaList.find((u) => u.kode_unit === cleanUnit);
-  const tipeUnit = String(unitObj?.tipe_unit || '').toUpperCase();
-  const unitName = unitObj?.nama_unit || 'Unit Terkait';
-
   if (cleanRole === 'pimpinan') {
     if (tipeUnit === 'FAKULTAS') {
       return [
@@ -583,12 +794,161 @@ export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpina
 };
 
 /**
+ * Menentukan lingkup jabatan (apakah 'FAKULTAS' atau nama Jurusan tertentu)
+ * berdasarkan atribut jabatan atau pencocokan nama jabatan dengan daftar jurusan.
+ *
+ * @param {object|string} itemOrName - Objek jabatan { nama_jabatan, jurusan } atau string nama jabatan
+ * @param {Array<object|string>} jurusanList - Daftar jurusan pada unit kerja
+ * @returns {string} 'FAKULTAS' atau nama jurusan yang cocok
+ */
+export const resolveJabatanScope = (itemOrName, jurusanList = []) => {
+  if (!itemOrName) return 'FAKULTAS';
+
+  if (typeof itemOrName === 'object' && itemOrName.jurusan) {
+    const jur = String(itemOrName.jurusan).trim();
+    if (jur && jur.toUpperCase() !== 'FAKULTAS' && jur.toUpperCase() !== 'ALL' && jur.toUpperCase() !== 'SEMUA') {
+      return jur;
+    }
+    if (jur.toUpperCase() === 'FAKULTAS') {
+      return 'FAKULTAS';
+    }
+  }
+
+  const name = typeof itemOrName === 'object' ? (itemOrName.nama_jabatan || '') : String(itemOrName);
+  const cleanName = name.trim().toLowerCase();
+
+  if (Array.isArray(jurusanList) && jurusanList.length > 0) {
+    for (const j of jurusanList) {
+      const jName = typeof j === 'string' ? j : (j.nama || '');
+      if (jName && cleanName.includes(jName.toLowerCase())) {
+        return jName;
+      }
+    }
+  }
+
+  return 'FAKULTAS';
+};
+
+/**
+ * Menghasilkan struktur organisasi lengkap standar SOTK untuk satu unit kerja
+ */
+export const getDefaultStrukturOrganisasi = (unitCode = 'UN58', customUnitsList = null) => {
+  const clean = String(unitCode || 'UN58').trim().toUpperCase();
+  const list = customUnitsList || getActiveUnitKerjaList();
+  const unit =
+    list.find((u) => u.kode_unit === clean || u.singkatan === clean) ||
+    unitKerjaList.find((u) => u.kode_unit === clean || u.singkatan === clean);
+
+  const roles = [
+    { key: 'pimpinan', level: 1 },
+    { key: 'verifikator', level: 2 },
+    { key: 'admin_tu', level: 3 },
+    { key: 'drafter', level: 4 }
+  ];
+
+  const jurusanList = Array.isArray(unit?.jurusan) && unit.jurusan.length > 0
+    ? unit.jurusan
+    : (DEFAULT_FAKULTAS_JURUSAN_MAP[clean] || DEFAULT_FAKULTAS_JURUSAN_MAP[unit?.singkatan] || []);
+
+  const struktur = [];
+  roles.forEach(({ key, level }) => {
+    const posList = getDefaultPositionsByUnitAndRole(clean, key, list, unit);
+    posList.forEach((pos, idx) => {
+      const scope = resolveJabatanScope(pos, jurusanList);
+      struktur.push({
+        id: `sotk-${key}-${clean.replace(/[^a-zA-Z0-9]/g, '')}-${idx + 1}`,
+        nama_jabatan: pos,
+        kategori_peran: key,
+        level_hirarki: level,
+        jurusan: scope
+      });
+    });
+  });
+
+  return struktur;
+};
+
+/**
+ * Mengambil struktur organisasi aktif milik unit kerja (kustom atau fallback SOTK)
+ */
+export const getStrukturOrganisasiByUnit = (unitCode = '', customUnitsList = null) => {
+  const clean = String(unitCode || '').trim().toUpperCase();
+  const list = customUnitsList || getActiveUnitKerjaList();
+  const unit = list.find((u) => u.kode_unit === clean || u.singkatan === clean);
+  if (Array.isArray(unit?.struktur_organisasi)) {
+    return unit.struktur_organisasi;
+  }
+  return getDefaultStrukturOrganisasi(clean, list);
+};
+
+export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpinan', customUnitsList = null, targetJurusan = null) => {
+  const cleanUnit = String(unitCode || 'UN58').trim().toUpperCase();
+  const cleanRole = String(roleSlug || 'pimpinan').trim().toLowerCase();
+
+  // 1. Super Administrator selalu memiliki opsi Super Administrator
+  if (cleanRole === 'super_admin') {
+    return ['Super Administrator', 'Administrator Sistem SILOKA'];
+  }
+
+  // 2. Ambil referensi objek unit aktif
+  const activeList = customUnitsList || getActiveUnitKerjaList();
+  const unitObj =
+    activeList.find((u) => u.kode_unit === cleanUnit || u.singkatan === cleanUnit) ||
+    unitKerjaList.find((u) => u.kode_unit === cleanUnit || u.singkatan === cleanUnit);
+
+  // 3. Utamakan struktur organisasi kustom yang diatur melalui Antarmuka Manajemen Unit Kerja
+  // Jika properti struktur_organisasi sudah ada pada unit (telah dikelola oleh admin),
+  // patuhi data tersebut sepenuhnya. Jabatan yang telah dihapus tidak boleh dibangkitkan kembali ke default.
+  if (Array.isArray(unitObj?.struktur_organisasi)) {
+    const matched = unitObj.struktur_organisasi
+      .filter((s) => s.kategori_peran === cleanRole || (cleanRole === 'dosen' && s.kategori_peran === 'drafter'));
+
+    if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'FAKULTAS' && targetJurusan !== 'ALL') {
+      const cleanTarget = String(targetJurusan).trim().toLowerCase();
+      const specific = matched.filter((s) => {
+        const itemJur = (s.jurusan || '').toLowerCase();
+        const itemName = (s.nama_jabatan || '').toLowerCase();
+        return itemJur === cleanTarget || itemName.includes(cleanTarget);
+      });
+      const rest = matched.filter((s) => {
+        const itemJur = (s.jurusan || '').toLowerCase();
+        const itemName = (s.nama_jabatan || '').toLowerCase();
+        return itemJur !== cleanTarget && !itemName.includes(cleanTarget);
+      });
+      const ordered = [...specific, ...rest]
+        .map((s) => s.nama_jabatan?.trim())
+        .filter(Boolean);
+      return Array.from(new Set(ordered));
+    }
+
+    const allPositions = matched
+      .map((s) => s.nama_jabatan?.trim())
+      .filter(Boolean);
+
+    return Array.from(new Set(allPositions));
+  }
+
+  // 4. Fallback ke generator jabatan berbasis SOTK / Jurusan bawaan hanya jika unit belum pernah dikonfigurasi
+  const defaultPos = getDefaultPositionsByUnitAndRole(cleanUnit, cleanRole, activeList, unitObj);
+  if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'FAKULTAS' && targetJurusan !== 'ALL') {
+    const cleanTarget = String(targetJurusan).trim().toLowerCase();
+    const specific = defaultPos.filter((p) => p.toLowerCase().includes(cleanTarget));
+    const rest = defaultPos.filter((p) => !p.toLowerCase().includes(cleanTarget));
+    return Array.from(new Set([...specific, ...rest]));
+  }
+
+  return defaultPos;
+};
+
+/**
  * Mendapatkan data unit kerja berdasarkan kode unit
  * @param {string} unitCode
+ * @param {Array} [customUnitsList]
  * @returns {object|null}
  */
-export const getUnitByCode = (unitCode) => {
+export const getUnitByCode = (unitCode, customUnitsList = null) => {
   const clean = String(unitCode || '').trim().toUpperCase();
-  return unitKerjaList.find((u) => u.kode_unit === clean) || null;
+  const list = customUnitsList || getActiveUnitKerjaList();
+  return list.find((u) => u.kode_unit === clean || u.singkatan === clean) || null;
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Search,
   Bell,
@@ -13,15 +13,28 @@ import {
 } from 'lucide-react';
 import { isDisposisiAuthorizedOfficial } from '../../utils/disposisiStandards';
 import { canUserRegisterIncomingLetter } from '../../utils/letterActionPolicy';
+import { isSuperAdminUser } from '../../utils/authGuards';
+import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
 
 /**
  * Helper konfigurasi label dan aksi tombol utama navbar berdasarkan konteks tab aktif dan hak akses pengguna
  */
 export const getNavbarActionConfig = (activeTab, user = null) => {
+  // Sesuai Tata Naskah Dinas UNSIL, Super Admin adalah administrator sistem,
+  // bukan konseptor naskah atau petugas loket penerimaan registrasi TU.
+  if (isSuperAdminUser(user)) {
+    return {
+      isSuratMasukTab: activeTab === 'surat-masuk',
+      isActionVisible: false,
+      createButtonLabel: '',
+      createButtonTitle: ''
+    };
+  }
+
   const isSuratMasukTab = activeTab === 'surat-masuk';
   const isActionVisible = isSuratMasukTab
-    ? (user ? canUserRegisterIncomingLetter(user) : true)
-    : true;
+    ? (user ? hasUserPermission(user, 'surat_masuk.register') : true)
+    : (user ? (hasUserPermission(user, 'naskah.draft') || hasUserPermission(user, 'naskah.create_mandiri')) : true);
 
   return {
     isSuratMasukTab,
@@ -49,6 +62,13 @@ export const Navbar = ({
 }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [, setRbacVersion] = useState(0);
+
+  useEffect(() => {
+    const handleRbac = () => setRbacVersion((v) => v + 1);
+    window.addEventListener(RBAC_CHANGE_EVENT, handleRbac);
+    return () => window.removeEventListener(RBAC_CHANGE_EVENT, handleRbac);
+  }, []);
 
   const handleToggle = toggleSidebar || onToggleMobileSidebar;
 
@@ -71,7 +91,7 @@ export const Navbar = ({
           list.push({
             id: `tte-${l.id}`,
             letter: l,
-            title: l.tujuan_aksi === 'TTD' ? '✍️ Permohonan TTE Menunggu TTD' : 'Antrean Review & TTE Pimpinan',
+            title: l.tujuan_aksi === 'TTD' ? 'Permohonan TTE Menunggu TTD' : 'Antrean Review & TTE Pimpinan',
             desc: `${l.nomorSurat}: ${l.perihal?.slice(0, 60)}...`,
             time: l.statusTimestamp || 'Baru saja',
             urgent: l.sifat === 'Amat Segera' || l.sifat === 'Segera' || l.tujuan_aksi === 'TTD'
@@ -105,7 +125,7 @@ export const Navbar = ({
           list.push({
             id: `disp-${l.id}`,
             letter: l,
-            title: `📩 E-Disposisi dari ${pemberi}`,
+            title: `E-Disposisi dari ${pemberi}`,
             desc: `${l.perihal?.slice(0, 50)}... • Arahan: ${l.disposisi.actions?.join(', ') || l.disposisi.instruksi || 'Tindak lanjuti'}`,
             time: l.disposisi.batasWaktu ? `Batas: ${l.disposisi.batasWaktu}` : 'Hari ini',
             urgent: l.disposisi.sifatInstruksi === 'Sangat Segera' || l.disposisi.sifatInstruksi === 'Segera' || l.sifat === 'Segera'

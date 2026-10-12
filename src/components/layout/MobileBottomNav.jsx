@@ -1,55 +1,151 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   LayoutDashboard,
   SendHorizontal,
   FileSignature,
   Inbox,
+  Send,
+  Settings,
   Menu
 } from 'lucide-react';
+import { isSuperAdminUser } from '../../utils/authGuards';
+import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
 
-export const MobileBottomNav = ({
-  activeTab,
-  setActiveTab,
-  onOpenMobileMenu,
-  unreadCounts = { disposisi: 3, tte: 5 }
+export const buildMobileNavItems = ({
+  user,
+  unreadCounts = { disposisi: 3, tte: 5 },
+  onOpenMobileMenu
 }) => {
-  const navItems = [
-    {
-      id: 'dashboard',
-      label: 'Beranda',
-      icon: LayoutDashboard,
-      badge: null
-    },
-    {
+  const isSuperAdmin = isSuperAdminUser(user);
+
+  if (isSuperAdmin) {
+    return [
+      {
+        id: 'dashboard',
+        label: 'Beranda',
+        icon: LayoutDashboard,
+        badge: null
+      },
+      {
+        id: 'surat-masuk',
+        label: 'Surat Masuk',
+        icon: Inbox,
+        badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
+        badgeColor: 'bg-yellow-400 text-slate-950 font-bold'
+      },
+      {
+        id: 'surat-keluar',
+        label: 'Surat Keluar',
+        icon: Send,
+        badge: null
+      },
+      {
+        id: 'settings',
+        label: 'Pengaturan',
+        icon: Settings,
+        badge: null
+      },
+      {
+        id: 'menu',
+        label: 'Menu',
+        icon: Menu,
+        badge: null,
+        isAction: true,
+        onClick: onOpenMobileMenu
+      }
+    ];
+  }
+
+  const items = [];
+
+  // 1. Beranda / Dashboard
+  items.push({
+    id: 'dashboard',
+    label: 'Beranda',
+    icon: LayoutDashboard,
+    badge: null
+  });
+
+  // 2. Disposisi (hanya jika memiliki hak akses)
+  const canDisposisi =
+    !isSuperAdmin &&
+    (hasUserPermission(user, 'disposisi.read') ||
+      hasUserPermission(user, 'disposisi.create') ||
+      hasUserPermission(user, 'disposisi.forward'));
+
+  if (canDisposisi) {
+    items.push({
       id: 'disposisi',
       label: 'Disposisi',
       icon: SendHorizontal,
       badge: unreadCounts.disposisi > 0 ? unreadCounts.disposisi : null,
       badgeColor: 'bg-unsil-gold-500 text-unsil-green-950'
-    },
-    {
+    });
+  }
+
+  // 3. E-Paraf & TTE (hanya jika memiliki hak akses)
+  const canParafTte =
+    !isSuperAdmin &&
+    (hasUserPermission(user, 'naskah.tte') ||
+      hasUserPermission(user, 'naskah.verify'));
+
+  if (canParafTte) {
+    items.push({
       id: 'paraf-tte',
       label: 'E-Paraf/TTE',
       icon: FileSignature,
       badge: unreadCounts.tte > 0 ? unreadCounts.tte : null,
       badgeColor: 'bg-rose-500 text-white'
-    },
-    {
-      id: 'surat-masuk',
-      label: 'Surat Masuk',
-      icon: Inbox,
-      badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
-      badgeColor: 'bg-yellow-400 text-slate-950 font-bold'
-    },
-    {
-      id: 'menu',
-      label: 'Menu',
-      icon: Menu,
-      badge: null,
-      isAction: true,
-      onClick: onOpenMobileMenu
-    }
-  ];
+    });
+  }
+
+  // 4. Surat Masuk
+  items.push({
+    id: 'surat-masuk',
+    label: 'Surat Masuk',
+    icon: Inbox,
+    badge: unreadCounts.suratMasuk > 0 ? unreadCounts.suratMasuk : null,
+    badgeColor: 'bg-yellow-400 text-slate-950 font-bold'
+  });
+
+  // 5. Surat Keluar (jika slot masih tersisa sebelum Menu)
+  if (items.length < 4) {
+    items.push({
+      id: 'surat-keluar',
+      label: 'Surat Keluar',
+      icon: Send,
+      badge: null
+    });
+  }
+
+  // 6. Menu Drawer (selalu di ujung kanan)
+  items.push({
+    id: 'menu',
+    label: 'Menu',
+    icon: Menu,
+    badge: null,
+    isAction: true,
+    onClick: onOpenMobileMenu
+  });
+
+  return items.slice(0, 5);
+};
+
+export const MobileBottomNav = ({
+  user,
+  activeTab,
+  setActiveTab,
+  onOpenMobileMenu,
+  unreadCounts = { disposisi: 3, tte: 5 }
+}) => {
+  const [, setRbacVersion] = useState(0);
+  useEffect(() => {
+    const handleRbac = () => setRbacVersion((v) => v + 1);
+    window.addEventListener(RBAC_CHANGE_EVENT, handleRbac);
+    return () => window.removeEventListener(RBAC_CHANGE_EVENT, handleRbac);
+  }, []);
+
+  const navItems = buildMobileNavItems({ user, unreadCounts, onOpenMobileMenu });
 
   return (
     <nav
