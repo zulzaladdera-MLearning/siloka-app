@@ -54,7 +54,7 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
       'Manajemen Pengguna',
       'Manajemen Unit Kerja',
       'Manajemen Peran',
-      'Manajemen Hak Akses & Izin'
+      'Hak Akses & Izin Pengguna'
     ]);
   });
 

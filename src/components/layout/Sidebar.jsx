@@ -196,7 +196,7 @@ export const buildSidebarMenuItems = ({
               },
               {
                 id: 'manajemen-permission',
-                label: 'Manajemen Hak Akses & Izin',
+                label: 'Hak Akses & Izin Pengguna',
                 icon: KeyRound,
               },
             ],
@@ -436,6 +436,7 @@ export const Sidebar = ({
                             <a
                               key={child.id}
                               href={getPathFromTab(child.id)}
+                              title={child.label}
                               onClick={(e) => {
                                 if (!e.ctrlKey && !e.metaKey && !e.shiftKey) {
                                   e.preventDefault();
