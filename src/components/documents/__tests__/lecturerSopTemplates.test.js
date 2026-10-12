@@ -7,7 +7,8 @@ import {
   getLecturerTemplateSopMetadata,
   LECTURER_MAIN_TEMPLATE_IDS,
   LECTURER_CONDITIONAL_TEMPLATE_IDS,
-  LECTURER_ALLOWED_TEMPLATE_IDS
+  LECTURER_ALLOWED_TEMPLATE_IDS,
+  LECTURER_TRIDHARMA_6_TEMPLATE_IDS
 } from '../../../config/documentFormats';
 import { fetchAvailableLetterTypes } from '../../../services/letterService';
 import usersData from '../../../data/users.json';
@@ -23,32 +24,28 @@ describe('SOP Template Surat untuk Role Dosen Biasa (Tanpa Jabatan Struktural / 
     expect(normalizeUserRole(dosenFkip)).toBe('DOSEN_NON_JABATAN');
   });
 
-  it('menyediakan 8 Template Utama (4 Mandiri + 4 Konsep Pimpinan) dan 2 Template Kondisional sesuai Peraturan Rektor No. 3/2023', () => {
+  it('menyediakan tepat 6 Template Tridharma sesuai Matriks Hak Akses & Peraturan Rektor No. 3/2023', () => {
     const templates = getAuthorizedTemplatesWithNumbering(dosenFt);
     const ids = templates.map((t) => t.id);
 
-    // 1. Kategori Template Mandiri (Ditandatangani Langsung oleh Dosen): Nota Dinas, Laporan, Telaah Staf, Surat Pernyataan
-    expect(ids).toContain('nd');
-    expect(ids).toContain('lap');
-    expect(ids).toContain('ts');
-    expect(ids).toContain('sper');
-
-    // + 2 Template Kondisional (Sesuai Penugasan/Kejadian): Notula, Berita Acara
-    expect(ids).toContain('notula');
-    expect(ids).toContain('ba');
-
-    // 2. Kategori Template Konsep / Drafting (Diajukan untuk Ditandatangani Pimpinan): Surat Tugas (Lembaran & Kolom), Surat Dinas, Surat Keterangan, Surat Pengantar
+    // 6 Template Tridharma & Internal Dosen:
+    // 1. ST (Lembar)
     expect(ids).toContain('st_lembar');
+    // 2. ST (Kolom)
     expect(ids).toContain('st_kolom');
-    expect(ids).toContain('sd');
+    // 3. Nota Dinas
+    expect(ids).toContain('nd');
+    // 4. Surat Keterangan
     expect(ids).toContain('sket');
-    expect(ids).toContain('speng');
+    // 5. Laporan
+    expect(ids).toContain('lap');
+    // 6. Telaah Staf
+    expect(ids).toContain('ts');
 
-    // Pastikan tepat hanya daftar yang diizinkan (9 jenis naskah utama = 4 Mandiri + 1 Kondisional Notula + 1 Kondisional BA + 4 Konsep dengan 2 varian ST = 11 format id)
-    expect(ids).toEqual(LECTURER_ALLOWED_TEMPLATE_IDS);
-    expect(LECTURER_MAIN_TEMPLATE_IDS.length).toBe(9);
-    expect(LECTURER_CONDITIONAL_TEMPLATE_IDS).toEqual(['ba', 'notula']);
-    expect(getDefaultTemplateForUser(dosenFt)).toBe('nd');
+    // Pastikan tepat hanya 6 daftar yang diizinkan
+    expect(ids).toEqual([...LECTURER_TRIDHARMA_6_TEMPLATE_IDS]);
+    expect(ids.length).toBe(6);
+    expect(getDefaultTemplateForUser(dosenFt)).toBe('st_lembar');
   });
 
   it('memblokir naskah arahan/keputusan pimpinan murni (SK, SE, Surat Perintah, POS, MoU, PKS, Pengumuman, Surat Kuasa) bagi Dosen Biasa', () => {
@@ -75,24 +72,19 @@ describe('SOP Template Surat untuk Role Dosen Biasa (Tanpa Jabatan Struktural / 
     expect(stMeta.pasal).toBe('Pasal 9');
   });
 
-  it('mengembalikan 11 jenis naskah wajib (Nota Dinas s.d. Surat Pengantar) pada fetchAvailableLetterTypes untuk Dosen Tanpa Jabatan', async () => {
+  it('mengembalikan tepat 6 jenis naskah Tridharma pada fetchAvailableLetterTypes untuk Dosen Tanpa Jabatan', async () => {
     const response = await fetchAvailableLetterTypes(dosenFt);
     expect(response.is_lecturer_sop_mode).toBe(true);
-    expect(response.types.length).toBe(11);
+    expect(response.types.length).toBe(6);
 
     const codes = response.types.map((t) => t.kode_jenis_naskah);
     expect(codes).toEqual([
-      'NOTA_DINAS',
-      'SURAT_PERNYATAAN',
-      'LAPORAN',
-      'TELAAH_STAF',
-      'BERITA_ACARA',
-      'NOTULA',
       'SURAT_TUGAS_LEMBAR',
       'SURAT_TUGAS_KOLOM',
-      'SURAT_DINAS',
+      'NOTA_DINAS',
       'SURAT_KETERANGAN',
-      'SURAT_PENGANTAR'
+      'LAPORAN',
+      'TELAAH_STAF'
     ]);
   });
 });

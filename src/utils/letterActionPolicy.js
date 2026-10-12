@@ -60,12 +60,26 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
     return false;
   }
 
-  // 3. Super Admin adalah Administrator Sistem IT, bukan pejabat pemberi disposisi
+  // 3. Super Admin diperbolehkan khusus untuk kebutuhan simulasi & pengujian sistem persuratan
   if (isSuperAdminUser(currentUser)) {
+    return true;
+  }
+
+  // 4. Staf TU dan Dosen dilarang keras menerbitkan disposisi
+  if (
+    currentUser?.role === 'STAF' ||
+    currentUser?.role === 'STAF_PERSURATAN' ||
+    currentUser?.role === 'OPERATOR_UNIT' ||
+    currentUser?.role === 'ADMIN_TU' ||
+    currentUser?.role_slug === 'admin_tu' ||
+    currentUser?.role === 'DOSEN' ||
+    currentUser?.role_slug === 'drafter' ||
+    isDosenTanpaJabatan(currentUser)
+  ) {
     return false;
   }
 
-  // 4. Hanya Pejabat Struktural / Pimpinan (33 Pejabat di Contoh 21 + Rektor) yang berwenang
+  // 5. Hanya Pejabat Struktural / Pimpinan (33 Pejabat di Contoh 21 + Rektor) yang berwenang
   return isDisposisiAuthorizedOfficial(currentUser, allUsersList);
 };
 
@@ -94,6 +108,7 @@ export const canUserRegisterIncomingLetter = (currentUser) => {
     currentUser?.is_pejabat === true ||
     currentUser?.role === 'PEJABAT' ||
     currentUser?.role === 'PIMPINAN' ||
+    currentUser?.role_slug === 'pimpinan' ||
     (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'))
   ) {
     return false;
@@ -103,6 +118,8 @@ export const canUserRegisterIncomingLetter = (currentUser) => {
   if (
     currentUser?.role === 'PENGAWAS' ||
     currentUser?.role === 'DOSEN' ||
+    currentUser?.role_slug === 'drafter' ||
+    currentUser?.role_slug === 'auditor_spi' ||
     isDosenTanpaJabatan(currentUser)
   ) {
     return false;
@@ -114,6 +131,8 @@ export const canUserRegisterIncomingLetter = (currentUser) => {
     currentUser?.role === 'STAF_PERSURATAN' ||
     currentUser?.role === 'OPERATOR_UNIT' ||
     currentUser?.role === 'OPERATOR' ||
+    currentUser?.role === 'ADMIN_TU' ||
+    currentUser?.role_slug === 'admin_tu' ||
     (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pelaksana')) ||
     (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('staf'));
 
@@ -158,44 +177,54 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
 
   const canDispose = canLetterBeDisposed(letter, currentUser);
 
-  // Super Admin adalah Administrator Sistem IT, BUKAN pejabat penandatangan tata usaha negara
+  // Matriks Kewenangan TTE BSrE:
+  // - Pejabat Struktural & Simulasi Super Admin: Berwenang
+  // - Staf TU & Dosen Fungsional: Terkunci total (dihapus dari DOM)
   const isSuperAdmin = isSuperAdminUser(currentUser);
 
+  const isDosen =
+    isDosenTanpaJabatan(currentUser) ||
+    currentUser?.role === 'DOSEN' ||
+    currentUser?.role_slug === 'drafter' ||
+    currentUser?.role_slug === 'dosen_non_jabatan';
+
+  const isStaff =
+    currentUser?.role === 'STAF' ||
+    currentUser?.role === 'STAF_PERSURATAN' ||
+    currentUser?.role === 'OPERATOR_UNIT' ||
+    currentUser?.role === 'ADMIN_TU' ||
+    currentUser?.role_slug === 'admin_tu';
+
   const isPejabatOrPimpinan =
-    !isSuperAdmin &&
+    !isDosen &&
+    !isStaff &&
     (currentUser?.role === 'PEJABAT' ||
       currentUser?.role === 'PIMPINAN' ||
+      currentUser?.role_slug === 'pimpinan' ||
       currentUser?.is_pejabat === true ||
       (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan')));
 
   const isAssignedSigner = Boolean(
-    !isSuperAdmin &&
+    !isDosen &&
+    !isStaff &&
     letter.signerId &&
     currentUser?.pejabat_id &&
     String(letter.signerId) === String(currentUser.pejabat_id)
   );
 
-  // Untuk Dosen Tanpa Jabatan (Strict Personal Isolation):
-  // Hanya berwenang membubuhkan TTE pada naskah Mandiri (Nota Dinas, Laporan, Surat Pernyataan, Telaah Staf, Notula, Berita Acara)
-  // yang dibuat oleh dirinya sendiri (creator_id = req.user.id).
-  const isPersonalMandiriSigner = Boolean(
-    isDosenTanpaJabatan(currentUser) &&
-    isLetterOwnedByUser(letter, currentUser) &&
-    isMandiriPersonalDocument(letter)
-  );
-
-  const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner || isPersonalMandiriSigner) && !isSuperAdmin;
+  const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner || isSuperAdmin) && !isDosen && !isStaff;
 
   // Tanda Tangan BSrE:
-  // - Pejabat berwenang (atau Dosen pada Naskah Mandiri miliknya)
-  // - Surat Masuk TIDAK BOLEH ditandatangani TTE internal (Pasal 74: Surat masuk hanya alur penerimaan, pencatatan, pengarahan, penyampaian)
-  // - Belum memiliki TTE sah, bukan arsip, dan bukan Draf mentah (harus sudah berstatus Diparaf atau DRAFT_MENUNGGU_PARAF atau Permohonan TTD)
+  // - Pejabat berwenang & Simulasi Super Admin
+  // - Staf TU & Dosen Fungsional DILARANG KERAS (Terkunci & Dihapus Total dari DOM)
+  // - Surat Masuk TIDAK BOLEH ditandatangani TTE internal
+  // - Belum memiliki TTE sah, bukan arsip, dan bukan Draf mentah
   const canSign = Boolean(
     !isSuratMasuk &&
     hasSignerAuthority &&
     !letter.tteVerified &&
     letter.status !== 'Diarsipkan' &&
-    (isPersonalMandiriSigner || (letter.status !== 'Draft' && letter.status !== 'Didisposisikan'))
+    (letter.status !== 'Draft' && letter.status !== 'Didisposisikan')
   );
 
   // Approval Naskah: Pejabat menyetujui naskah yang diajukan (status DRAFT_MENUNGGU_PARAF atau Diparaf atau Dikirim)

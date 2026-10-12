@@ -690,6 +690,19 @@ export const fetchAvailableLetterTypes = async (currentUser = null) => {
       }
     ];
 
+    const tridharma6Codes = [
+      'SURAT_TUGAS_LEMBAR',
+      'SURAT_TUGAS_KOLOM',
+      'NOTA_DINAS',
+      'SURAT_KETERANGAN',
+      'LAPORAN',
+      'TELAAH_STAF'
+    ];
+
+    const tridharmaTypes = tridharma6Codes
+      .map((code) => lecturerTypes.find((t) => t.kode_jenis_naskah === code))
+      .filter(Boolean);
+
     return {
       is_drafter_only: false,
       is_lecturer_sop_mode: true,
@@ -697,7 +710,7 @@ export const fetchAvailableLetterTypes = async (currentUser = null) => {
       user_unit_code: unitCode,
       user_unit_name: unitName,
       unit_pejabat_options: [dosenSelfSigner, ...pimpinanOptions],
-      types: lecturerTypes
+      types: tridharmaTypes
     };
   }
 

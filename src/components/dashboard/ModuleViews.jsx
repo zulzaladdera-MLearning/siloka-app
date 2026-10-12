@@ -156,6 +156,21 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
   const lockedCreatorId = String(currentUser?.id_user || currentUser?.id || 'req.user.id');
   const activeUserName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Dosen Aktif';
 
+  // Matriks Kewenangan Pengesahan TTE BSrE:
+  // - Pejabat Struktural & Simulasi Super Admin: BISA
+  // - Staf TU & Dosen Fungsional: DIHAPUS TOTAL DARI DOM (Terkunci)
+  const isSuperAdmin = isSuperAdminUser(currentUser);
+  const isDosenRole = isStrictPersonalDosen || currentUser?.role === 'DOSEN' || currentUser?.role_slug === 'drafter';
+  const isStaffRole = currentUser?.role === 'STAF' || currentUser?.role === 'STAF_PERSURATAN' || currentUser?.role === 'OPERATOR_UNIT' || currentUser?.role_slug === 'admin_tu';
+  const isPejabatStruktural = Boolean(
+    currentUser?.is_pejabat === true ||
+    currentUser?.role === 'PEJABAT' ||
+    currentUser?.role === 'PIMPINAN' ||
+    currentUser?.role_slug === 'pimpinan' ||
+    (currentUser?.roleLevel && currentUser.roleLevel.toLowerCase().includes('pimpinan'))
+  );
+  const canUserSignBsre = (isPejabatStruktural || isSuperAdmin) && !isDosenRole && !isStaffRole;
+
   // Filter antrean berdasarkan kebijakan:
   // - Jika Dosen Tanpa Jabatan: STRICT PERSONAL ISOLATION (WHERE creator_id = $1 AND status IN ('DRAFT', 'DIPARAF', 'SIAP_TTE'))
   // - Jika 3 Entitas Pengecualian (Pimpinan Struktural, Staf TU/Arsiparis, Super Admin): Melihat daftar antrean sesuai yurisdiksi unit
@@ -295,7 +310,7 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
                   >
                     Periksa Draft
                   </button>
-                  {(!isStrictPersonalDosen || isMandiriDoc) ? (
+                  {canUserSignBsre ? (
                     <button
                       onClick={() => {
                         onSignSuccess && onSignSuccess(letter.id);
@@ -308,7 +323,7 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
                   ) : (
                     <span
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-600 border border-slate-200 text-xs font-semibold"
-                      title="Naskah konsep ini diajukan untuk ditandatangani oleh Pimpinan Unit Struktural"
+                      title="Naskah dinas ini diajukan untuk diverifikasi dan ditandatangani oleh Pejabat Struktural yang berwenang"
                     >
                       <Clock className="w-3.5 h-3.5 text-amber-600" />
                       <span>Menunggu TTE Pimpinan</span>

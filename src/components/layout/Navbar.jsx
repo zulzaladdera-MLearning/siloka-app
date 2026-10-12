@@ -12,14 +12,20 @@ import {
   Menu
 } from 'lucide-react';
 import { isDisposisiAuthorizedOfficial } from '../../utils/disposisiStandards';
+import { canUserRegisterIncomingLetter } from '../../utils/letterActionPolicy';
 
 /**
- * Helper konfigurasi label dan aksi tombol utama navbar berdasarkan konteks tab aktif
+ * Helper konfigurasi label dan aksi tombol utama navbar berdasarkan konteks tab aktif dan hak akses pengguna
  */
-export const getNavbarActionConfig = (activeTab) => {
+export const getNavbarActionConfig = (activeTab, user = null) => {
   const isSuratMasukTab = activeTab === 'surat-masuk';
+  const isActionVisible = isSuratMasukTab
+    ? (user ? canUserRegisterIncomingLetter(user) : true)
+    : true;
+
   return {
     isSuratMasukTab,
+    isActionVisible,
     createButtonLabel: isSuratMasukTab ? 'Registrasi Surat' : 'Buat Surat',
     createButtonTitle: isSuratMasukTab ? 'Registrasi Surat Masuk Resmi' : 'Buat Naskah Surat Baru'
   };
@@ -48,8 +54,8 @@ export const Navbar = ({
 
   const isPejabat = user?.role === 'PEJABAT' || user?.role === 'PIMPINAN' || user?.is_pejabat === true;
 
-  // Dinamisasi label tombol tambah berdasarkan konteks modul halaman aktif
-  const { isSuratMasukTab, createButtonLabel, createButtonTitle } = getNavbarActionConfig(activeTab);
+  // Dinamisasi label dan hak visibilitas tombol tambah berdasarkan konteks modul halaman aktif & RBAC
+  const { isSuratMasukTab, isActionVisible, createButtonLabel, createButtonTitle } = getNavbarActionConfig(activeTab, user);
 
   // Feature 8: Real-Time Dynamic Notifications Engine
   const notifications = useMemo(() => {
@@ -201,15 +207,17 @@ export const Navbar = ({
 
       {/* Right Actions & Profile */}
       <div className="flex items-center gap-1.5 sm:gap-3 ml-2 sm:ml-4 shrink-0">
-        {/* Mobile Quick Add Button */}
-        <button
-          onClick={onOpenCreateLetter}
-          className="lg:hidden p-2 rounded-lg bg-unsil-green-800 text-white hover:bg-unsil-green-900 shadow-xs active:scale-95 transition-all"
-          title={createButtonTitle}
-          aria-label={createButtonTitle}
-        >
-          <Plus className="w-4 h-4 text-unsil-gold-400" />
-        </button>
+        {/* Mobile Quick Add Button (Terkunci & Dihapus Total jika bukan petugas loket TU saat di Surat Masuk) */}
+        {isActionVisible && (
+          <button
+            onClick={onOpenCreateLetter}
+            className="lg:hidden p-2 rounded-lg bg-unsil-green-800 text-white hover:bg-unsil-green-900 shadow-xs active:scale-95 transition-all"
+            title={createButtonTitle}
+            aria-label={createButtonTitle}
+          >
+            <Plus className="w-4 h-4 text-unsil-gold-400" />
+          </button>
+        )}
 
         {/* Quick Action Buttons Desktop */}
         <div className="hidden lg:flex items-center gap-2">
@@ -223,14 +231,16 @@ export const Navbar = ({
             </button>
           )}
 
-          <button
-            onClick={onOpenCreateLetter}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
-            title={createButtonTitle}
-          >
-            <Plus className="w-3.5 h-3.5 text-unsil-gold-400" />
-            <span>{createButtonLabel}</span>
-          </button>
+          {isActionVisible && (
+            <button
+              onClick={onOpenCreateLetter}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
+              title={createButtonTitle}
+            >
+              <Plus className="w-3.5 h-3.5 text-unsil-gold-400" />
+              <span>{createButtonLabel}</span>
+            </button>
+          )}
         </div>
 
         {/* Notifications Dropdown */}

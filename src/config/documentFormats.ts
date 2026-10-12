@@ -288,6 +288,25 @@ export const LECTURER_ALLOWED_TEMPLATE_IDS = [
   'speng'      // 11. Surat Pengantar
 ] as const;
 
+/**
+ * 6 Template Tridharma & Internal Resmi Dosen Fungsional / Non-Jabatan
+ * Berdasarkan Pertor UNSIL No. 3/2023 & Matriks Akses Pengguna:
+ * 1. ST (Lembar)
+ * 2. ST (Kolom)
+ * 3. Nota Dinas
+ * 4. Surat Keterangan
+ * 5. Laporan
+ * 6. Telaah Staf
+ */
+export const LECTURER_TRIDHARMA_6_TEMPLATE_IDS = [
+  'st_lembar',
+  'st_kolom',
+  'nd',
+  'sket',
+  'lap',
+  'ts'
+] as const;
+
 export function getLecturerTemplateSopMetadata(templateId: string): any | null {
   const base = LECTURER_SOP_TEMPLATE_CATALOG[templateId];
   if (!base) return null;
@@ -385,8 +404,8 @@ export const DOCUMENT_TEMPLATES: DocumentTemplateItem[] = [
     baseLabel: 'Surat Dinas',
     category: 'KORESPONDENSI',
     iconName: 'Building',
-    // Tabel 1 No. 9 Hal. 88: Rektor (√), Warek (√), Dosen Tanpa Jabatan (Konsep/Drafting Pasal 12)
-    allowedRoles: ['DOSEN_NON_JABATAN', 'DOSEN', 'PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
+    // Tabel 1 No. 9 Hal. 88: Rektor (√), Warek (√), Dekan (√)
+    allowedRoles: ['PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
     description: 'Surat dinas korespondensi eksternal atau resmi antar instansi (Contoh 7)'
   },
   {
@@ -446,8 +465,8 @@ export const DOCUMENT_TEMPLATES: DocumentTemplateItem[] = [
     baseLabel: 'Berita Acara',
     category: 'KHUSUS',
     iconName: 'FileSpreadsheet',
-    // Tabel 1 No. 14 Hal. 89: Rektor (√), Warek (√), Dosen Tanpa Jabatan (Kondisional Pasal 18)
-    allowedRoles: ['DOSEN_NON_JABATAN', 'DOSEN', 'PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
+    // Tabel 1 No. 14 Hal. 89: Rektor (√), Warek (√)
+    allowedRoles: ['PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
     description: 'Naskah dinas bukti peristiwa atau kegiatan kedinasan — Tabel 1 No. 14 (Contoh 12)'
   },
   {
@@ -466,8 +485,8 @@ export const DOCUMENT_TEMPLATES: DocumentTemplateItem[] = [
     baseLabel: 'Surat Pernyataan',
     category: 'KHUSUS',
     iconName: 'PenTool',
-    // Tabel 1 No. 16 Hal. 89: Rektor (√), Warek (√), Dosen Tanpa Jabatan (Mandiri Pasal 20)
-    allowedRoles: ['DOSEN_NON_JABATAN', 'DOSEN', 'PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
+    // Tabel 1 No. 16 Hal. 89: Rektor (√), Warek (√)
+    allowedRoles: ['PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
     description: 'Surat pernyataan kebenaran hal atau komitmen dinas — Tabel 1 No. 16 (Contoh 14)'
   },
   {
@@ -476,8 +495,8 @@ export const DOCUMENT_TEMPLATES: DocumentTemplateItem[] = [
     baseLabel: 'Surat Pengantar',
     category: 'KHUSUS',
     iconName: 'Send',
-    // Tabel 1 No. 17 Hal. 89: Rektor (√), Warek (√), Dosen Tanpa Jabatan (Konsep/Drafting Pasal 21)
-    allowedRoles: ['DOSEN_NON_JABATAN', 'DOSEN', 'PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
+    // Tabel 1 No. 17 Hal. 89: Rektor (√), Warek (√)
+    allowedRoles: ['PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
     description: 'Surat pengantar pengiriman dokumen atau berkas — Tabel 1 No. 17 (Contoh 15)'
   },
   {
@@ -496,8 +515,8 @@ export const DOCUMENT_TEMPLATES: DocumentTemplateItem[] = [
     baseLabel: 'Notula',
     category: 'KHUSUS',
     iconName: 'ClipboardList',
-    // Tabel 1 No. 20 Hal. 89: Rektor (√), Warek (√), Dosen Tanpa Jabatan (Kondisional Pasal 25)
-    allowedRoles: ['DOSEN_NON_JABATAN', 'DOSEN', 'PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
+    // Tabel 1 No. 20 Hal. 89: Rektor (√), Warek (√)
+    allowedRoles: ['PEJABAT', 'REKTOR', 'WAREK', 'DEKAN', 'WADEK', 'KAJUR_KAPRODI', 'KEPALA_BIRO', 'STAFF_TU', 'SUPER_ADMIN'],
     description: 'Catatan ringkas resmi jalannya sidang atau rapat kedinasan — Tabel 1 No. 20 (Contoh 17)'
   },
   {
@@ -922,28 +941,11 @@ export function getAuthorizedTemplates(
     return [...DOCUMENT_TEMPLATES];
   }
 
-  // DOSEN_NON_JABATAN (Dosen Biasa Tanpa Jabatan Struktural/Tugas Tambahan):
-  // Menyediakan 8 Template Utama + 2 Template Kondisional yang terbagi ke dalam:
-  // 1. Kategori Template Mandiri (Ditandatangani Langsung oleh Dosen): Nota Dinas (Pasal 11), Laporan (Pasal 26), Telaah Staf (Pasal 27), Surat Pernyataan (Pasal 20)
-  //    + Template Kondisional: Notula (Pasal 25), Berita Acara (Pasal 18)
-  // 2. Kategori Template Konsep / Drafting (Diajukan TTD Pimpinan): Surat Tugas (Pasal 9 - Lembar & Kolom), Surat Dinas (Pasal 12), Surat Keterangan (Pasal 19), Surat Pengantar (Pasal 21)
+  // DOSEN_NON_JABATAN (Dosen Fungsional Tanpa Jabatan Struktural):
+  // Dibatasi ketat hanya tepat 6 Template Tridharma sesuai Matriks Hak Akses & Pertor 3/2023:
+  // 1. ST (Lembar), 2. ST (Kolom), 3. Nota Dinas, 4. Surat Keterangan, 5. Laporan, 6. Telaah Staf
   if (normalizedRole === 'DOSEN_NON_JABATAN') {
-    const includeConditional = options?.includeConditional !== false;
-    const categoryFilter = options?.categoryFilter || 'ALL';
-
-    const orderedIds = LECTURER_ALLOWED_TEMPLATE_IDS.filter((id) => {
-      const meta = LECTURER_SOP_TEMPLATE_CATALOG[id];
-      if (!meta) return false;
-      if (!includeConditional && meta.accessCategory === 'KONDISIONAL') {
-        return false;
-      }
-      if (categoryFilter !== 'ALL' && meta.accessCategory !== categoryFilter) {
-        return false;
-      }
-      return true;
-    });
-
-    return orderedIds
+    return LECTURER_TRIDHARMA_6_TEMPLATE_IDS
       .map((id) => DOCUMENT_TEMPLATES.find((tpl) => tpl.id === id))
       .filter((tpl): tpl is DocumentTemplateItem => Boolean(tpl));
   }
@@ -1003,7 +1005,7 @@ export function getDefaultTemplateForUser(user: any): string {
     return 'sd'; // Default Wakil Rektor: Surat Dinas / Surat Tugas sesuai Tabel 1 Kolom 7
   }
   if (normalizedRole === 'DOSEN_NON_JABATAN') {
-    return 'nd'; // Default Dosen Tanpa Jabatan: 1. Nota Dinas (Pasal 11) — Kategori Template Mandiri
+    return 'st_lembar'; // Default Dosen Fungsional: 1. ST (Lembar)
   }
   const authorized = getAuthorizedTemplates(user);
   return authorized.length > 0 ? authorized[0].id : 'nd';
