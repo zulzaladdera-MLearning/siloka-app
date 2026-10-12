@@ -85,11 +85,7 @@ export const canUserRegisterIncomingLetter = (currentUser) => {
   if (!currentUser) return false;
 
   // Super Admin diperbolehkan untuk kebutuhan pengujian & simulasi
-  if (
-    currentUser?.is_super_admin === true ||
-    currentUser?.role === 'Super Admin' ||
-    currentUser?.role === 'SUPERADMIN'
-  ) {
+  if (isSuperAdminUser(currentUser)) {
     return true;
   }
 

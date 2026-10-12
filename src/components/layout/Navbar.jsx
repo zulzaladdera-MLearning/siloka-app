@@ -13,11 +13,24 @@ import {
 } from 'lucide-react';
 import { isDisposisiAuthorizedOfficial } from '../../utils/disposisiStandards';
 
+/**
+ * Helper konfigurasi label dan aksi tombol utama navbar berdasarkan konteks tab aktif
+ */
+export const getNavbarActionConfig = (activeTab) => {
+  const isSuratMasukTab = activeTab === 'surat-masuk';
+  return {
+    isSuratMasukTab,
+    createButtonLabel: isSuratMasukTab ? 'Registrasi Surat' : 'Buat Surat',
+    createButtonTitle: isSuratMasukTab ? 'Registrasi Surat Masuk Resmi' : 'Buat Naskah Surat Baru'
+  };
+};
+
 export const Navbar = ({
   user,
   onLogout,
   onSwitchUser,
   allUsers = [],
+  activeTab,
   onOpenCreateLetter,
   onOpenQuickDisposisi,
   searchQuery,
@@ -34,6 +47,9 @@ export const Navbar = ({
   const handleToggle = toggleSidebar || onToggleMobileSidebar;
 
   const isPejabat = user?.role === 'PEJABAT' || user?.role === 'PIMPINAN' || user?.is_pejabat === true;
+
+  // Dinamisasi label tombol tambah berdasarkan konteks modul halaman aktif
+  const { isSuratMasukTab, createButtonLabel, createButtonTitle } = getNavbarActionConfig(activeTab);
 
   // Feature 8: Real-Time Dynamic Notifications Engine
   const notifications = useMemo(() => {
@@ -189,8 +205,8 @@ export const Navbar = ({
         <button
           onClick={onOpenCreateLetter}
           className="lg:hidden p-2 rounded-lg bg-unsil-green-800 text-white hover:bg-unsil-green-900 shadow-xs active:scale-95 transition-all"
-          title="Buat Naskah Surat Baru"
-          aria-label="Buat Surat Baru"
+          title={createButtonTitle}
+          aria-label={createButtonTitle}
         >
           <Plus className="w-4 h-4 text-unsil-gold-400" />
         </button>
@@ -210,9 +226,10 @@ export const Navbar = ({
           <button
             onClick={onOpenCreateLetter}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-sm transition-colors"
+            title={createButtonTitle}
           >
             <Plus className="w-3.5 h-3.5 text-unsil-gold-400" />
-            <span>Buat Surat</span>
+            <span>{createButtonLabel}</span>
           </button>
         </div>
 

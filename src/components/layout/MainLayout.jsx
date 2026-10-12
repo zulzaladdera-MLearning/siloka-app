@@ -74,6 +74,7 @@ export const MainLayout = ({
           onLogout={onLogout}
           onSwitchUser={onSwitchUser}
           allUsers={allUsers}
+          activeTab={activeTab}
           onOpenCreateLetter={onOpenCreateLetter}
           onOpenQuickDisposisi={onOpenQuickDisposisi}
           searchQuery={searchQuery}
