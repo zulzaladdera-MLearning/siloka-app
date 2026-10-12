@@ -25,7 +25,7 @@ export const DEFAULT_CANONICAL_ROLES = [
     badgeType: 'Sistem',
     badgeColor: 'bg-rose-50 text-rose-700 border-rose-200',
     description:
-      'Akses penuh konfigurasional sistem, manajemen role, master data unit kerja (UN58.X), master klasifikasi arsip, dan monitoring log audit.',
+      'Wewenang administratif penuh atas seluruh tata persuratan dinas, manajemen akun dan peran, konfigurasi unit kerja, serta pemeliharaan sistem.',
     permissionCount: 32,
     userCount: 2,
     keySlugs: [
@@ -67,7 +67,7 @@ export const DEFAULT_CANONICAL_ROLES = [
     badgeType: 'Sistem',
     badgeColor: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     description:
-      'Operasional harian registrasi surat masuk/keluar, perakitan nomor otomatis, registrasi buku agenda, pencetakan lembar disposisi, dan pendistribusian fisik/digital.',
+      'Pengelolaan loket penerimaan surat masuk, penomoran naskah otomatis, tata usaha buku agenda, dan pendistribusian ekspedisi persuratan.',
     permissionCount: 20,
     userCount: 15,
     keySlugs: [
@@ -92,7 +92,7 @@ export const DEFAULT_CANONICAL_ROLES = [
     badgeType: 'Sistem',
     badgeColor: 'bg-blue-50 text-blue-700 border-blue-200',
     description:
-      'Wewenang pengesahan naskah dinas via TTE BSRE, penerbitan surat tugas/keputusan, instruksi E-Disposisi, dan akses surat berklasifikasi Rahasia (R) / Sangat Rahasia (SR). (Berlaku untuk Rektor, Warek, Dekan, Dir. Pasca, Ket. Lembaga, Kepala UPA).',
+      'Wewenang pimpinan institusi untuk pengesahan naskah dinas via TTE BSrE tersertifikasi, penerbitan arahan E-Disposisi berjenjang, dan penelaahan naskah masuk.',
     permissionCount: 15,
     userCount: 28,
     keySlugs: [
@@ -124,7 +124,7 @@ export const DEFAULT_CANONICAL_ROLES = [
     badgeType: 'Sistem',
     badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
     description:
-      'Pemeriksaan substansi dan pembubuhan paraf berjenjang level 1 & 2 (Kajur, Koorprodi, Wadek, Kabag TU) sebelum dokumen diajukan ke pimpinan.',
+      'Pemeriksaan substansi kelayakan naskah dinas dan pembubuhan paraf hierarki level 1 & 2 sebelum dokumen diajukan ke pimpinan.',
     permissionCount: 12,
     userCount: 45,
     keySlugs: [
@@ -151,7 +151,7 @@ export const DEFAULT_CANONICAL_ROLES = [
     badgeType: 'Sistem',
     badgeColor: 'bg-slate-100 text-slate-800 border-slate-200',
     description:
-      'Penyusunan konsep (drafting) surat resmi (Surat Tugas, Surat Dinas) dan pembuatan naskah mandiri (Nota Dinas, Laporan, Telaah Staf, Surat Pernyataan).',
+      'Penyusunan konsep naskah Tridharma perguruan tinggi (Surat Tugas Lembar/Kolom, Nota Dinas, Surat Keterangan, Laporan, Telaah Staf) dalam batas lingkup akademik pribadi.',
     permissionCount: 8,
     userCount: 850,
     keySlugs: [
@@ -175,9 +175,126 @@ export const DEFAULT_CANONICAL_ROLES = [
  */
 export const DEFAULT_PERMISSION_MATRIX = [
   {
+    id: 'surat_masuk_disposisi',
+    title: 'Loket Registrasi Surat Masuk & E-Disposisi',
+    description: 'Penerimaan surat masuk loket TU, penerbitan lembar disposisi, dan pelimpahan instruksi pimpinan',
+    permissions: [
+      {
+        slug: 'surat_masuk.register',
+        name: 'Registrasi Agenda Surat Masuk',
+        description: 'Mencatat surat dinas masuk dari instansi luar atau unit lain pada buku register TU.',
+        allowedRoles: ['super_admin', 'admin_tu']
+      },
+      {
+        slug: 'disposisi.create',
+        name: 'Menerbitkan Arahan E-Disposisi',
+        description: 'Menerbitkan instruksi disposisi kepada staf atau jajaran struktural.',
+        allowedRoles: ['super_admin', 'pimpinan']
+      },
+      {
+        slug: 'disposisi.forward',
+        name: 'Meneruskan Arahan E-Disposisi',
+        description: 'Meneruskan arahan disposisi berjenjang ke unit pelaksana bawahan.',
+        allowedRoles: ['super_admin', 'pimpinan']
+      },
+      {
+        slug: 'disposisi.read',
+        name: 'Melihat & Melaksanakan Disposisi',
+        description: 'Membaca lembar disposisi yang diterima dan mengunggah tindak lanjut naskah.',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
+      },
+      {
+        slug: 'agenda.manage',
+        name: 'Kelola Buku Agenda Universitas',
+        description: 'Mengelola buku agenda nomor surat masuk dan keluar secara terpusat.',
+        allowedRoles: ['super_admin', 'admin_tu']
+      },
+      {
+        slug: 'ekspedisi.manage',
+        name: 'Kelola Tanda Terima Ekspedisi Fisik',
+        description: 'Pencatatan dan pencetakan lembar tanda terima kurir/ekspedisi.',
+        allowedRoles: ['super_admin', 'admin_tu']
+      }
+    ]
+  },
+  {
+    id: 'naskah',
+    title: 'Penyusunan Draf Naskah Keluar & Pengesahan TTE',
+    description: 'Penyusunan konsep naskah dinas, verifikasi paraf hierarki, dan pengesahan TTE BSrE',
+    permissions: [
+      {
+        slug: 'naskah.draft',
+        name: 'Buat Konsep Surat (Draf Keluar)',
+        description: 'Menyusun draf naskah dinas sesuai template standar tata persuratan UNSIL.',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
+      },
+      {
+        slug: 'naskah.create_mandiri',
+        name: 'Menerbitkan Naskah Tridharma & Mandiri',
+        description: 'Menyusun naskah Tridharma dan internal mandiri (Nota Dinas, Laporan, Telaah Staf).',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
+      },
+      {
+        slug: 'naskah.verify',
+        name: 'Paraf Verifikasi Hierarki',
+        description: 'Membubuhkan paraf digital verifikasi naskah sebelum diserahkan ke penandatangan.',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator']
+      },
+      {
+        slug: 'naskah.tte',
+        name: 'Pengesahan TTE BSrE Pejabat',
+        description: 'Mengesahkan dan menandatangani naskah dinas dengan TTE tersertifikasi BSrE.',
+        allowedRoles: ['super_admin', 'pimpinan']
+      },
+      {
+        slug: 'naskah.numbering',
+        name: 'Registrasi & Penomoran Otomatis',
+        description: 'Pemberian nomor naskah otomatis berdasarkan klasifikasi kode JRA/SKKAAD SK 2803/2023.',
+        allowedRoles: ['super_admin', 'admin_tu']
+      },
+      {
+        slug: 'draft.return_koreksi',
+        name: 'Mengembalikan Draf untuk Revisi',
+        description: 'Memberikan catatan telaah dan mengembalikan konsep surat kepada penyusun.',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator']
+      }
+    ]
+  },
+  {
+    id: 'kearsipan',
+    title: 'Kearsipan & Brankas Digital (SKKAAD)',
+    description: 'Pengendalian naskah rahasia, brankas digital, dan retensi jadwal arsip universitas',
+    permissions: [
+      {
+        slug: 'arsip.view_biasa',
+        name: 'Membuka Arsip Biasa / Terbuka',
+        description: 'Mengakses arsip surat berklasifikasi Biasa atau Terbuka.',
+        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'admin_tu', 'drafter', 'dosen_drafter', 'auditor_spi']
+      },
+      {
+        slug: 'arsip.view_rahasia',
+        name: 'Akses Surat Rahasia (R / SR) / Brankas Digital',
+        description: 'Membuka dan membaca naskah berklasifikasi Rahasia (R) atau Sangat Rahasia (SR).',
+        allowedRoles: ['super_admin', 'pimpinan', 'auditor_spi']
+      },
+      {
+        slug: 'arsip.manage_jra',
+        name: 'Kelola Retensi Arsip (JRA)',
+        description: 'Mengatur masa simpan, jadwal retensi arsip, dan rekomendasi pemusnahan berkas.',
+        allowedRoles: ['super_admin', 'admin_tu']
+      },
+      {
+        slug: 'klasifikasi.manage',
+        name: 'Master Kode Klasifikasi SK 2803',
+        description: 'Memperbarui master kode klasifikasi urusan pemerintahan & perguruan tinggi.',
+        allowedRoles: ['super_admin']
+      }
+    ]
+  },
+  {
     id: 'sistem',
-    title: 'Sistem & Akses',
-    description: 'Pengaturan otorisasi sistem inti dan pengawasan akun',
+    title: 'Tata Kelola Sistem & Master Data',
+    description: 'Pengaturan otorisasi sistem inti, hierarki unit kerja, dan pengawasan akun',
     permissions: [
       {
         slug: 'admin.access',
@@ -214,123 +331,6 @@ export const DEFAULT_PERMISSION_MATRIX = [
         name: 'Melihat Jejak Audit (Audit Trail)',
         description: 'Melihat log transaksi dan riwayat aktivitas persuratan.',
         allowedRoles: ['super_admin', 'auditor_spi']
-      }
-    ]
-  },
-  {
-    id: 'naskah',
-    title: 'Tata Naskah Dinas & Drafting',
-    description: 'Penyusunan konsep, paraf hierarki, TTE BSrE, dan registrasi nomor surat dinas',
-    permissions: [
-      {
-        slug: 'naskah.draft',
-        name: 'Buat Konsep Surat (Draf)',
-        description: 'Menyusun draf naskah dinas sesuai 23 template standar tata persuratan UNSIL.',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
-      },
-      {
-        slug: 'naskah.create_mandiri',
-        name: 'Menerbitkan Naskah Mandiri',
-        description: 'Menerbitkan naskah internal mandiri (Nota Dinas, Laporan, Telaah Staf, Surat Pernyataan).',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
-      },
-      {
-        slug: 'naskah.verify',
-        name: 'Paraf Verifikasi Berjenjang',
-        description: 'Membubuhkan paraf digital verifikasi naskah sebelum diserahkan ke penandatangan.',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator']
-      },
-      {
-        slug: 'naskah.tte',
-        name: 'Penandatanganan TTE BSrE',
-        description: 'Mengesahkan dan menandatangani naskah dinas dengan TTE tersertifikasi BSrE.',
-        allowedRoles: ['super_admin', 'pimpinan']
-      },
-      {
-        slug: 'naskah.numbering',
-        name: 'Registrasi & Penomoran Otomatis',
-        description: 'Pemberian nomor naskah otomatis berdasarkan klasifikasi kode JRA/SKKAAD SK 2803/2023.',
-        allowedRoles: ['super_admin', 'admin_tu']
-      },
-      {
-        slug: 'draft.return_koreksi',
-        name: 'Mengembalikan Draf untuk Revisi',
-        description: 'Memberikan catatan telaah dan mengembalikan konsep surat kepada penyusun.',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator']
-      }
-    ]
-  },
-  {
-    id: 'disposisi',
-    title: 'E-Disposisi & Surat Masuk',
-    description: 'Penerimaan surat masuk, penerbitan lembar disposisi, dan pelimpahan instruksi kerja',
-    permissions: [
-      {
-        slug: 'surat_masuk.register',
-        name: 'Registrasi Agenda Surat Masuk',
-        description: 'Mencatat surat dinas masuk dari instansi luar atau unit lain.',
-        allowedRoles: ['super_admin', 'admin_tu']
-      },
-      {
-        slug: 'disposisi.create',
-        name: 'Menerbitkan Arahan Disposisi',
-        description: 'Menerbitkan instruksi disposisi kepada staf atau jajaran struktural.',
-        allowedRoles: ['super_admin', 'pimpinan']
-      },
-      {
-        slug: 'disposisi.forward',
-        name: 'Meneruskan Instruksi Disposisi',
-        description: 'Meneruskan arahan disposisi berjenjang ke unit pelaksana bawahan.',
-        allowedRoles: ['super_admin', 'pimpinan']
-      },
-      {
-        slug: 'disposisi.read',
-        name: 'Melihat & Melaksanakan Disposisi',
-        description: 'Membaca lembar disposisi yang diterima dan mengunggah tindak lanjut.',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'drafter', 'dosen_drafter']
-      },
-      {
-        slug: 'agenda.manage',
-        name: 'Kelola Buku Agenda Universitas',
-        description: 'Mengelola buku agenda nomor surat masuk dan keluar secara terpusat.',
-        allowedRoles: ['super_admin', 'admin_tu']
-      },
-      {
-        slug: 'ekspedisi.manage',
-        name: 'Kelola Tanda Terima Ekspedisi Fisik',
-        description: 'Pencatatan dan pencetakan lembar tanda terima kurir/ekspedisi.',
-        allowedRoles: ['super_admin', 'admin_tu']
-      }
-    ]
-  },
-  {
-    id: 'kearsipan',
-    title: 'Kearsipan & Hak Akses Rahasia (SKKAAD)',
-    description: 'Pengendalian naskah rahasia, brankas digital, dan retensi jadwal arsip universitas',
-    permissions: [
-      {
-        slug: 'arsip.view_biasa',
-        name: 'Membuka Arsip Biasa / Terbuka',
-        description: 'Mengakses arsip surat berklasifikasi Biasa atau Terbuka.',
-        allowedRoles: ['super_admin', 'pimpinan', 'verifikator', 'admin_tu', 'drafter', 'dosen_drafter', 'auditor_spi']
-      },
-      {
-        slug: 'arsip.view_rahasia',
-        name: 'Akses Surat Rahasia (R / SR) / Brankas Digital',
-        description: 'Membuka dan membaca naskah berklasifikasi Rahasia (R) atau Sangat Rahasia (SR).',
-        allowedRoles: ['super_admin', 'pimpinan', 'auditor_spi']
-      },
-      {
-        slug: 'arsip.manage_jra',
-        name: 'Kelola Retensi Arsip (JRA)',
-        description: 'Mengatur masa simpan, jadwal retensi arsip, dan rekomendasi pemusnahan berkas.',
-        allowedRoles: ['super_admin', 'admin_tu']
-      },
-      {
-        slug: 'klasifikasi.manage',
-        name: 'Master Kode Klasifikasi SK 2803',
-        description: 'Memperbarui master kode klasifikasi urusan pemerintahan & perguruan tinggi.',
-        allowedRoles: ['super_admin']
       }
     ]
   }

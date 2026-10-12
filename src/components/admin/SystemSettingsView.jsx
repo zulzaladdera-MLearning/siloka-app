@@ -210,6 +210,109 @@ const resolveDisplayUnit = (u) => {
 };
 
 /**
+ * Pratinjau Hak Akses Real-Time saat Memilih Peran Pengguna
+ */
+const UserRoleCapabilityPreview = ({ roleSlug }) => {
+  const slug = String(roleSlug || '').toLowerCase();
+
+  let title = 'Peran Pengguna';
+  let desc = 'Deskripsi wewenang operasional naskah dinas.';
+  let chips = [
+    { label: 'Registrasi Masuk', ok: false },
+    { label: 'Draf Naskah', ok: false },
+    { label: 'E-Disposisi', ok: false },
+    { label: 'Pengesahan TTE', ok: false }
+  ];
+
+  if (slug === 'drafter' || slug === 'dosen' || slug === 'dosen_non_jabatan') {
+    title = 'Dosen Fungsional (Tridharma)';
+    desc = 'Pegawai ini hanya berwenang menyusun 6 template Tridharma (ST Lembar/Kolom, Nota Dinas, Surat Keterangan, Laporan, Telaah Staf). Fitur registrasi surat masuk, disposisi pimpinan, dan TTE pejabat otomatis disembunyikan dari antarmuka.';
+    chips = [
+      { label: 'Registrasi Masuk', ok: false },
+      { label: '6 Naskah Tridharma', ok: true },
+      { label: 'E-Disposisi', ok: false },
+      { label: 'Pengesahan TTE', ok: false }
+    ];
+  } else if (slug === 'pimpinan' || slug === 'pejabat') {
+    title = 'Pejabat Struktural & Penandatangan';
+    desc = 'Pegawai ini memegang kewenangan pimpinan untuk menerbitkan E-Disposisi hierarkis dan Pengesahan TTE BSrE naskah dinas. Loket registrasi surat masuk otomatis disembunyikan.';
+    chips = [
+      { label: 'Registrasi Masuk', ok: false },
+      { label: '23 Template Dinas', ok: true },
+      { label: 'E-Disposisi Pimpinan', ok: true },
+      { label: 'Pengesahan TTE BSrE', ok: true }
+    ];
+  } else if (slug === 'admin_tu' || slug === 'staf' || slug === 'operator_unit') {
+    title = 'Staf TU / Operator Loket';
+    desc = 'Pegawai ini bertugas di loket penerimaan surat masuk dan registrasi buku agenda. Fitur disposisi pimpinan dan TTE pejabat disembunyikan.';
+    chips = [
+      { label: 'Registrasi Surat Masuk', ok: true },
+      { label: '23 Template Dinas', ok: true },
+      { label: 'E-Disposisi', ok: false },
+      { label: 'Pengesahan TTE', ok: false }
+    ];
+  } else if (slug === 'super_admin') {
+    title = 'Super Administrator (Otoritas Penuh)';
+    desc = 'Akun ini memegang wewenang administratif penuh atas seluruh modul persuratan dinas (Registrasi Masuk, 23 Template Draf, E-Disposisi, dan Pengesahan TTE BSrE).';
+    chips = [
+      { label: 'Registrasi Surat Masuk', ok: true },
+      { label: '23 Template Dinas', ok: true },
+      { label: 'E-Disposisi', ok: true },
+      { label: 'Pengesahan TTE BSrE', ok: true }
+    ];
+  } else if (slug === 'verifikator') {
+    title = 'Verifikator & Atasan Hierarki';
+    desc = 'Pegawai ini bertugas memeriksa substansi draf naskah dinas dan membubuhkan paraf hierarki level 1-2 sebelum diajukan ke pimpinan unit.';
+    chips = [
+      { label: 'Registrasi Masuk', ok: false },
+      { label: '23 Template Dinas', ok: true },
+      { label: 'E-Disposisi', ok: false },
+      { label: 'Paraf Hierarki L1-L2', ok: true }
+    ];
+  } else if (slug === 'auditor_spi') {
+    title = 'Pengawas Internal (SPI)';
+    desc = 'Hak peninjauan audit kepatuhan tata naskah dan kearsipan persuratan universitas (read-only) tanpa hak penerbitan surat.';
+    chips = [
+      { label: 'Registrasi Masuk', ok: false },
+      { label: 'Draf Naskah', ok: false },
+      { label: 'E-Disposisi', ok: false },
+      { label: 'Pengesahan TTE', ok: false }
+    ];
+  }
+
+  return (
+    <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200/90 space-y-2">
+      <div className="flex items-start gap-2">
+        <Info className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-slate-700 leading-relaxed">
+          <strong className="text-unsil-green-950 font-bold block mb-0.5">{title}</strong>
+          {desc}
+        </div>
+      </div>
+      <div className="pt-1.5 border-t border-emerald-200/60 grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+        {chips.map((c) => (
+          <div
+            key={c.label}
+            className={`px-2 py-1 rounded-md text-[10.5px] font-semibold flex items-center gap-1 border ${
+              c.ok
+                ? 'bg-emerald-100/80 text-emerald-900 border-emerald-300'
+                : 'bg-white/80 text-slate-400 border-slate-200'
+            }`}
+          >
+            {c.ok ? (
+              <Check className="w-3 h-3 text-emerald-700 shrink-0" />
+            ) : (
+              <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+            )}
+            <span className="truncate">{c.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/**
  * Komponen Utama: Manajemen User
  * Menggantikan seluruh isi menu pengaturan lama sesuai instruksi pengguna.
  */
@@ -829,53 +932,117 @@ export const SystemSettingsView = ({
       </div>
 
       {/* =========================================================================
-          KONTROL FILTER & PENCARIAN (SESUAI GAMBAR 1)
+          KONTROL FILTER & PENCARIAN (DENGAN TAB FILTER 4 PERAN UTAMA)
           ========================================================================= */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-          {/* Input Pencarian */}
-          <div className="relative flex-1 max-w-md">
-            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Cari nama, NIP, atau email..."
-              className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
-            />
-            {searchQuery && (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
-          </div>
-
-          {/* Filter Dropdown Role (Sinkron dengan Manajemen Role) */}
-          <div className="w-full sm:w-56">
-            <select
-              value={selectedRoleFilter}
-              onChange={(e) => setSelectedRoleFilter(e.target.value)}
-              className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
-            >
-              <option value="ALL">Semua Peran ({allUsers.length})</option>
-              {rolesCatalog.map((r) => (
-                <option key={r.slug || r.id} value={r.slug || r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
+      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
+        {/* Tab Filter Cepat 4 Kategori Peran Utama Persuratan */}
+        <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
+          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+            Filter Cepat:
+          </span>
+          <button
+            type="button"
+            onClick={() => setSelectedRoleFilter('ALL')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+              selectedRoleFilter === 'ALL'
+                ? 'bg-unsil-green-900 text-white shadow-2xs'
+                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+            }`}
+          >
+            Semua Pengguna ({allUsers.length})
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRoleFilter('pimpinan')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              selectedRoleFilter === 'pimpinan' || selectedRoleFilter === 'PIMPINAN'
+                ? 'bg-blue-600 text-white shadow-2xs'
+                : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+            }`}
+          >
+            <span>👑 Pejabat Struktural</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRoleFilter('admin_tu')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              selectedRoleFilter === 'admin_tu' || selectedRoleFilter === 'OPERATOR'
+                ? 'bg-emerald-600 text-white shadow-2xs'
+                : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+            }`}
+          >
+            <span>📥 Staf TU / Operator</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRoleFilter('drafter')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              selectedRoleFilter === 'drafter' || selectedRoleFilter === 'DOSEN'
+                ? 'bg-slate-800 text-white shadow-2xs'
+                : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+            }`}
+          >
+            <span>🎓 Dosen Fungsional</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedRoleFilter('super_admin')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer flex items-center gap-1 ${
+              selectedRoleFilter === 'super_admin' || selectedRoleFilter === 'SUPER_ADMIN'
+                ? 'bg-rose-600 text-white shadow-2xs'
+                : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+            }`}
+          >
+            <span>🛡️ Super Admin</span>
+          </button>
         </div>
 
-        {/* Badge Total Pengguna */}
-        <div className="flex items-center justify-end">
-          <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-            Total: {filteredUsers.length} Pengguna
-          </span>
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+            {/* Input Pencarian */}
+            <div className="relative flex-1 max-w-md">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Cari nama, NIP, atau email..."
+                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter Dropdown Role (Sinkron dengan Manajemen Role) */}
+            <div className="w-full sm:w-56">
+              <select
+                value={selectedRoleFilter}
+                onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
+              >
+                <option value="ALL">Semua Peran ({allUsers.length})</option>
+                {rolesCatalog.map((r) => (
+                  <option key={r.slug || r.id} value={r.slug || r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Badge Total Pengguna */}
+          <div className="flex items-center justify-end">
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+              Total: {filteredUsers.length} Pengguna
+            </span>
+          </div>
         </div>
       </div>
 
@@ -1249,42 +1416,8 @@ export const SystemSettingsView = ({
                   </div>
                 </div>
 
-                {/* Panel Ringkasan Wewenang Peran yang Dipilih */}
-                <div className="p-2.5 rounded-lg bg-emerald-50/50 border border-emerald-200/80 flex items-start gap-2">
-                  <Info className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
-                  <div className="text-[11px] text-slate-700 leading-relaxed">
-                    {editFormData.role_slug === 'pimpinan' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Pejabat Struktural &amp; Penandatangan:</strong> Memiliki hak sah pengesahan TTE BSrE resmi, penerbitan butir instruksi E-Disposisi berjenjang, dan akses naskah dinas unit kerja.
-                      </span>
-                    )}
-                    {editFormData.role_slug === 'drafter' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Dosen &amp; Drafter Fungsional:</strong> Berfokus pada penyusunan konsep naskah tridharma, pembuatan surat tugas mandiri, dan telaah staf tanpa wewenang penerbitan butir disposisi struktural.
-                      </span>
-                    )}
-                    {editFormData.role_slug === 'admin_tu' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Administrator Tata Usaha:</strong> Bertugas di loket registrasi surat masuk, penomoran agenda, penerusan berkas ke pejabat tujuan, dan kearsipan unit.
-                      </span>
-                    )}
-                    {editFormData.role_slug === 'verifikator' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Verifikator Naskah:</strong> Bertugas memeriksa keabsahan draf naskah dinas dan membubuhkan paraf hierarki sebelum naskah diajukan ke pimpinan.
-                      </span>
-                    )}
-                    {editFormData.role_slug === 'super_admin' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Super Administrator:</strong> Pemegang wewenang tertinggi tata kelola akun, pengaturan peran pengguna, sinkronisasi unit, dan konfigurasi sistem.
-                      </span>
-                    )}
-                    {editFormData.role_slug === 'auditor_spi' && (
-                      <span>
-                        <strong className="text-unsil-green-950 font-semibold">Pengawas Internal:</strong> Hak peninjauan audit kepatuhan tata naskah dan kearsipan persuratan universitas.
-                      </span>
-                    )}
-                  </div>
-                </div>
+                {/* Panel Ringkasan Wewenang Peran yang Dipilih (Pratinjau Hak Akses Real-Time) */}
+                <UserRoleCapabilityPreview roleSlug={editFormData.role_slug} />
               </div>
 
               {/* Bagian 3: Keamanan & Kata Sandi Masuk */}
@@ -1653,6 +1786,9 @@ export const SystemSettingsView = ({
                     </div>
                   </div>
                 </div>
+
+                {/* Panel Ringkasan Wewenang Peran yang Dipilih (Pratinjau Hak Akses Real-Time) */}
+                <UserRoleCapabilityPreview roleSlug={newUserData.role_slug} />
               </div>
 
               {/* Bagian 3: Keamanan & Kata Sandi Akun Baru */}

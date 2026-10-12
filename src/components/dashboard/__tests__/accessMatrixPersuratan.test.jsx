@@ -72,7 +72,7 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   };
 
   describe('1. Registrasi Surat Masuk', () => {
-    it('BISA untuk Staf TU / Operator Loket & Super Admin (Simulasi)', () => {
+    it('BISA untuk Staf TU / Operator Loket & Super Admin (Otoritas Penuh)', () => {
       expect(canUserRegisterIncomingLetter(stafTu)).toBe(true);
       expect(canUserRegisterIncomingLetter(superAdmin)).toBe(true);
 
@@ -121,7 +121,7 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   });
 
   describe('3. Penerbitan E-Disposisi', () => {
-    it('BISA untuk Pejabat Struktural & Simulasi Super Admin', () => {
+    it('BISA untuk Pejabat Struktural & Super Admin (Otoritas Penuh)', () => {
       expect(isDisposisiAuthorizedOfficial(pejabatStruktural)).toBe(true);
       expect(isDisposisiAuthorizedOfficial(superAdmin)).toBe(true);
 
@@ -151,7 +151,7 @@ describe('Penegakan Matriks Hak Akses Persuratan SILOKA UNSIL (Strict DOM Remova
   });
 
   describe('4. Pengesahan TTE BSrE', () => {
-    it('BISA untuk Pejabat Struktural & Simulasi Super Admin', () => {
+    it('BISA untuk Pejabat Struktural & Super Admin (Otoritas Penuh)', () => {
       const capPejabat = getLetterActionCapabilities(sampleSuratKeluarSiapTte, pejabatStruktural);
       expect(capPejabat.canSign).toBe(true);
 

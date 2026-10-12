@@ -157,7 +157,7 @@ export const ParafTteView = ({ letters = [], currentUser, onSelectLetter, onSign
   const activeUserName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Dosen Aktif';
 
   // Matriks Kewenangan Pengesahan TTE BSrE:
-  // - Pejabat Struktural & Simulasi Super Admin: BISA
+  // - Pejabat Struktural & Super Admin (Otoritas Penuh): BISA
   // - Staf TU & Dosen Fungsional: DIHAPUS TOTAL DARI DOM (Terkunci)
   const isSuperAdmin = isSuperAdminUser(currentUser);
   const isDosenRole = isStrictPersonalDosen || currentUser?.role === 'DOSEN' || currentUser?.role_slug === 'drafter';

@@ -110,15 +110,15 @@ describe('Strict Personal Isolation (SKKAAD SK Rektor UNSIL No. 2803 Tahun 2023)
     expect(isLetterOwnedByUser(draftNotaDinasDosenA, dosenB)).toBe(false);
   });
 
-  it('3. Mengizinkan Dosen A membubuhkan TTE pada Naskah Mandiri miliknya, dan memblokir Dosen B', () => {
+  it('3. Menegakkan Pengesahan TTE BSrE hanya untuk Pejabat Struktural (Dosen Fungsional Terkunci Total)', () => {
     expect(isMandiriPersonalDocument(draftNotaDinasDosenA)).toBe(true);
     expect(isMandiriPersonalDocument(draftSuratTugasDosenA)).toBe(false);
 
-    // Dosen A bisa TTE Nota Dinas miliknya sendiri
-    expect(getLetterActionCapabilities(draftNotaDinasDosenA, dosenA).canSign).toBe(true);
-    // Dosen B TIDAK bisa TTE Nota Dinas milik Dosen A
+    // Dosen Fungsional terkunci dari TTE BSrE (Dihapus total dari DOM sesuai Matriks 4 Aksi)
+    expect(getLetterActionCapabilities(draftNotaDinasDosenA, dosenA).canSign).toBe(false);
+    // Dosen B juga TIDAK bisa TTE
     expect(getLetterActionCapabilities(draftNotaDinasDosenA, dosenB).canSign).toBe(false);
-    // Untuk Konsep Surat Tugas, TTE dilakukan oleh Dekan FT (bukan Dosen A sendiri)
+    // TTE dilakukan oleh Pejabat Struktural (Dekan FT)
     expect(getLetterActionCapabilities(draftSuratTugasDosenA, dosenA).canSign).toBe(false);
     expect(getLetterActionCapabilities(draftSuratTugasDosenA, dekanFT).canSign).toBe(true);
   });

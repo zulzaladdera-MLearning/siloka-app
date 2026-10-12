@@ -60,7 +60,7 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
     return false;
   }
 
-  // 3. Super Admin diperbolehkan khusus untuk kebutuhan simulasi & pengujian sistem persuratan
+  // 3. Super Admin memiliki wewenang administratif penuh atas seluruh naskah persuratan (POV Nyata)
   if (isSuperAdminUser(currentUser)) {
     return true;
   }
@@ -90,7 +90,7 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
  * - Pimpinan (Rektor, Dekan, Kajur, Ka Lembaga) dan Pejabat Struktural DILARANG mengentri dari nol,
  *   mereka fokus menerima, menelaah isi naskah, dan menerbitkan arahan disposisi berjenjang.
  * - Dosen biasa dan Pengawas SPI bukan pengentri naskah masuk loket TU.
- * - Super Admin diperbolehkan khusus untuk kebutuhan pengujian / simulasi sistem.
+ * - Super Admin memiliki wewenang administratif penuh persuratan (POV Nyata).
  * 
  * @param {object} currentUser 
  * @returns {boolean}
@@ -98,7 +98,7 @@ export const canLetterBeDisposed = (letter, currentUser, allUsersList = null) =>
 export const canUserRegisterIncomingLetter = (currentUser) => {
   if (!currentUser) return false;
 
-  // Super Admin diperbolehkan untuk kebutuhan pengujian & simulasi
+  // Super Admin memiliki akses administratif penuh persuratan
   if (isSuperAdminUser(currentUser)) {
     return true;
   }
@@ -178,7 +178,7 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
   const canDispose = canLetterBeDisposed(letter, currentUser);
 
   // Matriks Kewenangan TTE BSrE:
-  // - Pejabat Struktural & Simulasi Super Admin: Berwenang
+  // - Pejabat Struktural & Super Admin (Otoritas Administratif Penuh): Berwenang
   // - Staf TU & Dosen Fungsional: Terkunci total (dihapus dari DOM)
   const isSuperAdmin = isSuperAdminUser(currentUser);
 
@@ -215,7 +215,7 @@ export const getLetterActionCapabilities = (letter, currentUser) => {
   const hasSignerAuthority = (isPejabatOrPimpinan || isAssignedSigner || isSuperAdmin) && !isDosen && !isStaff;
 
   // Tanda Tangan BSrE:
-  // - Pejabat berwenang & Simulasi Super Admin
+  // - Pejabat berwenang & Super Admin (Otoritas Penuh)
   // - Staf TU & Dosen Fungsional DILARANG KERAS (Terkunci & Dihapus Total dari DOM)
   // - Surat Masuk TIDAK BOLEH ditandatangani TTE internal
   // - Belum memiliki TTE sah, bukan arsip, dan bukan Draf mentah

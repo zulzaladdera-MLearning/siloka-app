@@ -105,23 +105,48 @@ export const UnitManagementView = ({
     }
   };
 
-  // Data unit kerja diperkaya dengan jumlah pegawai terdaftar
+  // Data unit kerja diperkaya dengan jumlah pegawai terdaftar & penanggung jawab SOTK persuratan
   const enrichedUnits = useMemo(() => {
     return units.map((unit) => {
-      const memberCount = allUsers.filter(
+      const unitUsers = allUsers.filter(
         (u) =>
           u.unit === unit.nama_unit ||
           u.kode_unit === unit.kode_unit ||
           u.unitKerja === unit.nama_unit ||
-          u.unit_kerja_id === unit.kode_unit
-      ).length;
+          u.unit_kerja_id === unit.kode_unit ||
+          (u.unit && unit.singkatan && u.unit.toLowerCase().includes(unit.singkatan.toLowerCase()))
+      );
 
       const parentObj = units.find((p) => p.kode_unit === unit.parent_kode);
+
+      // Cari Pimpinan Unit (Pemegang hak E-Disposisi & TTE BSrE)
+      const pimpinan = unitUsers.find(
+        (u) =>
+          u.role_slug === 'pimpinan' ||
+          u.role === 'PEJABAT' ||
+          u.role === 'PIMPINAN' ||
+          u.is_pejabat === true ||
+          (u.roleLevel && u.roleLevel.toLowerCase().includes('pimpinan'))
+      );
+
+      // Cari Petugas Loket TU (Pemegang hak Registrasi Surat Masuk & Buku Agenda)
+      const operatorTu = unitUsers.find(
+        (u) =>
+          u.role_slug === 'admin_tu' ||
+          u.role === 'STAF' ||
+          u.role === 'STAF_PERSURATAN' ||
+          u.role === 'OPERATOR_UNIT' ||
+          u.role === 'ADMIN_TU'
+      );
 
       return {
         ...unit,
         parent_name: parentObj ? parentObj.nama_unit : unit.parent_kode || 'Universitas Siliwangi',
-        memberCount
+        memberCount: unitUsers.length,
+        pimpinanName: pimpinan?.nama_lengkap || pimpinan?.name || null,
+        pimpinanJabatan: pimpinan?.jabatan || null,
+        operatorTuName: operatorTu?.nama_lengkap || operatorTu?.name || null,
+        operatorTuJabatan: operatorTu?.jabatan || null
       };
     });
   }, [units, allUsers]);
@@ -365,6 +390,7 @@ export const UnitManagementView = ({
                 <th className="py-3 px-4">Nama Unit Kerja</th>
                 <th className="py-3 px-4">Kode / Singkatan</th>
                 <th className="py-3 px-4">Kategori</th>
+                <th className="py-3 px-4 min-w-[220px]">Penanggung Jawab Persuratan (SOTK)</th>
                 <th className="py-3 px-4 text-center">Pegawai</th>
                 <th className="py-3 px-4 text-center">Status</th>
                 <th className="py-3 px-4 text-center w-24">Aksi</th>
@@ -373,7 +399,7 @@ export const UnitManagementView = ({
             <tbody className="divide-y divide-slate-100">
               {filteredUnits.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-slate-500">
+                  <td colSpan={8} className="py-12 text-center text-slate-500">
                     <Building2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
                     <p className="font-semibold text-slate-700">Unit kerja tidak ditemukan.</p>
                     <p className="text-xs text-slate-400 mt-0.5">
@@ -423,6 +449,37 @@ export const UnitManagementView = ({
                           ? 'Pimpinan'
                           : u.tipe_unit}
                       </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="space-y-1">
+                        {/* Pimpinan: TTE BSrE & E-Disposisi */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-800 border border-blue-200 shrink-0">
+                            👑 Pimpinan TTE
+                          </span>
+                          {u.pimpinanName ? (
+                            <span className="font-semibold text-slate-800 truncate max-w-[170px]" title={u.pimpinanName}>
+                              {u.pimpinanName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Belum terdaftar</span>
+                          )}
+                        </div>
+
+                        {/* Operator TU: Registrasi Surat Masuk & Agenda */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-800 border border-emerald-200 shrink-0">
+                            📥 Loket TU
+                          </span>
+                          {u.operatorTuName ? (
+                            <span className="font-medium text-slate-700 truncate max-w-[170px]" title={u.operatorTuName}>
+                              {u.operatorTuName}
+                            </span>
+                          ) : (
+                            <span className="text-slate-400 italic text-[11px]">Belum terdaftar</span>
+                          )}
+                        </div>
+                      </div>
                     </td>
                     <td className="py-3 px-4 text-center">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px]">

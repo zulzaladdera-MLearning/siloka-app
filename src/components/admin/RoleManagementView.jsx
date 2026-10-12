@@ -74,6 +74,65 @@ const AVAILABLE_PERMISSIONS_CATALOG = [
   }
 ];
 
+/**
+ * Resolusi 4 Chip Wewenang Kunci Persuratan untuk setiap kartu peran
+ */
+const getRoleCoreActionChips = (role) => {
+  const slug = String(role?.slug || role?.id || '').toLowerCase();
+
+  if (slug === 'super_admin') {
+    return [
+      { id: 'reg', label: 'Registrasi Surat Masuk', allowed: true },
+      { id: 'draft', label: '23 Template Dinas', allowed: true },
+      { id: 'disp', label: 'E-Disposisi', allowed: true },
+      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: true }
+    ];
+  }
+
+  if (slug === 'admin_tu' || slug === 'staf' || slug === 'operator_unit') {
+    return [
+      { id: 'reg', label: 'Registrasi Surat Masuk', allowed: true },
+      { id: 'draft', label: '23 Template Dinas', allowed: true },
+      { id: 'disp', label: 'E-Disposisi', allowed: false },
+      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: false }
+    ];
+  }
+
+  if (slug === 'drafter' || slug === 'dosen' || slug === 'dosen_non_jabatan') {
+    return [
+      { id: 'reg', label: 'Registrasi Masuk', allowed: false },
+      { id: 'draft', label: '6 Naskah Tridharma', allowed: true },
+      { id: 'disp', label: 'E-Disposisi', allowed: false },
+      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: false }
+    ];
+  }
+
+  if (slug === 'pimpinan' || slug === 'pejabat') {
+    return [
+      { id: 'reg', label: 'Registrasi Masuk', allowed: false },
+      { id: 'draft', label: '23 Template Dinas', allowed: true },
+      { id: 'disp', label: 'E-Disposisi Pimpinan', allowed: true },
+      { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: true }
+    ];
+  }
+
+  if (slug === 'verifikator') {
+    return [
+      { id: 'reg', label: 'Registrasi Masuk', allowed: false },
+      { id: 'draft', label: '23 Template Dinas', allowed: true },
+      { id: 'disp', label: 'E-Disposisi', allowed: false },
+      { id: 'tte', label: 'Paraf Hierarki L1-L2', allowed: true }
+    ];
+  }
+
+  return [
+    { id: 'reg', label: 'Registrasi Masuk', allowed: false },
+    { id: 'draft', label: 'Draf Naskah', allowed: false },
+    { id: 'disp', label: 'E-Disposisi', allowed: false },
+    { id: 'tte', label: 'Pengesahan TTE BSrE', allowed: false }
+  ];
+};
+
 export const RoleManagementView = ({
   currentUser,
   allUsers = [],
@@ -306,6 +365,35 @@ export const RoleManagementView = ({
             <p className="text-xs sm:text-[13px] text-slate-600 leading-relaxed mt-2.5 mb-2">
               {role.description}
             </p>
+
+            {/* Baris 2.5: Chip Wewenang 4 Aksi Utama Persuratan */}
+            <div className="my-3 p-2.5 rounded-lg bg-slate-50 border border-slate-200/80">
+              <div className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center justify-between">
+                <span>Wewenang 4 Aksi Utama</span>
+                <span className="text-[10px] text-slate-400 font-normal">Matriks Hak Akses</span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {getRoleCoreActionChips(role).map((chip) => (
+                  <div
+                    key={chip.id}
+                    className={`px-2 py-1.5 rounded-md text-[11px] font-semibold flex items-center gap-1.5 border transition ${
+                      chip.allowed
+                        ? 'bg-emerald-50 text-emerald-800 border-emerald-200/90'
+                        : 'bg-white text-slate-400 border-slate-200'
+                    }`}
+                  >
+                    {chip.allowed ? (
+                      <Check className="w-3 h-3 text-emerald-600 shrink-0" />
+                    ) : (
+                      <Lock className="w-3 h-3 text-slate-400 shrink-0" />
+                    )}
+                    <span className="truncate" title={chip.label}>
+                      {chip.label}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
 
             {/* Baris 3: Statistik Ringkas (Terhubung Dinamis dengan Master User) */}
             <div className="flex items-center justify-between mb-2.5">
