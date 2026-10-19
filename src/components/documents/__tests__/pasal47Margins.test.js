@@ -23,9 +23,9 @@ describe('Peraturan Rektor UNSIL No. 3 Tahun 2023 (Pasal 43–48 & Lampiran Bab 
     expect(PASAL_47_MARGIN_CONFIG.rightCss).toBe('1.5cm');
   });
 
-  it('menerapkan ukuran kertas F4 (210x330mm, Bookman Old Style 12pt) untuk Naskah Dinas Arahan dan A4 (210x297mm, Times New Roman/Arial 12pt) untuk Korespondensi, Khusus (termasuk Surat Tugas & Surat Perintah), dan Lainnya', () => {
-    // Naskah Dinas Arahan: POS, Surat Edaran, Keputusan -> F4 & Bookman Old Style 12pt
-    const arahanIds = ['pos', 'se', 'sk'];
+  it('menerapkan ukuran kertas F4 (210x330mm, Bookman Old Style 12pt) untuk Naskah Dinas Arahan (termasuk Surat Tugas & Surat Perintah) dan A4 (210x297mm, Times New Roman/Arial 12pt) untuk Korespondensi, Khusus, dan Lainnya', () => {
+    // Naskah Dinas Arahan: POS, Surat Edaran, Keputusan, Surat Perintah, Surat Tugas -> F4 & Bookman Old Style 12pt
+    const arahanIds = ['pos', 'se', 'sk', 'sp', 'st_lembar', 'st_kolom'];
     for (const id of arahanIds) {
       const info = getPaperSizeInfo(id);
       expect(info.code).toBe('F4');
@@ -36,10 +36,10 @@ describe('Peraturan Rektor UNSIL No. 3 Tahun 2023 (Pasal 43–48 & Lampiran Bab 
       expect(info.gramatur).toBe('HVS minimal 70 gram');
     }
 
-    // Naskah Dinas Korespondensi, Khusus (ST, SP, SKet, SPern, BA, Pengumuman, MoU, PKS), dan Lainnya (Notula, Laporan, Telaah Staf) -> A4 & Times New Roman / Arial 12pt
+    // Naskah Dinas Korespondensi, Khusus (SKet, SPern, BA, Pengumuman, MoU, PKS, dll), dan Lainnya (Notula, Laporan, Telaah Staf) -> A4 & Times New Roman / Arial 12pt
     const a4Ids = [
       'nd', 'sd', 'undangan_lembar', 'undangan_kartu',
-      'st_lembar', 'st_kolom', 'sp', 'sket', 'sper', 'ba', 'peng', 'mou', 'pks', 'skua', 'speng',
+      'sket', 'sper', 'ba', 'peng', 'mou', 'pks', 'skua', 'speng',
       'notula', 'lap', 'ts', 'disp_rektor', 'tte_doc'
     ];
     for (const id of a4Ids) {

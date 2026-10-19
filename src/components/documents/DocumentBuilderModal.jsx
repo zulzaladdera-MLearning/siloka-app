@@ -94,13 +94,37 @@ const DISTRIBUSI_GRID_UNITS = [
   { id: 'dewan_pengawas', label: 'Dewan Pengawas' }
 ];
 
-export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUser }) => {
+export const DocumentBuilderModal = ({
+  isOpen,
+  onClose,
+  onSaveLetter,
+  currentUser,
+  allLetters = [],
+  allUsers = [],
+  allUnits = []
+}) => {
   if (!isOpen) return null;
+
+  // Profil Pengguna Aktif yang Disinkronkan dengan Manajemen Pengguna (allUsers)
+  const effectiveCurrentUser = useMemo(() => {
+    if (Array.isArray(allUsers) && allUsers.length > 0 && currentUser) {
+      const matched = allUsers.find(
+        (u) =>
+          (currentUser.id && String(u.id) === String(currentUser.id)) ||
+          (currentUser.email && u.email && u.email.toLowerCase() === currentUser.email.toLowerCase()) ||
+          (currentUser.nip && u.nip && u.nip === currentUser.nip)
+      );
+      if (matched) {
+        return { ...currentUser, ...matched };
+      }
+    }
+    return currentUser;
+  }, [currentUser, allUsers]);
 
   const currentYear = new Date().getFullYear();
   const [selectedTemplate, setSelectedTemplate] = useState(() => {
-    const isSdAllowed = isTemplateAllowedForUser('sd', currentUser);
-    return isSdAllowed ? 'sd' : getDefaultTemplateForUser(currentUser);
+    const isSdAllowed = isTemplateAllowedForUser('sd', effectiveCurrentUser);
+    return isSdAllowed ? 'sd' : getDefaultTemplateForUser(effectiveCurrentUser);
   });
   const [viewMode, setViewMode] = useState('split'); // 'split' | 'form' | 'preview'
 
@@ -161,13 +185,13 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
 
   // Profil SOP khusus bagi akun Rektor (23 Template) dan Wakil Rektor (16 Template) sesuai Peraturan Rektor No. 3/2023 & SK No. 2803/2023
   const rektoratSopProfile = useMemo(() => {
-    return getRektoratOfficialSopProfile(currentUser);
-  }, [currentUser]);
+    return getRektoratOfficialSopProfile(effectiveCurrentUser);
+  }, [effectiveCurrentUser]);
 
   // Daftar opsi jenis naskah sesuai Permendikbudristek No. 2/2024 & Peraturan Rektor No. 3/2023 (Gambar 1)
   const authorizedTemplatesList = useMemo(() => {
-    return getAuthorizedTemplates(currentUser, { includeConditional: true });
-  }, [currentUser]);
+    return getAuthorizedTemplates(effectiveCurrentUser, { includeConditional: true });
+  }, [effectiveCurrentUser]);
 
   const authorizedTemplateIdSet = useMemo(() => {
     return new Set(authorizedTemplatesList.map((t) => t.id));
@@ -236,8 +260,8 @@ export const DocumentBuilderModal = ({ isOpen, onClose, onSaveLetter, currentUse
 
   // Deteksi akun Dosen Biasa (Tanpa Jabatan Struktural / Tugas Tambahan) — 8 Template Utama + 2 Template Kondisional
   const isLecturerWithoutStructuralPosition = useMemo(() => {
-    return normalizeUserRole(currentUser) === 'DOSEN_NON_JABATAN';
-  }, [currentUser]);
+    return normalizeUserRole(effectiveCurrentUser) === 'DOSEN_NON_JABATAN';
+  }, [effectiveCurrentUser]);
 
   const currentLecturerSopMeta = useMemo(() => {
     if (!isLecturerWithoutStructuralPosition) return null;

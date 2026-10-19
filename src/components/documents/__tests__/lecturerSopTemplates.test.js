@@ -72,19 +72,34 @@ describe('SOP Template Surat untuk Role Dosen Biasa (Tanpa Jabatan Struktural / 
     expect(stMeta.pasal).toBe('Pasal 9');
   });
 
-  it('mengembalikan tepat 6 jenis naskah Tridharma pada fetchAvailableLetterTypes untuk Dosen Tanpa Jabatan', async () => {
+  it('mengembalikan 11 jenis naskah dalam 2 kategori (Mandiri & Draf Pimpinan) pada fetchAvailableLetterTypes untuk Dosen Tanpa Jabatan', async () => {
     const response = await fetchAvailableLetterTypes(dosenFt);
     expect(response.is_lecturer_sop_mode).toBe(true);
-    expect(response.types.length).toBe(6);
+    expect(response.types.length).toBe(11);
 
-    const codes = response.types.map((t) => t.kode_jenis_naskah);
-    expect(codes).toEqual([
+    const mandiri = response.types.filter((t) => t.is_mandiri);
+    const drafPimpinan = response.types.filter((t) => !t.is_mandiri);
+
+    expect(mandiri.length).toBe(6);
+    expect(drafPimpinan.length).toBe(5);
+
+    const mandiriCodes = mandiri.map((t) => t.kode_jenis_naskah);
+    expect(mandiriCodes).toEqual([
+      'NOTA_DINAS',
+      'SURAT_PERNYATAAN',
+      'LAPORAN',
+      'TELAAH_STAF',
+      'BERITA_ACARA',
+      'NOTULA'
+    ]);
+
+    const drafCodes = drafPimpinan.map((t) => t.kode_jenis_naskah);
+    expect(drafCodes).toEqual([
       'SURAT_TUGAS_LEMBAR',
       'SURAT_TUGAS_KOLOM',
-      'NOTA_DINAS',
+      'SURAT_DINAS',
       'SURAT_KETERANGAN',
-      'LAPORAN',
-      'TELAAH_STAF'
+      'SURAT_PENGANTAR'
     ]);
   });
 });

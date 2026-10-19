@@ -284,6 +284,8 @@ export const fetchUsersList = async (currentUser) => {
           (u) =>
             u.id !== 'usr-admin-01' &&
             u.id !== 'usr-00' &&
+            u.id !== 'usr-35' &&
+            !String(u.nama_lengkap || u.name || '').toLowerCase().includes('alam rahmatulloh') &&
             !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
         );
       }
@@ -297,6 +299,8 @@ export const fetchUsersList = async (currentUser) => {
     (u) =>
       u.id !== 'usr-admin-01' &&
       u.id !== 'usr-00' &&
+      u.id !== 'usr-35' &&
+      !String(u.nama_lengkap || u.name || '').toLowerCase().includes('alam rahmatulloh') &&
       !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
   );
 };
@@ -350,7 +354,7 @@ export const createUser = async (userData, currentUser) => {
   const flashMessage = `Akun Berhasil Dibuat! Username: ${username} | Password: ${rawPassword}`;
 
   const newUserRecord = {
-    id: `usr-${Date.now().toString(36)}-${cleanNip.slice(-4)}`,
+    id: userData.id || `usr-custom-${Date.now()}-${cleanNip.slice(-4)}`,
     nip: cleanNip,
     nip_nik: cleanNip,
     username: username,

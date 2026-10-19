@@ -19,6 +19,7 @@ import { SystemSettingsView } from './components/admin/SystemSettingsView';
 import { UnitManagementView } from './components/admin/UnitManagementView';
 import { PermissionManagementView } from './components/admin/PermissionManagementView';
 import { RoleManagementView } from './components/admin/RoleManagementView';
+import { DisposisiRoutingManagementView } from './components/admin/DisposisiRoutingManagementView';
 import { Toast } from './components/ui/Toast';
 import { Inbox, Send, Plus, Trash2, Receipt, Users, CheckSquare } from 'lucide-react';
 import { BukuAgendaView } from './components/dashboard/BukuAgendaView';
@@ -41,6 +42,13 @@ import {
   isMandiriPersonalDocument
 } from './utils/authGuards';
 import { isDisposisiAuthorizedOfficial } from './utils/disposisiStandards';
+import {
+  markDisposisiAsRead,
+  markDisposisiDocumentViewed,
+  checkIfUserIsDisposisiTarget,
+  checkIfUserHasReadDisposisi,
+  checkIfUserHasOpenedDocument
+} from './utils/disposisiTrackingHelper';
 import { sanitizeUiText, sanitizeErrorMessage } from './utils/antiSlopGuard';
 import { incrementSequenceSession } from './services/letterService';
 import { fetchUsersList, deleteUser } from './services/adminService';
@@ -174,7 +182,29 @@ export default function App() {
     try {
       const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
       if (Array.isArray(deletedList)) {
-        return new Set(deletedList.map((x) => String(x).toLowerCase().trim()));
+        // Lindungi akun pejabat struktural dan sivitas akademika resmi UNSIL agar tidak terblokir residu pengujian lama
+        const officialIdentSet = new Set(
+          usersData.flatMap((u) => [
+            String(u.id || '').toLowerCase().trim(),
+            String(u.nip || u.nip_nik || '').toLowerCase().trim(),
+            String(u.email || '').toLowerCase().trim(),
+            String(u.username || '').toLowerCase().trim()
+          ]).filter(Boolean)
+        );
+
+        // Bersihkan residu akun resmi UNSIL dan artefak pengujian lama dari blacklist
+        const sanitized = deletedList.filter((item) => {
+          const clean = String(item).toLowerCase().trim();
+          return !officialIdentSet.has(clean) && clean !== 'usr-admin-01' && clean !== 'usr-00';
+        });
+
+        if (sanitized.length !== deletedList.length) {
+          try {
+            localStorage.setItem('siloka_deleted_user_ids', JSON.stringify(sanitized));
+          } catch (_) {}
+        }
+
+        return new Set(sanitized.map((x) => String(x).toLowerCase().trim()));
       }
     } catch (e) {
       // ignore
@@ -200,6 +230,43 @@ export default function App() {
     }
   };
 
+  // Master Unit Kerja yang dapat dimutasi dan diperbarui via modul Manajemen Unit Kerja
+  const [allUnits, setAllUnits] = useState(() => {
+    try {
+      const saved = localStorage.getItem('siloka_unit_kerja_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch (_) {}
+    return unitKerjaList;
+  });
+
+  // Sinkronisasi Reaktif Master Unit Kerja saat ada perubahan CRUD dari Manajemen Unit Kerja
+  useEffect(() => {
+    const handleUnitDataChanged = (event) => {
+      const updated = event?.detail?.units;
+      if (Array.isArray(updated) && updated.length > 0) {
+        setAllUnits(updated);
+      } else {
+        try {
+          const saved = localStorage.getItem('siloka_unit_kerja_data');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) setAllUnits(parsed);
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitDataChanged);
+    window.addEventListener('storage', handleUnitDataChanged);
+    return () => {
+      window.removeEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitDataChanged);
+      window.removeEventListener('storage', handleUnitDataChanged);
+    };
+  }, []);
+
   // State master users yang dapat dimutasi dan diperbarui via modul Manajemen Pengguna
   // Menyimpan seluruh akun pegawai resmi institusi hasil sinkronisasi basis data & CRUD
   const [allUsers, setAllUsers] = useState(() => {
@@ -214,7 +281,11 @@ export default function App() {
             (u) =>
               u.id !== 'usr-admin-01' &&
               u.id !== 'usr-00' &&
+              u.id !== 'usr-muw7evv4-1003' &&
+              !String(u.id || '').startsWith('usr-muw') &&
               !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+              u.id !== 'usr-35' &&
+              !String(u.nama_lengkap || u.name || '').toLowerCase().includes('alam rahmatulloh') &&
               !deletedSet.has(String(u.id || '').toLowerCase()) &&
               !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
               !deletedSet.has(String(u.email || '').toLowerCase()) &&
@@ -234,7 +305,11 @@ export default function App() {
       (u) =>
         u.id !== 'usr-admin-01' &&
         u.id !== 'usr-00' &&
+        u.id !== 'usr-muw7evv4-1003' &&
+        !String(u.id || '').startsWith('usr-muw') &&
         !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+        u.id !== 'usr-35' &&
+        !String(u.nama_lengkap || u.name || '').toLowerCase().includes('alam rahmatulloh') &&
         !deletedSet.has(String(u.id || '').toLowerCase()) &&
         !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
         !deletedSet.has(String(u.email || '').toLowerCase()) &&
@@ -294,9 +369,9 @@ export default function App() {
     return () => window.removeEventListener(RBAC_CHANGE_EVENT, handleRbacUpdate);
   }, []);
 
-  // Sinkronisasi data pengguna dari basis data PostgreSQL ke state allUsers saat Super Admin aktif
+  // Sinkronisasi data pengguna dari basis data PostgreSQL ke state allUsers untuk seluruh sesi pengguna aktif
   useEffect(() => {
-    if (!currentUser || !isSuperAdminUser(currentUser)) return;
+    if (!currentUser) return;
     let isMounted = true;
     fetchUsersList(currentUser)
       .then((users) => {
@@ -304,6 +379,13 @@ export default function App() {
           const deletedSet = getDeletedUserSet();
           const cleanUsers = users.filter(
             (u) =>
+              u.id !== 'usr-admin-01' &&
+              u.id !== 'usr-00' &&
+              u.id !== 'usr-muw7evv4-1003' &&
+              !String(u.id || '').startsWith('usr-muw') &&
+              !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
+              u.id !== 'usr-35' &&
+              !String(u.nama_lengkap || u.name || '').toLowerCase().includes('alam rahmatulloh') &&
               !deletedSet.has(String(u.id || '').toLowerCase()) &&
               !deletedSet.has(String(u.nip || u.nip_nik || '').toLowerCase()) &&
               !deletedSet.has(String(u.email || '').toLowerCase()) &&
@@ -311,18 +393,20 @@ export default function App() {
           );
 
           setAllUsers((prevUsers) => {
-            // Gabungkan data dari database dengan user lokal yang dibuat Super Admin yang belum terhapus
+            // Gabungkan data dari basis data dengan user lokal kustom yang dibuat Super Admin yang belum tersinkron
             const merged = [...cleanUsers];
             (prevUsers || []).forEach((prevU) => {
               const uId = String(prevU.id || '').toLowerCase();
               const uNip = String(prevU.nip || prevU.nip_nik || '').toLowerCase();
               const uEmail = String(prevU.email || '').toLowerCase();
 
-              // Jika user ini sah ada di deletedSet, jangan masukkan
+              // Jika user ini sah ada di deletedSet atau merupakan akun siluman mock, jangan masukkan
               if (
                 deletedSet.has(uId) ||
                 (uNip && deletedSet.has(uNip)) ||
-                (uEmail && deletedSet.has(uEmail))
+                (uEmail && deletedSet.has(uEmail)) ||
+                uId === 'usr-35' ||
+                String(prevU.nama_lengkap || prevU.name || '').toLowerCase().includes('alam rahmatulloh')
               ) {
                 return;
               }
@@ -341,6 +425,11 @@ export default function App() {
 
             try {
               localStorage.setItem('siloka_users_data', JSON.stringify(merged));
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(
+                  new CustomEvent('siloka:users-updated', { detail: { users: merged } })
+                );
+              }
             } catch (e) {
               console.error('Error persisting fetched users', e);
             }
@@ -423,6 +512,11 @@ export default function App() {
       });
       try {
         localStorage.setItem('siloka_users_data', JSON.stringify(filtered));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('siloka:users-updated', { detail: { users: filtered } })
+          );
+        }
       } catch (e) {
         console.error('Error deleting user', e);
       }
@@ -513,6 +607,11 @@ export default function App() {
       });
       try {
         localStorage.setItem('siloka_users_data', JSON.stringify(copy));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('siloka:users-updated', { detail: { users: copy } })
+          );
+        }
       } catch (e) {
         console.error('Failed to persist users', e);
       }
@@ -631,7 +730,8 @@ export default function App() {
         activeTab === 'manajemen-user' ||
         activeTab === 'manajemen-unit' ||
         activeTab === 'manajemen-role' ||
-        activeTab === 'manajemen-permission') &&
+        activeTab === 'manajemen-permission' ||
+        activeTab === 'manajemen-disposisi') &&
       !isSuperAdminUser(currentUser)
     ) {
       showToast('Akses Terbatas: Menu Manajemen hanya dapat diakses oleh Super Administrator.', 'error');
@@ -652,15 +752,106 @@ export default function App() {
   const [selectedLetter, setSelectedLetter] = useState(null);
   const [isDisposisiOpen, setIsDisposisiOpen] = useState(false);
   const [disposisiTargetLetter, setDisposisiTargetLetter] = useState(null);
+  const [forwardFromDisposisi, setForwardFromDisposisi] = useState(null);
   const [isCreateLetterOpen, setIsCreateLetterOpen] = useState(false);
   const [isQuickRegisterOpen, setIsQuickRegisterOpen] = useState(false);
   const [isCreateSuratKeluarOpen, setIsCreateSuratKeluarOpen] = useState(false);
   const [selectedUnitFilter, setSelectedUnitFilter] = useState('ALL');
+  const [followUpDisposisi, setFollowUpDisposisi] = useState(null);
+  const [dispositionOverrides, setDispositionOverrides] = useState(() => {
+    try {
+      const saved = localStorage.getItem('siloka_disposisi_overrides');
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
+
+  // Sinkronisasi Real-Time Keterbacaan & Penelaahan Disposisi Antar-Tab / Multi-Window
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleSyncPayload = (payload) => {
+      if (!payload || !payload.letterId || !payload.updatedLetter) return;
+      const { letterId, updatedLetter } = payload;
+
+      setLetters((prev) => {
+        const idx = prev.findIndex((l) => l.id === letterId);
+        if (idx === -1) return prev;
+        const copy = [...prev];
+        copy[idx] = updatedLetter;
+        return copy;
+      });
+
+      setSelectedLetter((prev) => (prev && prev.id === letterId ? updatedLetter : prev));
+    };
+
+    let bc = null;
+    if ('BroadcastChannel' in window) {
+      try {
+        bc = new BroadcastChannel('siloka_disposisi_live_sync');
+        bc.onmessage = (event) => {
+          handleSyncPayload(event.data);
+        };
+      } catch (_) {}
+    }
+
+    const onStorageChange = (e) => {
+      if (e.key === 'siloka_disposisi_sync_ping' && e.newValue) {
+        try {
+          const data = JSON.parse(e.newValue);
+          handleSyncPayload(data);
+        } catch (_) {}
+      }
+      if (e.key === 'siloka_letters_data' && e.newValue) {
+        try {
+          const newLetters = JSON.parse(e.newValue);
+          if (Array.isArray(newLetters)) {
+            setLetters(newLetters);
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('storage', onStorageChange);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('storage', onStorageChange);
+    };
+  }, []);
+
+  // Polling reaktif ringan (setiap 3 detik) saat modal pelacakan surat dibuka oleh pimpinan
+  useEffect(() => {
+    if (!selectedLetter || typeof window === 'undefined') return;
+
+    const interval = setInterval(() => {
+      try {
+        const saved = localStorage.getItem('siloka_letters_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            const currentInSaved = parsed.find((l) => l.id === selectedLetter.id);
+            if (
+              currentInSaved &&
+              JSON.stringify(currentInSaved.disposisi) !== JSON.stringify(selectedLetter.disposisi)
+            ) {
+              setLetters(parsed);
+              setSelectedLetter(currentInSaved);
+            }
+          }
+        }
+      } catch (_) {}
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, [selectedLetter]);
 
   // Identitas Unit Kerja Pengguna Aktif
   const currentUnit = useMemo(() => {
+    const sourceList = Array.isArray(allUnits) && allUnits.length > 0 ? allUnits : unitKerjaList;
     return (
-      unitKerjaList.find((u) => u.kode_unit === currentUser?.unit_kerja_id || u.id === currentUser?.unit_kerja_id) || {
+      sourceList.find((u) => u.kode_unit === currentUser?.unit_kerja_id || u.id === currentUser?.unit_kerja_id) || {
         id: 6,
         kode_unit: 'UN58.6',
         nama_unit: 'Biro Keuangan dan Umum',
@@ -668,7 +859,7 @@ export default function App() {
         tipe_unit: 'BIRO'
       }
     );
-  }, [currentUser]);
+  }, [currentUser, allUnits]);
 
   // Hak Akses Lintas Unit (University-Wide Access):
   // Rektorat (UN58), Kepala Biro (UN58.6), atau Satuan Pengawas Internal (UN58.SPI)
@@ -940,7 +1131,24 @@ export default function App() {
             (userUnitName && dispTarget.includes(userUnitName)) ||
             (userUnitShort && dispTarget.includes(userUnitShort));
 
-          if (isDirectDisposisiRecipient) {
+          const isMultiTargetRecipient =
+            Array.isArray(letter.disposisi.targets) &&
+            letter.disposisi.targets.some((tgt) => {
+              const tUserId = String(tgt.target_user_id || '');
+              const tEmail = String(tgt.target_user_email || '').toLowerCase().trim();
+              const tNip = String(tgt.target_pejabat_nip || '').trim();
+              const tTarget = String(tgt.targetUnit || '').toLowerCase().trim();
+              return (
+                (tUserId && currentUserId && tUserId === currentUserId) ||
+                (tEmail && currentUserEmail && tEmail === currentUserEmail) ||
+                (tNip && currentNip && tNip === currentNip) ||
+                (currentRoleLabel && (tTarget.includes(currentRoleLabel) || currentRoleLabel.includes(tTarget))) ||
+                (userUnitName && tTarget.includes(userUnitName)) ||
+                (userUnitShort && tTarget.includes(userUnitShort))
+              );
+            });
+
+          if (isDirectDisposisiRecipient || isMultiTargetRecipient) {
             return true;
           }
         }
@@ -1413,12 +1621,18 @@ export default function App() {
   // Feature 6: Review & Approval Workflow (Setujui Naskah)
   const handleApproveLetter = (letterId, note) => {
     let approvedNomor = '';
+    let parentLetterId = null;
+    let parentDispId = null;
     const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
 
-    setLetters((prev) =>
-      prev.map((l) => {
+    setLetters((prev) => {
+      const targetApproved = prev.find((l) => l.id === letterId);
+      parentLetterId = targetApproved?.parentLetterId;
+      parentDispId = targetApproved?.parentDispositionId;
+      approvedNomor = targetApproved?.nomorSurat || letterId;
+
+      return prev.map((l) => {
         if (l.id === letterId) {
-          approvedNomor = l.nomorSurat;
           return {
             ...l,
             status: 'Disetujui',
@@ -1434,9 +1648,45 @@ export default function App() {
             ]
           };
         }
+        if (parentLetterId && l.id === parentLetterId && l.disposisi) {
+          return {
+            ...l,
+            statusTimestamp: `Disposisi Selesai (Disetujui Naskah Balasan: ${approvedNomor})`,
+            disposisi: {
+              ...l.disposisi,
+              status: 'Selesai',
+              resolvedAt: timestamp,
+              resolvedNote: `Tindak lanjut telah tuntas dan disetujui melalui naskah ${approvedNomor}`
+            }
+          };
+        }
         return l;
-      })
-    );
+      });
+    });
+
+    if (parentLetterId || parentDispId) {
+      setDispositionOverrides((prev) => {
+        const updated = { ...prev };
+        if (parentLetterId) {
+          updated[`disp-${parentLetterId}`] = {
+            status: 'Selesai',
+            resolvedNote: `Tindak lanjut telah disetujui melalui naskah ${approvedNomor}`,
+            updatedAt: timestamp
+          };
+        }
+        if (parentDispId) {
+          updated[parentDispId] = {
+            status: 'Selesai',
+            resolvedNote: `Tindak lanjut telah disetujui melalui naskah ${approvedNomor}`,
+            updatedAt: timestamp
+          };
+        }
+        try {
+          localStorage.setItem('siloka_disposisi_overrides', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
 
     recordAuditLog({
       action: 'LETTER_APPROVED',
@@ -1509,13 +1759,29 @@ export default function App() {
     setLetters((prev) =>
       prev.map((l) => {
         if (l.id === newDisposisi.letterId) {
+          const previousDisposisi = l.disposisi;
+          const currentHistory = Array.isArray(l.disposisiHistory)
+            ? [...l.disposisiHistory]
+            : (previousDisposisi ? [{ ...previousDisposisi }] : []);
+
+          if (newDisposisi.parentDisposisiId || newDisposisi.forwardedFrom) {
+            if (previousDisposisi && !currentHistory.some(h => h.id === previousDisposisi.id || (h.pemberiDisposisi === previousDisposisi.pemberiDisposisi && h.tanggalDisposisi === previousDisposisi.tanggalDisposisi))) {
+              currentHistory.push({ ...previousDisposisi });
+            }
+          }
+
           return {
             ...l,
             // Sesuai Pasal 74 Peraturan Rektor No. 3/2023:
             // Surat masuk yang didisposisikan berstatus 'Didisposisikan' (bukan 'Diparaf', karena surat masuk bukan draf internal)
             status: 'Didisposisikan',
             statusTimestamp: `Didisposisikan kepada ${newDisposisi.targetUnit} (Tenggat: ${newDisposisi.dueDate})`,
+            disposisiHistory: currentHistory,
             disposisi: {
+              status: 'Dalam Proses',
+              parentDisposisiId: newDisposisi.parentDisposisiId || null,
+              forwardedFrom: newDisposisi.forwardedFrom || null,
+              nomorAgenda: newDisposisi.nomorAgenda || l.nomorAgenda || `AGD-2026/${l.id}`,
               tujuanDisposisi: newDisposisi.targetUnit,
               targetUnit: newDisposisi.targetUnit,
               target_user_id: newDisposisi.target_user_id || null,
@@ -1523,6 +1789,7 @@ export default function App() {
               target_pejabat_nip: newDisposisi.target_pejabat_nip || null,
               target_pejabat_nama: newDisposisi.target_pejabat_nama || null,
               target_jabatan: newDisposisi.target_jabatan || newDisposisi.targetUnit,
+              targets: newDisposisi.targets || [],
               actions: newDisposisi.actions || [],
               instruksi: (newDisposisi.actions || []).join(', ') + (newDisposisi.customNote ? ' — Catatan: ' + newDisposisi.customNote : ''),
               batasWaktu: newDisposisi.dueDate,
@@ -1531,13 +1798,23 @@ export default function App() {
               pemberiDisposisi: newDisposisi.pemberiName || currentUser?.nama_lengkap || currentUser?.name || 'Pimpinan Unit',
               pemberiUserId: newDisposisi.pemberiUserId || currentUser?.id || currentUser?.id_user || null,
               jabatanPemberi: newDisposisi.pemberiJabatan || currentUser?.jabatan || currentUser?.sotk_position_label || currentUser?.roleLabel || 'Pimpinan',
-              tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' })
+              tanggalDisposisi: new Date().toLocaleDateString('id-ID', { dateStyle: 'long' }),
+              isRead: false,
+              readAt: null,
+              readBy: null,
+              readByNip: null,
+              readers: []
             },
           };
         }
         return l;
       })
     );
+
+    syncDisposisiAcrossTabs({
+      type: 'DISPOSISI_SAVED',
+      letterId: newDisposisi.letterId
+    });
 
     recordAuditLog({
       action: 'DISPOSISI_ISSUED',
@@ -1561,6 +1838,282 @@ export default function App() {
     showToast(`E-Disposisi berhasil diteruskan ke ${newDisposisi.targetUnit}!`, 'success');
   };
 
+  const handleUpdateDisposisiStatus = (dispId, letterId, newStatus, note = '') => {
+    const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+
+    setDispositionOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [dispId]: {
+          status: newStatus,
+          catatanProgres: note,
+          updatedAt: timestamp
+        }
+      };
+      if (letterId) {
+        updated[`disp-${letterId}`] = {
+          status: newStatus,
+          catatanProgres: note,
+          updatedAt: timestamp
+        };
+      }
+      try {
+        localStorage.setItem('siloka_disposisi_overrides', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (letterId) {
+      setLetters((prev) =>
+        prev.map((l) => {
+          if (l.id === letterId && l.disposisi) {
+            return {
+              ...l,
+              statusTimestamp: `Disposisi: ${newStatus} (${timestamp})`,
+              disposisi: {
+                ...l.disposisi,
+                status: newStatus,
+                catatanProgres: note || l.disposisi.catatanProgres,
+                updatedAt: timestamp
+              }
+            };
+          }
+          return l;
+        })
+      );
+    }
+
+    recordAuditLog({
+      action: 'DISPOSISI_STATUS_UPDATED',
+      details: `Status lembar disposisi (${dispId}) diperbarui menjadi "${newStatus}" oleh ${currentUser?.nama_lengkap || currentUser?.name || 'Pengguna'}${note ? ` — Catatan: ${note}` : ''}`
+    });
+
+    showToast(`Status disposisi berhasil diperbarui menjadi "${newStatus}".`, 'success');
+  };
+
+  const handleCompleteDisposisi = (dispId, letterId, note = 'Tindak lanjut selesai dilaksanakan.') => {
+    const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+
+    setDispositionOverrides((prev) => {
+      const updated = {
+        ...prev,
+        [dispId]: {
+          status: 'Selesai',
+          resolvedNote: note,
+          updatedAt: timestamp
+        }
+      };
+      if (letterId) {
+        updated[`disp-${letterId}`] = {
+          status: 'Selesai',
+          resolvedNote: note,
+          updatedAt: timestamp
+        };
+      }
+      try {
+        localStorage.setItem('siloka_disposisi_overrides', JSON.stringify(updated));
+      } catch (e) {}
+      return updated;
+    });
+
+    if (letterId) {
+      setLetters((prev) =>
+        prev.map((l) => {
+          if (l.id === letterId && l.disposisi) {
+            return {
+              ...l,
+              statusTimestamp: `Disposisi Selesai (${timestamp})`,
+              disposisi: {
+                ...l.disposisi,
+                status: 'Selesai',
+                resolvedAt: timestamp,
+                resolvedNote: note
+              }
+            };
+          }
+          return l;
+        })
+      );
+    }
+
+    recordAuditLog({
+      action: 'DISPOSISI_COMPLETED',
+      details: `Lembar disposisi (${dispId}) ditandai SELESAI oleh ${currentUser?.nama_lengkap || currentUser?.name || 'Pengguna'}`
+    });
+
+    showToast(`E-Disposisi berhasil diselesaikan dan diarsipkan!`, 'success');
+  };
+
+  // Fungsi broadcast sinkronisasi status keterbacaan disposisi antar-jendela / multi-tab secara real-time
+  const syncDisposisiAcrossTabs = (payload) => {
+    try {
+      if (typeof window !== 'undefined') {
+        if ('BroadcastChannel' in window) {
+          const bc = new BroadcastChannel('siloka_disposisi_live_sync');
+          bc.postMessage(payload);
+          bc.close();
+        }
+        localStorage.setItem(
+          'siloka_disposisi_sync_ping',
+          JSON.stringify({
+            time: Date.now(),
+            ...payload
+          })
+        );
+      }
+    } catch (_) {}
+  };
+
+  const handleMarkDisposisiRead = (letterId, customUser = null) => {
+    const userToRecord = customUser || currentUser;
+    if (!letterId || !userToRecord) return;
+
+    let targetUpdatedLetter = null;
+
+    setLetters((prev) => {
+      const target = prev.find((l) => l.id === letterId);
+      if (!target || !target.disposisi) return prev;
+
+      // Cek apakah user sudah tercatat membaca untuk menghindari duplikasi log
+      const alreadyRead = checkIfUserHasReadDisposisi(target.disposisi, userToRecord);
+      if (alreadyRead) return prev;
+
+      return prev.map((l) => {
+        if (l.id === letterId && l.disposisi) {
+          const updatedDisposisi = markDisposisiAsRead(l.disposisi, userToRecord);
+          targetUpdatedLetter = {
+            ...l,
+            disposisi: updatedDisposisi
+          };
+          return targetUpdatedLetter;
+        }
+        return l;
+      });
+    });
+
+    if (targetUpdatedLetter) {
+      setSelectedLetter((prev) => (prev && prev.id === letterId ? targetUpdatedLetter : prev));
+
+      // Broadcast pembaruan status ke tab lain (misal layar pimpinan/Rektor yang sedang terbuka)
+      syncDisposisiAcrossTabs({
+        type: 'DISPOSISI_READ',
+        letterId,
+        updatedLetter: targetUpdatedLetter
+      });
+
+      recordAuditLog({
+        action: 'DISPOSISI_READ',
+        details: `Lembar disposisi (Agenda: ${targetUpdatedLetter.disposisi?.nomorAgenda || targetUpdatedLetter.nomorAgenda || letterId}) dibuka dan dibaca oleh ${userToRecord.nama_lengkap || userToRecord.name || 'Pejabat'} (${userToRecord.jabatan || 'Penerima Disposisi'})`
+      });
+
+      try {
+        ProcessMiningLogger.getInstance().recordEvent(
+          letterId,
+          PROCESS_ACTIVITIES.DISPOSITION_READ || 'Pembacaan Lembar Disposisi',
+          userToRecord,
+          {
+            agenda: targetUpdatedLetter.disposisi?.nomorAgenda,
+            targetUnit: targetUpdatedLetter.disposisi?.targetUnit,
+            readAt: targetUpdatedLetter.disposisi?.readAt
+          }
+        );
+      } catch (_) {}
+    }
+  };
+
+  const handleMarkDocumentViewed = (letterId, customUser = null) => {
+    const userToRecord = customUser || currentUser;
+    if (!letterId || !userToRecord) return;
+
+    let targetUpdatedLetter = null;
+
+    setLetters((prev) => {
+      const target = prev.find((l) => l.id === letterId);
+      if (!target || !target.disposisi) return prev;
+
+      const alreadyViewed = checkIfUserHasOpenedDocument(target.disposisi, userToRecord);
+      if (alreadyViewed) return prev;
+
+      return prev.map((l) => {
+        if (l.id === letterId && l.disposisi) {
+          const updatedDisposisi = markDisposisiDocumentViewed(l.disposisi, userToRecord);
+          targetUpdatedLetter = {
+            ...l,
+            disposisi: updatedDisposisi
+          };
+          return targetUpdatedLetter;
+        }
+        return l;
+      });
+    });
+
+    if (targetUpdatedLetter) {
+      setSelectedLetter((prev) => (prev && prev.id === letterId ? targetUpdatedLetter : prev));
+
+      // Broadcast pembaruan status penelaahan berkas fisik/PDF
+      syncDisposisiAcrossTabs({
+        type: 'DISPOSISI_DOCUMENT_VIEWED',
+        letterId,
+        updatedLetter: targetUpdatedLetter
+      });
+
+      recordAuditLog({
+        action: 'DISPOSISI_DOCUMENT_VIEWED',
+        details: `Berkas fisik/naskah asli (Agenda: ${targetUpdatedLetter.disposisi?.nomorAgenda || targetUpdatedLetter.nomorAgenda || letterId}) dibuka dan ditelaah oleh ${userToRecord.nama_lengkap || userToRecord.name || 'Pejabat'} (${userToRecord.jabatan || 'Penerima Disposisi'})`
+      });
+
+      try {
+        ProcessMiningLogger.getInstance().recordEvent(
+          letterId,
+          PROCESS_ACTIVITIES.DOCUMENT_VIEWED || 'Penelaahan Berkas Naskah',
+          userToRecord,
+          {
+            agenda: targetUpdatedLetter.disposisi?.nomorAgenda,
+            targetUnit: targetUpdatedLetter.disposisi?.targetUnit,
+            documentViewedAt: targetUpdatedLetter.disposisi?.documentViewedAt
+          }
+        );
+      } catch (_) {}
+    }
+  };
+
+  const handleFollowUpDisposisi = (disp, targetLetter) => {
+    setFollowUpDisposisi({
+      dispositionId: disp.id,
+      letterId: targetLetter?.id || disp.letterId,
+      nomorAgenda: disp.nomorAgenda,
+      nomorSurat: targetLetter?.nomorSurat || disp.nomorAgenda,
+      perihal: targetLetter?.perihal || disp.instruksi || 'Tindak Lanjut Disposisi',
+      pengirim: targetLetter?.pengirim || disp.pemberiDisposisi,
+      pemberiDisposisi: disp.pemberiDisposisi,
+      penerimaDisposisi: disp.penerimaDisposisi,
+      instruksi: disp.instruksi,
+      sifatInstruksi: disp.sifatInstruksi
+    });
+    setIsCreateSuratKeluarOpen(true);
+  };
+
+  const handleForwardDisposisi = (disp, targetLetter) => {
+    if (!hasUserPermission(currentUser, 'disposisi.create') && !hasUserPermission(currentUser, 'disposisi.forward')) {
+      showToast('Akses Dibatasi: Anda tidak memiliki wewenang untuk meneruskan disposisi berjenjang.', 'warning');
+      return;
+    }
+    const foundLetter = targetLetter || letters.find((l) => l.id === disp.letterId || l.nomorAgenda === disp.nomorAgenda || l.disposisi?.nomorAgenda === disp.nomorAgenda);
+    setDisposisiTargetLetter(foundLetter || {
+      id: disp.letterId || `SRT-FWD-${Date.now()}`,
+      nomorSurat: disp.letter?.nomorSurat || `Ref-Agenda-${disp.nomorAgenda}`,
+      perihal: disp.letter?.perihal || `Tindak Lanjut Agenda ${disp.nomorAgenda}`,
+      nomorAgenda: disp.nomorAgenda,
+      pengirim: disp.pemberiDisposisi,
+      asalSurat: disp.pemberiDisposisi,
+      tanggal: disp.tanggalDisposisi || new Date().toISOString().split('T')[0],
+      sifat: disp.sifatInstruksi || 'Segera',
+      kategori: 'Surat Masuk'
+    });
+    setForwardFromDisposisi(disp);
+    setIsDisposisiOpen(true);
+  };
+
   const handleSaveNewLetter = (newLetter) => {
     const activeCreatorId = String(currentUser?.id_user || currentUser?.id || 'usr-02');
     const activeCreatorName = currentUser?.nama_lengkap || currentUser?.nama || currentUser?.name || 'Pengguna SILOKA';
@@ -1580,6 +2133,61 @@ export default function App() {
       created_at: newLetter.created_at || new Date().toISOString()
     };
     setLetters((prev) => [letterWithAudit, ...prev]);
+
+    // Closed-loop: Sinkronisasi tindak lanjut disposisi secara real-time
+    const parentTargetId = letterWithAudit.parentLetterId || followUpDisposisi?.letterId;
+    const parentDispTargetId = letterWithAudit.parentDispositionId || followUpDisposisi?.dispositionId;
+
+    if (parentTargetId || parentDispTargetId) {
+      const timestamp = new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB';
+      if (parentTargetId) {
+        setLetters((prev) =>
+          prev.map((l) => {
+            if (l.id === parentTargetId && l.disposisi) {
+              return {
+                ...l,
+                statusTimestamp: `Menunggu Telaah (Draf Naskah: ${letterWithAudit.nomorSurat || 'Telah Disusun'})`,
+                disposisi: {
+                  ...l.disposisi,
+                  status: 'Menunggu Telaah',
+                  naskahBalasanId: letterWithAudit.id,
+                  naskahBalasanNomor: letterWithAudit.nomorSurat || 'Draf Naskah',
+                  naskahBalasanPerihal: letterWithAudit.perihal,
+                  updatedAt: timestamp
+                }
+              };
+            }
+            return l;
+          })
+        );
+      }
+
+      setDispositionOverrides((prev) => {
+        const updated = { ...prev };
+        if (parentTargetId) {
+          updated[`disp-${parentTargetId}`] = {
+            status: 'Menunggu Telaah',
+            naskahBalasanId: letterWithAudit.id,
+            naskahBalasanNomor: letterWithAudit.nomorSurat || 'Draf Naskah',
+            updatedAt: timestamp
+          };
+        }
+        if (parentDispTargetId) {
+          updated[parentDispTargetId] = {
+            status: 'Menunggu Telaah',
+            naskahBalasanId: letterWithAudit.id,
+            naskahBalasanNomor: letterWithAudit.nomorSurat || 'Draf Naskah',
+            updatedAt: timestamp
+          };
+        }
+        try {
+          localStorage.setItem('siloka_disposisi_overrides', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+
+      setFollowUpDisposisi(null);
+    }
     const assignedSeq = letterWithAudit.nomor_urut || (
       letterWithAudit.nomorSurat?.match(/^0*([1-9]\d*)\//)
         ? parseInt(letterWithAudit.nomorSurat.match(/^0*([1-9]\d*)\//)[1], 10)
@@ -1701,8 +2309,17 @@ export default function App() {
 
   // Step 2 of TTE: Passphrase successfully verified in TtePassphraseModal
   const handleConfirmTteSignature = ({ letterId, certSerial, signerName, signerNip, timestamp }) => {
-    setLetters((prev) =>
-      prev.map((l) => {
+    let signedNomor = '';
+    let parentLetterId = null;
+    let parentDispId = null;
+
+    setLetters((prev) => {
+      const targetLetter = prev.find((l) => l.id === letterId);
+      parentLetterId = targetLetter?.parentLetterId;
+      parentDispId = targetLetter?.parentDispositionId;
+      signedNomor = targetLetter?.nomorSurat || letterId;
+
+      return prev.map((l) => {
         if (l.id === letterId) {
           const officialSigner = l.namaPenandatangan || l.namaPejabat || l.templateData?.namaPejabat || signerName;
           const officialNip = l.nipPenandatangan || l.nip || l.templateData?.nip || signerNip;
@@ -1728,9 +2345,45 @@ export default function App() {
             ],
           };
         }
+        if (parentLetterId && l.id === parentLetterId && l.disposisi) {
+          return {
+            ...l,
+            statusTimestamp: `Disposisi Selesai (Disahkan via TTE: ${signedNomor})`,
+            disposisi: {
+              ...l.disposisi,
+              status: 'Selesai',
+              resolvedAt: timestamp,
+              resolvedNote: `Tindak lanjut tuntas dan disahkan via TTE BSrE pada naskah ${signedNomor}`
+            }
+          };
+        }
         return l;
-      })
-    );
+      });
+    });
+
+    if (parentLetterId || parentDispId) {
+      setDispositionOverrides((prev) => {
+        const updated = { ...prev };
+        if (parentLetterId) {
+          updated[`disp-${parentLetterId}`] = {
+            status: 'Selesai',
+            resolvedNote: `Tindak lanjut tuntas dan disahkan via TTE BSrE pada naskah ${signedNomor}`,
+            updatedAt: timestamp
+          };
+        }
+        if (parentDispId) {
+          updated[parentDispId] = {
+            status: 'Selesai',
+            resolvedNote: `Tindak lanjut tuntas dan disahkan via TTE BSrE pada naskah ${signedNomor}`,
+            updatedAt: timestamp
+          };
+        }
+        try {
+          localStorage.setItem('siloka_disposisi_overrides', JSON.stringify(updated));
+        } catch (e) {}
+        return updated;
+      });
+    }
 
     recordAuditLog({
       action: 'TTE_SIGN_BSRE',
@@ -1846,7 +2499,7 @@ export default function App() {
         }
         setActiveTab={(tab) => {
           if (
-            (tab === 'settings' || tab === 'manajemen-user' || tab === 'manajemen-unit' || tab === 'manajemen-role' || tab === 'manajemen-permission') &&
+            (tab === 'settings' || tab === 'manajemen-user' || tab === 'manajemen-unit' || tab === 'manajemen-role' || tab === 'manajemen-permission' || tab === 'manajemen-disposisi') &&
             !isSuperAdminUser(currentUser)
           ) {
             showToast('Akses Ditolak: Modul Manajemen Pengaturan hanya boleh diakses oleh Super Admin.', 'error');
@@ -2010,13 +2663,19 @@ export default function App() {
             <DisposisiView
               letters={scopedLetters}
               currentUser={currentUser}
+              dispositionOverrides={dispositionOverrides}
               onSelectLetter={(letter) => setSelectedLetter(letter)}
+              onFollowUpDisposisi={handleFollowUpDisposisi}
+              onUpdateDisposisiStatus={handleUpdateDisposisiStatus}
+              onCompleteDisposisi={handleCompleteDisposisi}
+              onForwardDisposisi={handleForwardDisposisi}
               onOpenNewDisposisi={() => {
                 if (!hasUserPermission(currentUser, 'disposisi.create')) {
                   showToast('Akses Dibatasi: Fitur penerbitan disposisi khusus untuk Pejabat Struktural yang berwenang.', 'warning');
                   return;
                 }
                 setDisposisiTargetLetter(scopedLetters[0] || null);
+                setForwardFromDisposisi(null);
                 setIsDisposisiOpen(true);
               }}
             />
@@ -2263,19 +2922,37 @@ export default function App() {
           />
         )}
 
+        {activeTab === 'manajemen-disposisi' &&
+          (isSuperAdminUser(currentUser) || hasUserPermission(currentUser, 'admin.access') || hasUserPermission(currentUser, 'role.manage')) && (
+          <DisposisiRoutingManagementView
+            currentUser={currentUser}
+            allUsers={allUsers}
+            allUnits={allUnits}
+            showToast={showToast}
+          />
+        )}
+
         {/* Modals */}
         {selectedLetter && (
           <LetterDetailModal
-            letter={selectedLetter}
+            letter={letters.find((l) => l.id === selectedLetter.id) || selectedLetter}
             isOpen={true}
             onClose={() => setSelectedLetter(null)}
             onOpenDisposisi={handleOpenDisposisiForLetter}
+            onForwardDisposisi={handleForwardDisposisi}
             onSignTte={handleInitiateTte}
             onArchiveLetter={handleArchiveLetter}
             onApproveLetter={handleApproveLetter}
             onRejectLetter={handleRejectLetter}
             currentUser={currentUser}
             onLogAction={recordAuditLog}
+            onFollowUpDisposisi={(disp, letter) => {
+              setSelectedLetter(null);
+              handleFollowUpDisposisi(disp, letter);
+            }}
+            onCompleteDisposisi={handleCompleteDisposisi}
+            onMarkDisposisiRead={handleMarkDisposisiRead}
+            onMarkDocumentViewed={handleMarkDocumentViewed}
           />
         )}
 
@@ -2286,11 +2963,17 @@ export default function App() {
             onClose={() => {
               setIsDisposisiOpen(false);
               setDisposisiTargetLetter(null);
+              setForwardFromDisposisi(null);
             }}
-            onSubmitDisposisi={handleSaveDisposisi}
+            onSubmitDisposisi={(data) => {
+              handleSaveDisposisi(data);
+              setForwardFromDisposisi(null);
+            }}
             allLetters={scopedLetters}
             currentUser={currentUser}
             allUsers={allUsers}
+            allUnits={allUnits}
+            forwardFromDisposisi={forwardFromDisposisi}
           />
         )}
 
@@ -2311,12 +2994,17 @@ export default function App() {
         {isCreateSuratKeluarOpen && (
           <CreateLetterModal
             isOpen={true}
-            onClose={() => setIsCreateSuratKeluarOpen(false)}
+            onClose={() => {
+              setIsCreateSuratKeluarOpen(false);
+              setFollowUpDisposisi(null);
+            }}
             onSaveLetter={handleSaveNewLetter}
             currentUser={currentUser}
             initialMode="surat-keluar"
             allLetters={letters}
             allUsers={allUsers}
+            followUpDisposisi={followUpDisposisi}
+            onClearFollowUp={() => setFollowUpDisposisi(null)}
           />
         )}
 
@@ -2327,6 +3015,8 @@ export default function App() {
             onSaveLetter={handleSaveNewLetter}
             currentUser={currentUser}
             allLetters={letters}
+            allUsers={allUsers}
+            allUnits={allUnits}
           />
         )}
 

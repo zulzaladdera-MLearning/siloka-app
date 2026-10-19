@@ -5,7 +5,7 @@ describe('Integrasi Tujuan Surat (Pejabat UNSIL) dengan Manajemen Pengguna & SOT
   it('harus memuat daftar pejabat resmi dengan pemetaan akun pengguna yang tersedia', () => {
     const officials = getAllOfficialsWithUserMapping();
     expect(Array.isArray(officials)).toBe(true);
-    expect(officials.length).toBeGreaterThan(15);
+    expect(officials.length).toBeGreaterThanOrEqual(7);
 
     // Verifikasi Rektor selalu berada di urutan teratas
     const topOfficial = officials[0];

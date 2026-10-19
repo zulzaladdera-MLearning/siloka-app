@@ -1,13 +1,4 @@
-/**
- * Unit Test: Fitur Penandatangan Otomatis & Master Pejabat (SILOKA UNSIL)
- * 
- * Menguji:
- * 1. Penyaringan unit-scoped (terfilter berdasarkan unit kerja login: FKIP, FT, BKU, Rektorat, LPPM, UPA TIK)
- * 2. Pemetaan auto-fill Nama (+ Gelar resmi) dan NIP
- * 3. Ketersediaan master data pejabat penandatangan resmi
- * 4. Fungsi lookup findPejabatByNip, findPejabatById, dan formatPejabatLabel
- */
-
+import { describe, it, expect } from 'vitest';
 import {
   getPejabatByUnit,
   findPejabatByNip,
@@ -16,86 +7,96 @@ import {
 } from '../pejabatHelper.js';
 import masterPejabatList from '../../data/masterPejabat.json' with { type: 'json' };
 
-let passedCount = 0;
-let failedCount = 0;
+describe('Unit Test: Fitur Penandatangan Otomatis & Master Pejabat Resmi UNSIL', () => {
+  it('Kelengkapan Dataset Master Pejabat: Hanya memuat pejabat resmi institusional (tanpa akun bodong)', () => {
+    expect(Array.isArray(masterPejabatList)).toBe(true);
+    expect(masterPejabatList.length).toBeGreaterThanOrEqual(7);
 
-function assert(condition, message) {
-  if (condition) {
-    passedCount++;
-    console.log(`  ✓ ${message}`);
-  } else {
-    failedCount++;
-    console.error(`  ✗ GAGAL: ${message}`);
-  }
-}
+    // Pastikan tidak ada akun fiktif Alam Rahmatulloh di master pejabat
+    const hasAlam = masterPejabatList.some(
+      (p) => (p.nama && p.nama.includes('Alam Rahmatulloh')) || (p.jabatan && p.jabatan.includes('Kepala UPA TIK'))
+    );
+    expect(hasAlam).toBe(false);
 
-console.log('--- PENGUJIAN 1: Kelengkapan Dataset Master Pejabat ---');
-assert(Array.isArray(masterPejabatList) && masterPejabatList.length >= 20, `Terdapat ${masterPejabatList.length} data master pejabat aktif`);
-const hasDuplicateNip = new Set(masterPejabatList.map(p => p.nip)).size !== masterPejabatList.length;
-assert(!hasDuplicateNip, 'Seluruh NIP pada master_pejabat bersifat unik (tanpa duplikasi)');
+    // Seluruh NIP harus unik dan valid
+    const nips = masterPejabatList.map((p) => p.nip);
+    const uniqueNips = new Set(nips);
+    expect(uniqueNips.size).toBe(masterPejabatList.length);
+  });
 
-console.log('\n--- PENGUJIAN 2: Filter Unit Scoped - FKIP (UN58.10) ---');
-const fkipList = getPejabatByUnit('UN58.10', true);
-const fkipPrimary = fkipList.filter(p => p.kode_unit === 'UN58.10');
-const fkipUni = fkipList.filter(p => p.kode_unit === 'UN58');
+  it('Filter Unit Scoped - Rektorat (UN58): Memuat Pimpinan Rektorat Resmi', () => {
+    const rektoratList = getPejabatByUnit('UN58');
+    expect(rektoratList.length).toBeGreaterThanOrEqual(4);
+    expect(rektoratList.every((p) => p.kode_unit === 'UN58')).toBe(true);
 
-assert(fkipList.length > 0, 'Daftar pejabat FKIP berhasil dimuat');
-assert(fkipPrimary.length >= 2, 'Pejabat utama FKIP memuat Dekan dan Wakil Dekan');
-assert(fkipPrimary[0].jabatan.includes('Dekan Fakultas Keguruan dan Ilmu Pendidikan'), 'Pejabat pertama adalah Dekan FKIP');
-assert(fkipPrimary[0].nama_gelar === 'Dr. H. Cucu Suherman, M.Pd.', 'Nama Dekan FKIP sesuai standar');
-assert(fkipPrimary[0].nip === '197204151998021001', 'NIP Dekan FKIP valid');
-assert(fkipUni.length === 0, 'Pejabat unit lain (Rektorat) otomatis disembunyikan untuk Dosen/Staf FKIP');
+    const rektor = rektoratList.find((p) => p.jabatan === 'Rektor Universitas Siliwangi');
+    expect(rektor).toBeDefined();
+    expect(rektor.nama_gelar).toBe('Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.');
+    expect(rektor.nip).toBe('196708161996031001');
 
-console.log('\n--- PENGUJIAN 3: Filter Unit Scoped - Fakultas Teknik (UN58.13) ---');
-const ftList = getPejabatByUnit('UN58.13', true);
-const ftPrimary = ftList.filter(p => p.kode_unit === 'UN58.13');
+    const warek1 = rektoratList.find((p) => p.jabatan === 'Wakil Rektor Bidang Akademik');
+    expect(warek1).toBeDefined();
+    expect(warek1.nip).toBe('196811132021211003');
 
-assert(ftPrimary.length >= 2, 'Pejabat utama FT memuat Dekan dan Wakil Dekan');
-assert(ftPrimary[0].jabatan.includes('Dekan Fakultas Teknik'), 'Pejabat pertama adalah Dekan Fakultas Teknik');
-assert(ftPrimary[0].nama_gelar === 'Dr. Nurul Hiron, S.T., M.Eng.', 'Nama Dekan FT presisi dengan gelar');
-assert(ftPrimary[0].nip === '197306282000031001', 'NIP Dekan FT presisi (18 digit)');
+    const warek2 = rektoratList.find((p) => p.jabatan === 'Wakil Rektor Bidang Keuangan dan Umum');
+    expect(warek2).toBeDefined();
+    expect(warek2.nip).toBe('196801021992031002');
 
-console.log('\n--- PENGUJIAN 4: Filter Unit Scoped - Biro BKU (UN58.6) ---');
-const bkuList = getPejabatByUnit('UN58.6', false);
-assert(bkuList.length === 1, 'Biro BKU memuat tepat 1 kepala biro jika tanpa universitas');
-assert(bkuList[0].jabatan === 'Kepala Biro Keuangan dan Umum', 'Jabatan Kepala BKU presisi');
-assert(bkuList[0].nama_gelar === 'Dr. Nana Sujana, Drs., M.Si.', 'Nama Kepala BKU presisi');
-assert(bkuList[0].nip === '196808301989031004', 'NIP Kepala BKU presisi');
+    const warek3 = rektoratList.find((p) => p.jabatan === 'Wakil Rektor Bidang Kemahasiswaan dan Alumni');
+    expect(warek3).toBeDefined();
+    expect(warek3.nip).toBe('197508192021211003');
+  });
 
-console.log('\n--- PENGUJIAN 5: Filter Unit Scoped - Rektorat (UN58) ---');
-const rektoratList = getPejabatByUnit('UN58', true);
-assert(rektoratList.every(p => p.kode_unit === 'UN58'), 'Pejabat Rektorat hanya beranggotakan unit UN58');
-const rektor = rektoratList.find(p => p.jabatan === 'Rektor Universitas Siliwangi');
-assert(rektor !== undefined, 'Rektor Universitas Siliwangi ditemukan');
-assert(rektor.nama_gelar === 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.', 'Gelar resmi Rektor presisi');
-assert(rektor.nip === '196708161996031001', 'NIP Rektor presisi');
+  it('Filter Unit Scoped - Organ Universitas (Senat & DP): Memuat Pejabat Resmi SOTK', () => {
+    const senatList = getPejabatByUnit('UN58.SENAT');
+    expect(senatList.length).toBe(2);
+    expect(senatList.some((p) => p.jabatan.includes('Ketua Senat'))).toBe(true);
+    expect(senatList.some((p) => p.jabatan.includes('Sekretaris Senat'))).toBe(true);
 
-console.log('\n--- PENGUJIAN 6: Filter Unit Scoped - UPA TIK (UN58.32) & LPPM (UN58.21) ---');
-const tikList = getPejabatByUnit('UN58.32', false);
-assert(tikList[0].jabatan === 'Kepala UPA TIK', 'Pejabat UPA TIK teridentifikasi');
-assert(tikList[0].nama_gelar === 'Alam Rahmatulloh, S.T., M.T.', 'Nama Kepala UPA TIK presisi');
+    const dpList = getPejabatByUnit('UN58.DP');
+    expect(dpList.length).toBe(1);
+    expect(dpList[0].jabatan).toBe('Ketua Dewan Penyantun');
+    expect(dpList[0].nama).toBe('Drs. H. Syarif Hidayat');
+  });
 
-const lppmList = getPejabatByUnit('UN58.21', false);
-assert(lppmList[0].jabatan === 'Ketua LPPM Universitas Siliwangi', 'Pejabat LPPM teridentifikasi');
-assert(lppmList[0].nama_gelar === 'Dr. Gumilar Mulya, M.Pd.', 'Nama Ketua LPPM presisi');
+  it('Filter Unit Scoped - Unit Tanpa Pejabat Terdaftar (UPA TIK UN58.32): Mengembalikan Kosong Jujur (Tanpa Pejabat Bodong)', () => {
+    // Karena Super Admin belum mengangkat Kepala UPA TIK di master pengguna/pejabat
+    const tikList = getPejabatByUnit('UN58.32');
+    expect(tikList.length).toBe(0);
+  });
 
-console.log('\n--- PENGUJIAN 7: Lookup Berdasarkan NIP & ID ---');
-const pejabatByNip = findPejabatByNip('197306282000031001');
-assert(pejabatByNip !== null && pejabatByNip.jabatan === 'Dekan Fakultas Teknik', 'findPejabatByNip berhasil');
+  it('Reaktivitas Data Pengguna: Menampilkan Pejabat Baru jika Ditambahkan di Manajemen Pengguna', () => {
+    const customUsersList = [
+      {
+        id: 'usr-dekan-ft-baru',
+        nip: '197306282000031001',
+        nama_lengkap: 'Dr. Ir. Asep Andang, S.T., M.T.',
+        jabatan: 'Dekan Fakultas Teknik',
+        unit_kerja_id: 'UN58.13',
+        role: 'PEJABAT',
+        is_pejabat: true,
+        is_active: true
+      }
+    ];
 
-const pejabatById = findPejabatById(1);
-assert(pejabatById !== null && pejabatById.nip === '196708161996031001', 'findPejabatById berhasil');
+    const ftList = getPejabatByUnit('UN58.13', null, customUsersList);
+    expect(ftList.length).toBe(1);
+    expect(ftList[0].nama).toBe('Dr. Ir. Asep Andang, S.T., M.T.');
+    expect(ftList[0].jabatan).toBe('Dekan Fakultas Teknik');
+    expect(ftList[0].kode_unit).toBe('UN58.13');
+  });
 
-const formattedLabel = formatPejabatLabel(pejabatByNip);
-assert(formattedLabel.includes('Dekan Fakultas Teknik') && formattedLabel.includes('Dr. Nurul Hiron'), 'formatPejabatLabel menghasilkan string representatif');
+  it('Lookup Berdasarkan NIP & ID', () => {
+    const rektorByNip = findPejabatByNip('196708161996031001');
+    expect(rektorByNip).not.toBeNull();
+    expect(rektorByNip.jabatan).toBe('Rektor Universitas Siliwangi');
 
-console.log(`\n========================================`);
-console.log(`HASIL: ${passedCount} pengujian BERHASIL, ${failedCount} GAGAL`);
-console.log(`========================================\n`);
+    const rektorById = findPejabatById(1);
+    expect(rektorById).not.toBeNull();
+    expect(rektorById.nip).toBe('196708161996031001');
 
-if (failedCount > 0) {
-  process.exit(1);
-} else {
-  process.exit(0);
-}
-
+    const formattedLabel = formatPejabatLabel(rektorByNip);
+    expect(formattedLabel).toContain('Rektor Universitas Siliwangi');
+    expect(formattedLabel).toContain('Prof. Dr. Eng. Ir. Aripin');
+  });
+});

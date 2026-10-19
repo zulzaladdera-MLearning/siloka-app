@@ -5,7 +5,9 @@ import {
   getJurusanByUnitCode,
   getActiveUnitKerjaList,
   getDefaultStrukturOrganisasi,
-  getStrukturOrganisasiByUnit
+  getStrukturOrganisasiByUnit,
+  isSingleIncumbentPosition,
+  findPositionOccupant
 } from '../unitJabatanOptions';
 
 describe('UnitJabatanOptions - Dynamic Structural Position Selector', () => {
@@ -169,5 +171,90 @@ describe('UnitJabatanOptions - Dynamic Structural Position Selector', () => {
 
     const drafter = getPositionsByUnitAndRole('UN58.13', 'drafter', customUnitsWithStruktur);
     expect(drafter).toEqual(['Koordinator Laboratorium Riset dan IoT']);
+  });
+
+  describe('Single-Incumbent Position Occupancy Guard (Anti Human Error)', () => {
+    it('isSingleIncumbentPosition harus mengidentifikasi jabatan struktural tunggal vs jamak', () => {
+      // Jabatan Tunggal (Single Incumbent)
+      expect(isSingleIncumbentPosition('Rektor Universitas Siliwangi')).toBe(true);
+      expect(isSingleIncumbentPosition('Wakil Rektor Bidang Akademik')).toBe(true);
+      expect(isSingleIncumbentPosition('Dekan Fakultas Teknik')).toBe(true);
+      expect(isSingleIncumbentPosition('Kepala Biro Keuangan dan Umum')).toBe(true);
+      expect(isSingleIncumbentPosition('Ketua Senat Universitas Siliwangi')).toBe(true);
+      expect(isSingleIncumbentPosition('Ketua Satuan Pengawas Internal (SPI)')).toBe(true);
+      expect(isSingleIncumbentPosition('Kepala UPA Teknologi Informasi dan Komunikasi')).toBe(true);
+
+      // Jabatan Jamak / Multi-Incumbent (Boleh diisi banyak orang)
+      expect(isSingleIncumbentPosition('Dosen Fungsional (Tridharma)')).toBe(false);
+      expect(isSingleIncumbentPosition('Dosen Biasa')).toBe(false);
+      expect(isSingleIncumbentPosition('Staf Tata Usaha')).toBe(false);
+      expect(isSingleIncumbentPosition('Operator TIK / Pranata Komputer')).toBe(false);
+      expect(isSingleIncumbentPosition('Pengadministrasi Persuratan')).toBe(false);
+    });
+
+    it('findPositionOccupant harus mendeteksi pejabat yang telah aktif mengisi jabatan tunggal', () => {
+      const mockUsers = [
+        {
+          id: 'usr-01',
+          nip: '196708161996031001',
+          nama_lengkap: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+          name: 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
+          jabatan: 'Rektor Universitas Siliwangi',
+          unit_kerja_id: 'UN58',
+          is_active: true
+        },
+        {
+          id: 'usr-warek-01',
+          nip: '197005141997021001',
+          nama_lengkap: 'Prof. Dr. Dedi Nurjamil, M.Pd.',
+          name: 'Prof. Dr. Dedi Nurjamil, M.Pd.',
+          jabatan: 'Wakil Rektor Bidang Akademik',
+          unit_kerja_id: 'UN58',
+          is_active: true
+        },
+        {
+          id: 'usr-19',
+          nip: '197508192021211003',
+          nama_lengkap: 'Dr. Nurul Hiron, S.T., M.Eng.',
+          name: 'Dr. Nurul Hiron, S.T., M.Eng.',
+          jabatan: 'Dekan Fakultas Teknik',
+          unit_kerja_id: 'UN58.13',
+          is_active: true
+        },
+        {
+          id: 'usr-dosen-01',
+          nip: '198501012010121005',
+          nama_lengkap: 'Dosen A',
+          name: 'Dosen A',
+          jabatan: 'Dosen Fungsional (Tridharma)',
+          unit_kerja_id: 'UN58.13',
+          is_active: true
+        }
+      ];
+
+      // Deteksi Rektor
+      const occupantRektor = findPositionOccupant('Rektor Universitas Siliwangi', mockUsers);
+      expect(occupantRektor).toBeDefined();
+      expect(occupantRektor.id).toBe('usr-01');
+      expect(occupantRektor.name).toContain('Aripin');
+
+      // Deteksi Dekan FT
+      const occupantDekan = findPositionOccupant('Dekan Fakultas Teknik', mockUsers, null, 'UN58.13');
+      expect(occupantDekan).toBeDefined();
+      expect(occupantDekan.id).toBe('usr-19');
+      expect(occupantDekan.name).toContain('Nurul Hiron');
+
+      // Abaikan diri sendiri saat mode edit
+      const selfEditOccupant = findPositionOccupant('Rektor Universitas Siliwangi', mockUsers, 'usr-01');
+      expect(selfEditOccupant).toBeNull();
+
+      // Jabatan jamak (Dosen) tidak boleh dianggap terokupansi secara tunggal
+      const occupantDosen = findPositionOccupant('Dosen Fungsional (Tridharma)', mockUsers);
+      expect(occupantDosen).toBeNull();
+
+      // Jabatan yang belum terisi (kosong)
+      const vacantOccupant = findPositionOccupant('Dekan Fakultas Kedokteran', mockUsers);
+      expect(vacantOccupant).toBeNull();
+    });
   });
 });

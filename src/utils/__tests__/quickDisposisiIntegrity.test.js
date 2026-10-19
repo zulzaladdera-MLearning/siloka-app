@@ -89,4 +89,27 @@ describe('Verifikasi Integritas Lembar Arahan Disposisi Pejabat (QuickDisposisiM
     const hasSekjur = targets.some((t) => t.nama.toLowerCase().includes('sekretaris') || t.nama.toLowerCase().includes('laboratorium'));
     expect(hasSekjur).toBe(true);
   });
+
+  it('harus mematuhi kaidah tata naskah dinas: Pejabat bawahan (Dekan, Kajur) haram memiliki tujuan disposisi ke Rektor', () => {
+    const dekanTargets = getHierarchicalDisposisiTargets(dekanFTUser);
+    const kajurTargets = getHierarchicalDisposisiTargets(kajurIFUser);
+
+    const hasRektorInDekan = dekanTargets.some(
+      (t) =>
+        t.user_id === 'usr-01' ||
+        (t.nama.toLowerCase().includes('rektor') && !t.nama.toLowerCase().includes('wakil'))
+    );
+    const hasRektorInKajur = kajurTargets.some(
+      (t) =>
+        t.user_id === 'usr-01' ||
+        (t.nama.toLowerCase().includes('rektor') && !t.nama.toLowerCase().includes('wakil'))
+    );
+
+    expect(hasRektorInDekan).toBe(false);
+    expect(hasRektorInKajur).toBe(false);
+
+    // Dekan juga dilarang mendisposisikan ke Wakil Rektor
+    const hasWarekInDekan = dekanTargets.some((t) => t.nama.toLowerCase().includes('wakil rektor'));
+    expect(hasWarekInDekan).toBe(false);
+  });
 });

@@ -24,7 +24,7 @@ import { isSuperAdminUser } from './authGuards.js';
  * @param {object} [sessionUser] - Objek session user opsional
  * @returns {Array<object>} Daftar pejabat struktural dalam unit tersebut
  */
-export const getPejabatByUnit = (unitOrUser, sessionUser = null) => {
+export const getPejabatByUnit = (unitOrUser, sessionUser = null, availableUsers = null) => {
   let targetUnit = '';
 
   if (typeof unitOrUser === 'string') {
@@ -37,14 +37,58 @@ export const getPejabatByUnit = (unitOrUser, sessionUser = null) => {
     targetUnit = (sessionUser.unit_kerja_id || sessionUser.kode_unit || '').trim().toUpperCase();
   }
 
-  // Jika tetap kosong, fallback aman ke unit default
+  // Jika tetap kosong, fallback aman ke unit Rektorat
   if (!targetUnit) {
-    targetUnit = 'UN58.13';
+    targetUnit = 'UN58';
   }
 
-  // Implementasi kaku:
-  // "SELECT * FROM master_pejabat WHERE kode_unit = [unit_kerja_user_login] AND is_aktif = TRUE"
-  // Pilihan dari unit kerja lain otomatis disembunyikan oleh sistem!
+  // 1. Prioritaskan akun pejabat resmi dari Manajemen Pengguna (CRUD Super Admin)
+  let userSource = Array.isArray(availableUsers) ? availableUsers : null;
+  if (!userSource && typeof window !== 'undefined') {
+    try {
+      const saved = localStorage.getItem('siloka_users_data');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          userSource = parsed;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (Array.isArray(userSource) && userSource.length > 0) {
+    const officialsFromUsers = userSource
+      .filter((u) => {
+        if (!u || !isOfficialUserAccount(u)) return false;
+        const uUnit = (u.unit_kerja_id || u.kode_unit || '').trim().toUpperCase();
+        return uUnit === targetUnit;
+      })
+      .map((u) => {
+        const uNip = String(u.nip || u.nip_nik || '').trim();
+        const masterRef = masterPejabatList.find((p) => p.nip === uNip) || null;
+        const finalJabatan = u.jabatan || u.roleLabel || u.role_label || masterRef?.jabatan || 'Pejabat Struktural';
+        const finalNama = u.nama_lengkap || u.name || masterRef?.nama || 'Pejabat UNSIL';
+        return {
+          id: u.id,
+          nip: uNip,
+          nama: finalNama,
+          gelar: masterRef?.gelar || '',
+          nama_gelar: masterRef?.nama_gelar || finalNama,
+          jabatan: finalJabatan,
+          kode_unit: targetUnit,
+          is_aktif: true,
+          is_active: true
+        };
+      });
+
+    if (officialsFromUsers.length > 0) {
+      return officialsFromUsers;
+    }
+  }
+
+  // 2. Fallback ke masterPejabatList institusional resmi
   return masterPejabatList.filter(
     (p) =>
       p.kode_unit.toUpperCase() === targetUnit &&
@@ -134,18 +178,23 @@ const getKategoriByUnitAndPosition = (kodeUnit, jabatanStr = '') => {
 };
 
 /**
- * Memeriksa apakah suatu akun pengguna merupakan Pejabat Struktural sah UNSIL
+ * Memeriksa apakah suatu akun pengguna merupakan Pejabat Struktural / Pimpinan / Penandatangan sah UNSIL
+ * Sesuai Regulasi Tata Naskah Dinas UNSIL (Peraturan Rektor No. 3/2023) & UU No. 30/2014:
+ * Disposisi kedinasan HANYA sah ditujukan kepada pemangku jabatan Pimpinan, Penandatangan, atau Pejabat Struktural.
+ * Akun Super Administrator sistem dan staf non-pejabat dilarang keras menerima disposisi.
  */
-const isOfficialUserAccount = (u) => {
+export const isOfficialUserAccount = (u) => {
   if (!u) return false;
   // Super Admin adalah administrator sistem, bukan pejabat penerima surat dinas
-  if (isSuperAdminUser(u)) return false;
+  if (isSuperAdminUser(u) || u.is_super_admin === true) return false;
 
-  const role = String(u.role || '').toUpperCase();
-  const roleSlug = String(u.role_slug || '').toLowerCase();
-  const isPejabat = Boolean(u.is_pejabat);
-  const jab = String(u.jabatan || u.roleLabel || u.role_label || '').trim();
+  const role = String(u.role || '').toUpperCase().trim();
+  const roleSlug = String(u.role_slug || '').toLowerCase().trim();
+  const roleLabel = String(u.roleLabel || u.role_label || '').toLowerCase().trim();
+  const roleLevel = String(u.roleLevel || '').toLowerCase().trim();
+  const jab = String(u.jabatan || u.nama_jabatan || u.sotk_position_label || u.roleLabel || u.role_label || '').trim();
   const posLower = jab.toLowerCase();
+  const isPejabat = Boolean(u.is_pejabat);
 
   // Kecualikan dosen biasa fungsional tanpa jabatan atau staf tata usaha murni
   if (
@@ -153,7 +202,36 @@ const isOfficialUserAccount = (u) => {
     posLower.includes('dosen biasa') ||
     posLower.includes('tanpa jabatan') ||
     posLower.includes('pengadministrasi') ||
-    posLower.includes('arsiparis')
+    posLower.includes('arsiparis') ||
+    posLower.includes('operator unit') ||
+    posLower.includes('operator tik') ||
+    posLower.startsWith('staf ') ||
+    posLower.includes('staf tata usaha') ||
+    posLower.includes('staf administrasi') ||
+    posLower.includes('administrator sistem')
+  ) {
+    return false;
+  }
+
+  // Kecualikan akun yang secara eksplisit non-pejabat dan rolenya bukan pimpinan/penandatangan
+  const nonPejabatRoles = [
+    'SUPER_ADMIN',
+    'SUPER ADMIN',
+    'ADMIN_TU',
+    'STAF',
+    'OPERATOR_UNIT',
+    'DOSEN',
+    'DRAFTER',
+    'DOSEN_NON_JABATAN',
+    'VERIFIKATOR',
+    'AUDITOR_SPI'
+  ];
+  if (
+    nonPejabatRoles.includes(role) &&
+    !isPejabat &&
+    roleSlug !== 'pimpinan' &&
+    roleSlug !== 'penandatangan' &&
+    !matchesOfficialDisposisiPosition(jab)
   ) {
     return false;
   }
@@ -161,7 +239,16 @@ const isOfficialUserAccount = (u) => {
   return (
     isPejabat ||
     role === 'PEJABAT' ||
+    role === 'PIMPINAN' ||
+    role === 'PENANDATANGAN' ||
+    role === 'REKTOR' ||
+    role === 'WAREK' ||
+    role === 'DEKAN' ||
     roleSlug === 'pimpinan' ||
+    roleSlug === 'penandatangan' ||
+    roleLabel.includes('pimpinan') ||
+    roleLabel.includes('penandatangan') ||
+    roleLevel.includes('pimpinan') ||
     matchesOfficialDisposisiPosition(jab)
   );
 };

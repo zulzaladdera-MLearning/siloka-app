@@ -23,8 +23,10 @@ import {
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { CancelLetterModal } from './CancelLetterModal';
+import { DeleteLetterModal } from './DeleteLetterModal';
 import unitKerjaList from '../../data/unitKerja.json';
 import { canLetterBeDisposed } from '../../utils/letterActionPolicy';
+import { getDisposisiReadSummary } from '../../utils/disposisiTrackingHelper';
 
 export const ActivityTable = ({
   letters,
@@ -47,6 +49,8 @@ export const ActivityTable = ({
   const [copiedId, setCopiedId] = useState(null);
   const [letterToCancel, setLetterToCancel] = useState(null);
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [letterToDelete, setLetterToDelete] = useState(null);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
 
   // Penanganan Buka Modal Pembatalan Naskah (Ramah Kearsipan & Orang Awam)
   const handleOpenCancelModal = (letter) => {
@@ -67,6 +71,27 @@ export const ActivityTable = ({
     if (onCancelLetter) {
       onCancelLetter(letter, reason, note);
     } else if (onDeleteLetter) {
+      onDeleteLetter(letter);
+    }
+  };
+
+  // Penanganan Buka Modal Hapus Naskah (Opsi A)
+  const handleOpenDeleteModal = (letter) => {
+    if (!letter) return;
+    if (currentUser?.role === 'PENGAWAS') {
+      window.alert('Akses Ditolak: Pengawas SPI berstatus peninjau (read-only) dan tidak berwenang menghapus naskah.');
+      return;
+    }
+    if (letter.isLockedPermanen) {
+      window.alert('Akses Ditolak: Berkas ini berstatus Arsip Permanen dan dilindungi regulasi kearsipan.');
+      return;
+    }
+    setLetterToDelete(letter);
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDelete = (letter) => {
+    if (onDeleteLetter) {
       onDeleteLetter(letter);
     }
   };
@@ -178,7 +203,7 @@ export const ActivityTable = ({
                 onChange={(e) => setSelectedUnitFilter(e.target.value)}
                 className="appearance-none bg-emerald-50 border border-emerald-300 text-xs font-semibold text-unsil-green-950 py-1.5 pl-3 pr-8 rounded-lg hover:bg-emerald-100 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 cursor-pointer"
               >
-                <option value="ALL">🏢 Semua Unit</option>
+                <option value="ALL">Semua Unit</option>
                 {unitKerjaList.map((u) => (
                   <option key={u.kode_unit} value={u.kode_unit}>
                     {u.singkatan} ({u.kode_unit})
@@ -357,14 +382,39 @@ export const ActivityTable = ({
               </div>
 
               {/* Arahan Disposisi Preview (Mobile) */}
-              {letter.disposisi && (
-                <div className="flex items-center gap-1.5 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 mt-1">
-                  <CheckSquare className="w-3.5 h-3.5 text-unsil-green-700 shrink-0" />
-                  <span className="truncate">
-                    Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
-                  </span>
-                </div>
-              )}
+              {letter.disposisi && (() => {
+                const readSummary = getDisposisiReadSummary(letter.disposisi);
+                return (
+                  <div className="flex items-center justify-between gap-1.5 p-1.5 rounded-lg bg-emerald-50 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 mt-1">
+                    <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                      <CheckSquare className="w-3.5 h-3.5 text-unsil-green-700 shrink-0" />
+                      <span className="truncate">
+                        Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
+                      </span>
+                    </div>
+                    <span
+                      className={`shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9.5px] font-bold border ${
+                        readSummary.isAllRead
+                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                          : 'bg-rose-50 text-rose-700 border-rose-200'
+                      }`}
+                      title={readSummary.isAllRead ? `Dibaca oleh ${letter.disposisi.readBy || 'Penerima'}` : 'Belum dibuka penerima'}
+                    >
+                      {readSummary.isAllRead ? (
+                        <>
+                          <CheckCheck className="w-3 h-3 text-emerald-700" />
+                          <span>Dibaca</span>
+                        </>
+                      ) : (
+                        <>
+                          <Clock className="w-3 h-3 text-rose-500" />
+                          <span>Belum Dibaca</span>
+                        </>
+                      )}
+                    </span>
+                  </div>
+                );
+              })()}
 
               {/* Row 4: Aksi Cepat Mobile */}
               <div
@@ -416,6 +466,19 @@ export const ActivityTable = ({
                       </button>
                     )
                   )}
+                  {onDeleteLetter && currentUser?.role !== 'PENGAWAS' && !letter.isLockedPermanen && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleOpenDeleteModal(letter);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold text-rose-700 bg-rose-50 hover:bg-rose-100 border border-rose-200 active:scale-95 transition cursor-pointer"
+                      title="Hapus Naskah Dinas dari Riwayat"
+                    >
+                      <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                      <span>Hapus</span>
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -432,7 +495,7 @@ export const ActivityTable = ({
               <th className="py-3 px-4">Perihal & Pihak Terkait</th>
               <th className="py-3 px-4 hidden md:table-cell w-36">Kategori</th>
               <th className="py-3 px-4 w-44">Status & Progres</th>
-              <th className="py-3 px-4 w-28 text-left">Tindakan</th>
+              <th className="py-3 px-4 w-36 text-right">Tindakan</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs text-slate-700">
@@ -509,7 +572,8 @@ export const ActivityTable = ({
                       <SifatBadge sifat={letter.sifat} />
                       {letter.isLockedPermanen && (
                         <span className="text-[10px] bg-slate-900 text-amber-300 px-1.5 py-0.2 rounded font-bold flex items-center gap-1">
-                          🔒 Safeguard
+                          <Lock className="w-2.5 h-2.5 text-amber-300" />
+                          Safeguard
                         </span>
                       )}
                       <span className="md:hidden">
@@ -540,14 +604,39 @@ export const ActivityTable = ({
                     </div>
 
                     {/* Arahan Disposisi Preview (Desktop) */}
-                    {letter.disposisi && (
-                      <div className="flex items-center gap-1.5 mt-1.5 p-1 px-1.5 rounded-md bg-emerald-50/90 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 max-w-sm truncate">
-                        <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0" />
-                        <span className="truncate">
-                          Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
-                        </span>
-                      </div>
-                    )}
+                    {letter.disposisi && (() => {
+                      const readSummary = getDisposisiReadSummary(letter.disposisi);
+                      return (
+                        <div className="flex items-center justify-between gap-1.5 mt-1.5 p-1 px-1.5 rounded-md bg-emerald-50/90 border border-emerald-200/80 text-[10.5px] text-unsil-green-950 max-w-sm">
+                          <div className="flex items-center gap-1.5 min-w-0 flex-1 truncate">
+                            <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0" />
+                            <span className="truncate">
+                              Arahan: <strong>{letter.disposisi.actions && letter.disposisi.actions.length > 0 ? letter.disposisi.actions.slice(0, 2).join(', ') : letter.disposisi.instruksi}</strong>
+                            </span>
+                          </div>
+                          <span
+                            className={`shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[9.5px] font-bold border ${
+                              readSummary.isAllRead
+                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                            }`}
+                            title={readSummary.isAllRead ? `Dibaca oleh ${letter.disposisi.readBy || 'Penerima'}` : 'Belum dibuka penerima'}
+                          >
+                            {readSummary.isAllRead ? (
+                              <>
+                                <CheckCheck className="w-2.5 h-2.5 text-emerald-700" />
+                                <span>Dibaca</span>
+                              </>
+                            ) : (
+                              <>
+                                <Clock className="w-2.5 h-2.5 text-rose-500" />
+                                <span>Belum Dibaca</span>
+                              </>
+                            )}
+                          </span>
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Column 3: Kategori */}
@@ -626,10 +715,26 @@ export const ActivityTable = ({
                               e.stopPropagation();
                               handleOpenCancelModal(letter);
                             }}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-700 hover:bg-amber-50 transition-colors cursor-pointer"
                             title="Batalkan Registrasi Naskah Ini"
                           >
                             <FileX2 className="w-4 h-4" />
+                          </button>
+                        )
+                      )}
+
+                      {/* Tombol Hapus Naskah (Opsi A) */}
+                      {onDeleteLetter && currentUser?.role !== 'PENGAWAS' && (
+                        letter.isLockedPermanen ? null : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleOpenDeleteModal(letter);
+                            }}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            title="Hapus Naskah Dinas dari Riwayat"
+                          >
+                            <Trash2 className="w-4 h-4 text-rose-500" />
                           </button>
                         )
                       )}
@@ -659,6 +764,18 @@ export const ActivityTable = ({
           setLetterToCancel(null);
         }}
         onConfirmCancel={handleConfirmCancel}
+        currentUser={currentUser}
+      />
+
+      {/* Modal Hapus Naskah Dinas (Opsi A) */}
+      <DeleteLetterModal
+        letter={letterToDelete}
+        isOpen={isDeleteModalOpen}
+        onClose={() => {
+          setIsDeleteModalOpen(false);
+          setLetterToDelete(null);
+        }}
+        onConfirmDelete={handleConfirmDelete}
         currentUser={currentUser}
       />
     </div>

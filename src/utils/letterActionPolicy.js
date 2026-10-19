@@ -285,7 +285,9 @@ export const calculateLetterTracking = (letter) => {
       desc: isSigReq
         ? 'Dilewati: Jalur langsung TTE Pejabat'
         : letter.disposisi
-        ? `Disposisi: ${letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || 'Terkirim'}`
+        ? letter.disposisi.isRead
+          ? `Dibaca penerima (${letter.disposisi.readBy ? letter.disposisi.readBy.split(',')[0] : 'Pejabat'})`
+          : `Disposisi: ${letter.disposisi.targetUnit || letter.disposisi.tujuanDisposisi || 'Terkirim'} (Menunggu dibaca)`
         : 'Menunggu instruksi pimpinan',
       isCompleted: isSigReq ? true : Boolean(letter.disposisi),
       isCurrent: !isSigReq && Boolean(letter.disposisi) && letter.status !== 'Disetujui' && letter.status !== 'Diarsipkan',

@@ -1,7 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { buildSidebarMenuItems } from '../Sidebar';
+import {
+  buildSidebarMenuItems,
+  DEFAULT_SIDEBAR_WIDTH,
+  MIN_SIDEBAR_WIDTH,
+  MAX_SIDEBAR_WIDTH,
+  STORAGE_KEY_SIDEBAR_WIDTH
+} from '../Sidebar';
 
-describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
+describe('Sidebar Menu Structure & Resizable Contract (SILOKA UNSIL)', () => {
+  it('harus mendefinisikan parameter batas lebar sidebar yang ergonomis dan aman', () => {
+    expect(DEFAULT_SIDEBAR_WIDTH).toBe(256);
+    expect(MIN_SIDEBAR_WIDTH).toBe(240);
+    expect(MAX_SIDEBAR_WIDTH).toBe(420);
+    expect(STORAGE_KEY_SIDEBAR_WIDTH).toBe('siloka_sidebar_width');
+  });
   it('harus memuat menu induk "Surat" dengan sub-menu "Surat Masuk" dan "Surat Keluar"', () => {
     const items = buildSidebarMenuItems({
       user: { role: 'PEJABAT' },
@@ -37,7 +49,7 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
     expect(topLevelIds).toContain('surat');
   });
 
-  it('harus tetap memuat menu induk "Manajemen" dengan 4 sub-menu untuk Super Admin dan penamaan selaras', () => {
+  it('harus tetap memuat menu induk "Manajemen" dengan 5 sub-menu untuk Super Admin dan penamaan selaras', () => {
     const items = buildSidebarMenuItems({
       user: { role: 'Super Admin' },
       unreadCounts: {}
@@ -45,16 +57,23 @@ describe('Sidebar Menu Structure (SILOKA UNSIL)', () => {
 
     const manajemenMenu = items.find((item) => item.id === 'manajemen');
     expect(manajemenMenu).toBeDefined();
-    expect(manajemenMenu.children).toHaveLength(4);
+    expect(manajemenMenu.children).toHaveLength(5);
     const childIds = manajemenMenu.children.map((c) => c.id);
-    expect(childIds).toEqual(['settings', 'manajemen-unit', 'manajemen-role', 'manajemen-permission']);
+    expect(childIds).toEqual([
+      'settings',
+      'manajemen-unit',
+      'manajemen-role',
+      'manajemen-permission',
+      'manajemen-disposisi'
+    ]);
 
     const labels = manajemenMenu.children.map((c) => c.label);
     expect(labels).toEqual([
       'Manajemen Pengguna',
       'Manajemen Unit Kerja',
       'Manajemen Peran',
-      'Hak Akses & Izin Pengguna'
+      'Hak Akses & Izin Pengguna',
+      'Manajemen Alur Disposisi'
     ]);
   });
 

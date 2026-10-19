@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Sidebar } from './Sidebar';
 import { Navbar } from './Navbar';
 import { MobileBottomNav } from './MobileBottomNav';
+import { isDosenTanpaJabatan } from '../../utils/authGuards';
 
 export const MainLayout = ({
   user,
@@ -33,9 +34,11 @@ export const MainLayout = ({
       !l.isDibatalkan
   ).length;
 
+  const isDosenReguler = isDosenTanpaJabatan(user);
+
   const unreadCounts = {
-    disposisi: 3,
-    tte: 5,
+    disposisi: isDosenReguler ? null : 3,
+    tte: isDosenReguler ? null : 5,
     retensi: 14,
     suratMasuk: suratMasukCount > 0 ? suratMasukCount : null
   };

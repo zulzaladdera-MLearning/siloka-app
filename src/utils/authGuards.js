@@ -396,7 +396,7 @@ export const isLetterOwnedByUser = (letter, currentUser) => {
  */
 export const isMandiriPersonalDocument = (letter) => {
   if (!letter) return false;
-  const checkStr = [
+  const rawStr = [
     letter.jenis_naskah,
     letter.kode_jenis_naskah,
     letter.templateId,
@@ -407,16 +407,14 @@ export const isMandiriPersonalDocument = (letter) => {
     .join(' ')
     .toUpperCase();
 
+  const checkStr = rawStr.replace(/[-_]/g, ' ');
+
   return (
-    checkStr.includes('NOTA_DINAS') ||
     checkStr.includes('NOTA DINAS') ||
     checkStr.includes('LAPORAN') ||
-    checkStr.includes('TELAAH_STAF') ||
     checkStr.includes('TELAAH STAF') ||
-    checkStr.includes('SURAT_PERNYATAAN') ||
-    checkStr.includes('SURAT PERNYATAAN') ||
+    checkStr.includes('PERNYATAAN') ||
     checkStr.includes('NOTULA') ||
-    checkStr.includes('BERITA_ACARA') ||
     checkStr.includes('BERITA ACARA')
   );
 };

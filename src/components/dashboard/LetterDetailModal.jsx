@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   X,
   FileText,
@@ -10,6 +10,7 @@ import {
   FileSignature,
   Download,
   CheckCircle2,
+  CheckCircle,
   Clock,
   ArrowRight,
   Share2,
@@ -30,7 +31,14 @@ import {
 } from 'lucide-react';
 import { StatusBadge, SifatBadge } from '../ui/Badge';
 import { generateForensicWatermark } from '../../utils/security';
-import { getLetterActionCapabilities, calculateLetterTracking } from '../../utils/letterActionPolicy';
+import { getLetterActionCapabilities } from '../../utils/letterActionPolicy';
+import {
+  checkIfUserIsDisposisiTarget,
+  checkIfUserHasReadDisposisi,
+  checkIfUserHasOpenedDocument,
+  getDisposisiReadSummary
+} from '../../utils/disposisiTrackingHelper';
+import { DisposisiTrackingTimeline } from './DisposisiTrackingTimeline';
 import {
   KopSuratUnsil,
   PosTemplateView,
@@ -191,12 +199,17 @@ export const LetterDetailModal = ({
   isOpen,
   onClose,
   onOpenDisposisi,
+  onForwardDisposisi,
   onSignTte,
   onArchiveLetter,
   onApproveLetter,
   onRejectLetter,
   currentUser,
-  onLogAction
+  onLogAction,
+  onFollowUpDisposisi,
+  onCompleteDisposisi,
+  onMarkDisposisiRead,
+  onMarkDocumentViewed
 }) => {
   if (!isOpen || !letter) return null;
 
@@ -219,6 +232,72 @@ export const LetterDetailModal = ({
       Boolean(letter.nomorSuratAsal && letter.nomorSuratAsal !== '-')
     );
   }, [letter]);
+
+  // Deteksi apakah pengguna aktif adalah pembuat / pemberi lembar disposisi ini
+  const isIssuerOfLetterDisposisi = useMemo(() => {
+    if (!letter?.disposisi || !currentUser) return false;
+    const pStr = String(letter.disposisi.pemberiDisposisi || '').toLowerCase();
+    const cName = String(currentUser.nama_lengkap || currentUser.name || '').toLowerCase();
+    const cJabatan = String(currentUser.jabatan || currentUser.sotk_position_label || '').toLowerCase();
+    if (currentUser.id && letter.disposisi.pemberiUserId && String(letter.disposisi.pemberiUserId) === String(currentUser.id)) return true;
+    if (cName && cName.length > 3 && pStr.includes(cName)) return true;
+    if (cJabatan.includes('rektor') && !cJabatan.includes('wakil') && pStr.includes('rektor') && !pStr.includes('wakil')) return true;
+    return false;
+  }, [letter, currentUser]);
+
+  // Deteksi target penerima disposisi dan status keterbacaan (Delivery & Read Tracking)
+  const isTargetOfDisposisi = useMemo(() => {
+    return checkIfUserIsDisposisiTarget(letter?.disposisi, currentUser);
+  }, [letter?.disposisi, currentUser]);
+
+  const hasReadDisposisi = useMemo(() => {
+    return checkIfUserHasReadDisposisi(letter?.disposisi, currentUser);
+  }, [letter?.disposisi, currentUser]);
+
+  const hasOpenedDocument = useMemo(() => {
+    return checkIfUserHasOpenedDocument(letter?.disposisi, currentUser);
+  }, [letter?.disposisi, currentUser]);
+
+  const disposisiReadSummary = useMemo(() => {
+    return getDisposisiReadSummary(letter?.disposisi);
+  }, [letter?.disposisi]);
+
+  // Otomatisasi tanda terima Tingkat 1 (Delivery & Read Receipt):
+  // Saat naskah berdisposisi dibuka oleh pejabat/staf target penerima (bukan pembuat),
+  // rekam pembacaan lembar disposisi ke jejak audit non-repudiasi secara real-time
+  useEffect(() => {
+    if (
+      isOpen &&
+      letter?.id &&
+      letter?.disposisi &&
+      currentUser &&
+      !isIssuerOfLetterDisposisi &&
+      isTargetOfDisposisi &&
+      !hasReadDisposisi &&
+      typeof onMarkDisposisiRead === 'function'
+    ) {
+      onMarkDisposisiRead(letter.id, currentUser);
+    }
+  }, [isOpen, letter?.id, letter?.disposisi, currentUser, isIssuerOfLetterDisposisi, isTargetOfDisposisi, hasReadDisposisi, onMarkDisposisiRead]);
+
+  // Otomatisasi tanda terima Tingkat 2 (Penelaahan Berkas Fisik / Naskah PDF):
+  // Saat berkas dokumen/PDF asli dibuka oleh pejabat/staf target penerima,
+  // rekam kepastian pembukaan berkas fisik ke jejak audit non-repudiasi
+  useEffect(() => {
+    if (
+      isOpen &&
+      activeTabMode === 'document' &&
+      letter?.id &&
+      letter?.disposisi &&
+      currentUser &&
+      !isIssuerOfLetterDisposisi &&
+      isTargetOfDisposisi &&
+      !hasOpenedDocument &&
+      typeof onMarkDocumentViewed === 'function'
+    ) {
+      onMarkDocumentViewed(letter.id, currentUser);
+    }
+  }, [isOpen, activeTabMode, letter?.id, letter?.disposisi, currentUser, isIssuerOfLetterDisposisi, isTargetOfDisposisi, hasOpenedDocument, onMarkDocumentViewed]);
 
   // Resolusi jenis template naskah dinas resmi secara presisi sesuai dengan yang dikirimkan pembuat
   const resolvedTemplateType = useMemo(() => {
@@ -298,11 +377,6 @@ export const LetterDetailModal = ({
     return getLetterActionCapabilities(letter, currentUser);
   }, [letter, currentUser]);
 
-  // Kalkulasi 5 tahap visual tracking persuratan
-  const tracking = useMemo(() => {
-    return calculateLetterTracking(letter);
-  }, [letter]);
-
   // Deteksi otomatis ukuran kertas PDF resmi (F4 untuk Naskah Arahan, A4 untuk Korespondensi/Lainnya)
   const paperInfo = useMemo(() => {
     return getPaperSizeInfo(letter);
@@ -345,6 +419,11 @@ export const LetterDetailModal = ({
       unit_kerja_id: letter.unit_kerja_id || raw.unit_kerja_id || currentUser?.unit_kerja_id || 'UN58.6',
       lampiran: letter.lampiran || raw.lampiran || '1 (satu) Berkas',
       tteVerified: Boolean(letter.tteVerified || raw.tteVerified),
+      targets: raw.targets || letter.disposisi?.targets,
+      targetUnit: raw.targetUnit || letter.disposisi?.targetUnit,
+      noAgenda: raw.noAgenda || letter.disposisi?.nomorAgenda || letter.nomorAgenda,
+      catatan: raw.catatan || letter.disposisi?.customNote || letter.disposisi?.catatan,
+      klasifikasi: raw.klasifikasi || letter.disposisi?.sifatInstruksi || letter.sifat || 'Biasa',
       ...raw
     };
   }, [letter, currentUser]);
@@ -364,6 +443,15 @@ export const LetterDetailModal = ({
       }
       alert('AKSES DITOLAK: Akun Level 2 (Staf) tidak memiliki izin mengunduh berkas rahasia. Sesuai PRD Modul 4, hanya Pimpinan dan Pengawas SPI yang berhak membuka berkas ini.');
       return;
+    }
+
+    if (
+      !isIssuerOfLetterDisposisi &&
+      isTargetOfDisposisi &&
+      !hasOpenedDocument &&
+      typeof onMarkDocumentViewed === 'function'
+    ) {
+      onMarkDocumentViewed(letter.id, currentUser);
     }
 
     const watermark = generateForensicWatermark(currentUser, letter.lampiran);
@@ -395,6 +483,14 @@ export const LetterDetailModal = ({
     if (isRestrictedForUser) {
       alert('AKSES DITOLAK: Akun Level 2 (Staf) tidak memiliki izin membuka berkas rahasia.');
       return;
+    }
+    if (
+      !isIssuerOfLetterDisposisi &&
+      isTargetOfDisposisi &&
+      !hasOpenedDocument &&
+      typeof onMarkDocumentViewed === 'function'
+    ) {
+      onMarkDocumentViewed(letter.id, currentUser);
     }
     if (letter.lampiranUrl) {
       window.open(letter.lampiranUrl, '_blank', 'noopener,noreferrer');
@@ -691,91 +787,32 @@ export const LetterDetailModal = ({
                 <SifatBadge sifat={letter.sifat} />
                 {letter.isLockedPermanen && (
                   <span className="text-[10px] bg-slate-900 text-amber-300 px-2 py-0.5 rounded font-bold flex items-center gap-1">
-                    🔒 Safeguard Terkunci
+                    <Lock className="w-3 h-3 text-amber-300" />
+                    Safeguard Terkunci
                   </span>
                 )}
                 {letter.tujuan_aksi && (
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded border flex items-center gap-1 ${
                     letter.tujuan_aksi === 'TTD'
                       ? 'bg-amber-100 text-amber-900 border-amber-300'
                       : 'bg-blue-100 text-blue-900 border-blue-200'
                   }`}>
-                    {letter.tujuan_aksi === 'TTD' ? '✍️ Permohonan TTE' : '📋 Disposisi Pimpinan'}
+                    {letter.tujuan_aksi === 'TTD' ? (
+                      <>
+                        <FileSignature className="w-3 h-3 text-amber-800" />
+                        Permohonan TTE
+                      </>
+                    ) : (
+                      <>
+                        <FileText className="w-3 h-3 text-blue-800" />
+                        Disposisi Pimpinan
+                      </>
+                    )}
                   </span>
                 )}
               </div>
               <div className="text-xs text-slate-500 font-mono">
                 Klasifikasi: <strong className="text-slate-800">{letter.subKlasifikasi || letter.kodeKlasifikasi || 'Umum'}</strong>
-              </div>
-            </div>
-
-            {/* Feature 7: 5-Stage Visual Real-Time Tracking Stepper */}
-            <div className="p-4 bg-slate-50/90 rounded-xl border border-slate-200">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-600 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-unsil-green-800" />
-                  Jejak Progres Naskah Dinas ({tracking.currentStep}/5 Tahap)
-                </span>
-                {capabilities.isSignatureRequest ? (
-                  <span className="text-[10.5px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1">
-                    ⚡ Jalur Khusus TTE Pimpinan
-                  </span>
-                ) : (
-                  <span className="text-[10.5px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
-                    Alur Disposisi Berjenjang
-                  </span>
-                )}
-              </div>
-
-              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
-                {tracking.stages.map((stg) => {
-                  const isDone = stg.isCompleted;
-                  const isCurr = stg.isCurrent;
-                  const isSkip = stg.isSkipped;
-
-                  return (
-                    <div
-                      key={stg.id}
-                      className={`relative p-2.5 rounded-lg border text-center transition-all ${
-                        isCurr
-                          ? 'bg-emerald-50/90 border-emerald-500 shadow-xs ring-1 ring-emerald-500/40'
-                          : isDone
-                          ? 'bg-white border-slate-200 shadow-2xs'
-                          : isSkip
-                          ? 'bg-slate-100/70 border-slate-200/60 opacity-60'
-                          : 'bg-slate-50/50 border-slate-200/50 opacity-40'
-                      }`}
-                    >
-                      <div className="flex items-center justify-center mb-1">
-                        {isDone ? (
-                          <div className="w-5 h-5 rounded-full bg-unsil-green-800 text-white flex items-center justify-center text-[10px] font-bold shadow-2xs">
-                            ✓
-                          </div>
-                        ) : isCurr ? (
-                          <div className="w-5 h-5 rounded-full bg-amber-500 text-white flex items-center justify-center text-[10px] font-bold animate-pulse">
-                            {stg.id}
-                          </div>
-                        ) : isSkip ? (
-                          <div className="w-5 h-5 rounded-full bg-slate-300 text-slate-600 flex items-center justify-center text-[10px] font-bold">
-                            —
-                          </div>
-                        ) : (
-                          <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-500 flex items-center justify-center text-[10px] font-bold">
-                            {stg.id}
-                          </div>
-                        )}
-                      </div>
-                      <p className={`text-[11px] font-bold truncate ${
-                        isCurr ? 'text-emerald-950' : isDone ? 'text-slate-800' : 'text-slate-400'
-                      }`}>
-                        {stg.name}
-                      </p>
-                      <p className="text-[9.5px] text-slate-500 line-clamp-1 mt-0.5" title={stg.desc}>
-                        {stg.desc}
-                      </p>
-                    </div>
-                  );
-                })}
               </div>
             </div>
 
@@ -1001,86 +1038,51 @@ export const LetterDetailModal = ({
             </div>
           </div>
 
-          {/* Disposisi Info if exists */}
+          {/* Disposisi Info & Ekspedisi Tracking (Format Resi Tanda Terima) */}
           {letter.disposisi ? (
-            <div className="p-4 rounded-xl bg-amber-50/80 border border-amber-200">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2 text-amber-950 font-bold text-xs uppercase tracking-wider">
-                  <CheckSquare className="w-4 h-4 text-unsil-green-800" />
-                  <span>Arahan & Instruksi Disposisi Pimpinan</span>
-                </div>
-                {capabilities.canDispose && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      onClose();
-                      onOpenDisposisi(letter);
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-white border border-amber-300 text-amber-900 hover:bg-amber-100 transition shadow-2xs"
-                  >
-                    <span>Perbarui Arahan</span>
-                  </button>
-                )}
-              </div>
-              <div className="text-xs text-slate-700 space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] pb-1.5 border-b border-amber-200/60">
-                  <p>
-                    <span className="text-slate-500">Pemberi Arahan:</span>{' '}
-                    <strong className="text-slate-900">
-                      {letter.disposisi.pemberiDisposisi || 'Pimpinan Unit'}
-                    </strong>
-                    {letter.disposisi.jabatanPemberi && (
-                      <span className="text-slate-600 block text-[10px]">
-                        ({letter.disposisi.jabatanPemberi})
-                      </span>
-                    )}
-                  </p>
-                  <p>
-                    <span className="text-slate-500">Diteruskan Kepada:</span>{' '}
-                    <strong className="text-unsil-green-950 font-semibold block">
-                      {letter.disposisi.tujuanDisposisi}
-                    </strong>
-                  </p>
-                </div>
-
-                {letter.disposisi.actions && Array.isArray(letter.disposisi.actions) && letter.disposisi.actions.length > 0 ? (
-                  <div>
-                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 block mb-1.5">
-                      Checklist Instruksi Tindak Lanjut (Untuk :)
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                      {letter.disposisi.actions.map((act, idx) => (
-                        <div key={idx} className="flex items-start gap-1.5 text-xs text-slate-800 bg-white/90 p-1.5 rounded border border-amber-200/80">
-                          <CheckSquare className="w-3.5 h-3.5 text-unsil-green-800 shrink-0 mt-0.5" />
-                          <span className="leading-tight font-medium">{act}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <p>
-                    <strong className="text-slate-800">Instruksi:</strong>{' '}
-                    {letter.disposisi.instruksi}
-                  </p>
-                )}
-
-                {letter.disposisi.customNote && (
-                  <div className="p-2 rounded bg-white/70 border border-amber-200/60 text-xs">
-                    <span className="text-[10px] font-bold text-slate-500 uppercase block">Catatan Tambahan:</span>
-                    <p className="text-slate-800 italic mt-0.5">"{letter.disposisi.customNote}"</p>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between text-[11px] text-amber-900 pt-1">
-                  <span>Tenggat Waktu: <strong>{letter.disposisi.batasWaktu}</strong></span>
-                  {letter.disposisi.sifatInstruksi && (
-                    <span className="font-semibold px-2 py-0.5 rounded bg-amber-100 border border-amber-300 text-[10px]">
-                      Sifat: {letter.disposisi.sifatInstruksi}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
+            <DisposisiTrackingTimeline
+              letter={letter}
+              currentUser={currentUser}
+              onMarkDisposisiRead={onMarkDisposisiRead}
+              onViewDocument={() => {
+                if (isSuratMasuk) {
+                  setActiveTabMode('document');
+                  setSuratMasukViewTab('pdf');
+                } else {
+                  setActiveTabMode('document');
+                }
+                if (
+                  !isIssuerOfLetterDisposisi &&
+                  isTargetOfDisposisi &&
+                  !hasOpenedDocument &&
+                  typeof onMarkDocumentViewed === 'function'
+                ) {
+                  onMarkDocumentViewed(letter.id, currentUser);
+                }
+              }}
+              onOpenDisposisi={() => {
+                onClose();
+                onOpenDisposisi(letter);
+              }}
+              onFollowUpDisposisi={(dispPayload, targetLetter) => {
+                onClose();
+                onFollowUpDisposisi(dispPayload, targetLetter);
+              }}
+              onForwardDisposisi={(dispPayload, targetLetter) => {
+                onClose();
+                if (onForwardDisposisi) {
+                  onForwardDisposisi(dispPayload, targetLetter);
+                }
+              }}
+              onCompleteDisposisi={(dispId, targetLetterId, note) => {
+                if (onCompleteDisposisi) {
+                  onCompleteDisposisi(dispId, targetLetterId, note);
+                }
+                onClose();
+              }}
+              canDispose={capabilities.canDispose}
+              isIssuerOfLetterDisposisi={isIssuerOfLetterDisposisi}
+            />
           ) : capabilities.canDispose && letter.kategori === 'Surat Masuk' ? (
             <div className="p-4 rounded-xl bg-emerald-50/80 border border-emerald-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
@@ -1238,19 +1240,48 @@ export const LetterDetailModal = ({
                 </button>
               )}
 
-              {/* Action: Teruskan Disposisi (STRICT ENFORCEMENT: COMPLETELY ABSENT FROM DOM IF isSignatureRequest) */}
+              {/* Action: Disposisi / Teruskan Disposisi (STRICT ENFORCEMENT: COMPLETELY ABSENT FROM DOM IF isSignatureRequest) */}
               {capabilities.canDispose && (
                 <button
                   type="button"
                   onClick={() => {
                     onClose();
-                    onOpenDisposisi(letter);
+                    if (letter.disposisi && !isIssuerOfLetterDisposisi && onForwardDisposisi) {
+                      onForwardDisposisi(
+                        {
+                          id: `disp-${letter.id}`,
+                          letterId: letter.id,
+                          nomorAgenda: letter.disposisi.nomorAgenda || letter.nomorAgenda,
+                          perihal: letter.perihal,
+                          nomorSurat: letter.nomorSurat,
+                          instruksi: letter.disposisi.instruksi,
+                          catatan: letter.disposisi.customNote || letter.disposisi.catatan || '',
+                          pemberiDisposisi: letter.disposisi.pemberiDisposisi,
+                          sifatInstruksi: letter.disposisi.sifatInstruksi
+                        },
+                        letter
+                      );
+                    } else if (onOpenDisposisi) {
+                      onOpenDisposisi(letter);
+                    }
                   }}
-                  className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold bg-unsil-green-800 hover:bg-unsil-green-900 text-white shadow-xs transition-colors"
-                  title="Disposisi naskah ini ke unit / staf bawahan"
+                  className={`flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold shadow-xs transition-colors ${
+                    letter.disposisi && !isIssuerOfLetterDisposisi
+                      ? 'bg-amber-600 hover:bg-amber-700 text-white'
+                      : 'bg-unsil-green-800 hover:bg-unsil-green-900 text-white'
+                  }`}
+                  title={
+                    letter.disposisi && !isIssuerOfLetterDisposisi
+                      ? 'Teruskan arahan atasan secara berjenjang ke unit bawahan'
+                      : 'Disposisi naskah ini ke unit / staf bawahan'
+                  }
                 >
-                  <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
-                  <span>Disposisi</span>
+                  {letter.disposisi && !isIssuerOfLetterDisposisi ? (
+                    <Share2 className="w-3.5 h-3.5 text-amber-200" />
+                  ) : (
+                    <SendHorizontal className="w-3.5 h-3.5 text-unsil-gold-400" />
+                  )}
+                  <span>{letter.disposisi && !isIssuerOfLetterDisposisi ? 'Teruskan Disposisi' : 'Disposisi'}</span>
                 </button>
               )}
             </div>

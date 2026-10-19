@@ -24,7 +24,8 @@ import {
   IdCard,
   Briefcase,
   CheckSquare,
-  Info
+  Info,
+  AlertTriangle
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
@@ -34,7 +35,9 @@ import {
   getPositionsByUnitAndRole,
   getUnitByCode,
   getActiveUnitKerjaList,
-  getJurusanByUnitCode
+  getJurusanByUnitCode,
+  findPositionOccupant,
+  isSingleIncumbentPosition
 } from '../../utils/unitJabatanOptions';
 import {
   getRolesCatalog,
@@ -82,6 +85,7 @@ export const OFFICIAL_UNSIL_POSITIONS = [
   'Kepala UPA Bahasa',
   'Kepala UPA Layanan Uji Kompetensi',
   'Ketua Senat Universitas',
+  'Sekretaris Senat Universitas',
   'Ketua Satuan Pengawas Internal',
   'Sekretaris Satuan Pengawas Internal',
   'Ketua Jurusan Teknik Sipil',
@@ -432,6 +436,20 @@ export const SystemSettingsView = ({
     return getPositionsByUnitAndRole(newUserData.unit_kerja_id, newUserData.role_slug, activeUnits, newUserData.jurusan);
   }, [newUserData.unit_kerja_id, newUserData.role_slug, activeUnits, newUserData.jurusan]);
 
+  // Deteksi Okupansi Pejabat Aktif untuk Jabatan Tunggal (Anti Duplikasi & Human Error)
+  const newJabatanOccupant = useMemo(() => {
+    return findPositionOccupant(newUserData.jabatan, allUsers, null, newUserData.unit_kerja_id);
+  }, [newUserData.jabatan, allUsers, newUserData.unit_kerja_id]);
+
+  const editJabatanOccupant = useMemo(() => {
+    return findPositionOccupant(
+      editFormData.jabatan,
+      allUsers,
+      selectedUserForDetail?.id || selectedUserForDetail?.nip,
+      editFormData.unit_kerja_id
+    );
+  }, [editFormData.jabatan, allUsers, selectedUserForDetail, editFormData.unit_kerja_id]);
+
   // Daftar Jurusan Sesuai Unit yang Sedang Dipilih
   const editSelectedUnitJurusan = useMemo(() => {
     return getJurusanByUnitCode(editFormData.unit_kerja_id, activeUnits);
@@ -579,6 +597,26 @@ export const SystemSettingsView = ({
     const isAuditor = selectedRole.slug === 'auditor_spi';
 
     const cleanJabatan = (editFormData.jabatan || selectedRole.name).trim();
+
+    // Validasi pencegahan duplikasi okupansi jabatan struktural tunggal pada mode edit
+    const incumbent = findPositionOccupant(
+      cleanJabatan,
+      allUsers,
+      selectedUserForDetail?.id || selectedUserForDetail?.nip,
+      editFormData.unit_kerja_id
+    );
+    if (incumbent) {
+      const incumbentName = incumbent.name || incumbent.nama_lengkap || 'pejabat lain';
+      const confirmMsg =
+        `Peringatan Okupansi Jabatan Pimpinan!\n\n` +
+        `Jabatan "${cleanJabatan}" saat ini telah aktif diisi oleh ${incumbentName} (NIP: ${incumbent.nip || '-'}).\n\n` +
+        `Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari 1 pejabat aktif untuk mencegah tumpang tindih wewenang.\n\n` +
+        `Apakah Anda yakin tetap ingin menyimpan perubahan jabatan ini?`;
+      if (typeof window !== 'undefined' && !window.confirm(confirmMsg)) {
+        showToast(`Perubahan dibatalkan: Jabatan [${cleanJabatan}] telah diisi oleh [${incumbentName}].`, 'warning');
+        return;
+      }
+    }
     const posLower = cleanJabatan.toLowerCase();
     const hasStructuralKeyword = matchesOfficialDisposisiPosition(cleanJabatan);
     const isExplicitlyNonPejabat =
@@ -741,6 +779,21 @@ export const SystemSettingsView = ({
       const isAuditor = selectedRole.slug === 'auditor_spi';
 
       const cleanJabatan = (newUserData.jabatan || (isSuper ? 'Super Administrator' : selectedRole.name)).trim();
+
+      // Validasi pencegahan duplikasi okupansi jabatan struktural tunggal
+      const incumbent = findPositionOccupant(cleanJabatan, allUsers, null, newUserData.unit_kerja_id);
+      if (incumbent) {
+        const incumbentName = incumbent.name || incumbent.nama_lengkap || 'pejabat lain';
+        const confirmMsg =
+          `Peringatan Okupansi Jabatan Pimpinan!\n\n` +
+          `Jabatan "${cleanJabatan}" saat ini telah aktif diisi oleh ${incumbentName} (NIP: ${incumbent.nip || '-'}).\n\n` +
+          `Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari 1 pejabat aktif untuk mencegah konflik wewenang TTE dan disposisi.\n\n` +
+          `Apakah Anda yakin tetap ingin mendaftarkan pengguna baru dengan jabatan yang sama?`;
+        if (typeof window !== 'undefined' && !window.confirm(confirmMsg)) {
+          showToast(`Pendaftaran dibatalkan: Jabatan [${cleanJabatan}] telah diisi oleh [${incumbentName}].`, 'warning');
+          return;
+        }
+      }
       const posLower = cleanJabatan.toLowerCase();
       const hasStructuralKeyword = matchesOfficialDisposisiPosition(cleanJabatan);
       const isExplicitlyNonPejabat =
@@ -1505,13 +1558,19 @@ export const SystemSettingsView = ({
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                       >
                         {editFormData.jabatan && !editUnitPositions.includes(editFormData.jabatan) && (
-                          <option value={editFormData.jabatan}>{editFormData.jabatan}</option>
-                        )}
-                        {editUnitPositions.map((pos) => (
-                          <option key={pos} value={pos}>
-                            {pos}
+                          <option value={editFormData.jabatan}>
+                            {editFormData.jabatan}
+                            {editJabatanOccupant ? ` — (Terisi: ${editJabatanOccupant.name || editJabatanOccupant.nama_lengkap})` : ''}
                           </option>
-                        ))}
+                        )}
+                        {editUnitPositions.map((pos) => {
+                          const occ = findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, editFormData.unit_kerja_id);
+                          return (
+                            <option key={pos} value={pos}>
+                              {pos}{occ ? ` — (Terisi: ${occ.name || occ.nama_lengkap})` : ''}
+                            </option>
+                          );
+                        })}
                         <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
                       </select>
                     ) : (
@@ -1529,6 +1588,24 @@ export const SystemSettingsView = ({
                         ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(editFormData.unit_kerja_id)?.nama_unit || editFormData.unit_kerja_id}`
                         : `Menyesuaikan unit kerja: ${getUnitByCode(editFormData.unit_kerja_id)?.singkatan || editFormData.unit_kerja_id}`}
                     </div>
+
+                    {/* Alert Warning Okupansi Jabatan Tunggal (Anti Human Error) */}
+                    {editJabatanOccupant && (
+                      <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-xl text-amber-900 space-y-1 animate-in fade-in duration-200 shadow-2xs mt-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="text-[11px] leading-relaxed">
+                            <span className="font-bold text-amber-950">Peringatan Okupansi Jabatan:</span>{' '}
+                            Jabatan <strong className="font-semibold text-amber-950">"{editFormData.jabatan}"</strong> saat ini telah aktif diisi oleh{' '}
+                            <strong className="font-semibold text-amber-950">{editJabatanOccupant.name || editJabatanOccupant.nama_lengkap}</strong>
+                            {editJabatanOccupant.nip ? ` (NIP: ${editJabatanOccupant.nip})` : ''}.
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-amber-700 pl-6 leading-normal">
+                          Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari satu pejabat aktif untuk mencegah tumpang tindih wewenang dan TTE naskah dinas.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1924,13 +2001,19 @@ export const SystemSettingsView = ({
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                       >
                         {newUserData.jabatan && !newUnitPositions.includes(newUserData.jabatan) && (
-                          <option value={newUserData.jabatan}>{newUserData.jabatan}</option>
-                        )}
-                        {newUnitPositions.map((pos) => (
-                          <option key={pos} value={pos}>
-                            {pos}
+                          <option value={newUserData.jabatan}>
+                            {newUserData.jabatan}
+                            {newJabatanOccupant ? ` — (Terisi: ${newJabatanOccupant.name || newJabatanOccupant.nama_lengkap})` : ''}
                           </option>
-                        ))}
+                        )}
+                        {newUnitPositions.map((pos) => {
+                          const occ = findPositionOccupant(pos, allUsers, null, newUserData.unit_kerja_id);
+                          return (
+                            <option key={pos} value={pos}>
+                              {pos}{occ ? ` — (Terisi: ${occ.name || occ.nama_lengkap})` : ''}
+                            </option>
+                          );
+                        })}
                         <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
                       </select>
                     ) : (
@@ -1952,6 +2035,24 @@ export const SystemSettingsView = ({
                         ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(newUserData.unit_kerja_id)?.nama_unit || newUserData.unit_kerja_id}`
                         : `Menyesuaikan unit kerja: ${getUnitByCode(newUserData.unit_kerja_id)?.singkatan || newUserData.unit_kerja_id}`}
                     </div>
+
+                    {/* Alert Warning Okupansi Jabatan Tunggal (Anti Duplikasi & Human Error) */}
+                    {newJabatanOccupant && (
+                      <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-xl text-amber-900 space-y-1 animate-in fade-in duration-200 shadow-2xs mt-2">
+                        <div className="flex items-start gap-2">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div className="text-[11px] leading-relaxed">
+                            <span className="font-bold text-amber-950">Peringatan Okupansi Jabatan:</span>{' '}
+                            Jabatan <strong className="font-semibold text-amber-950">"{newUserData.jabatan}"</strong> saat ini telah aktif diisi oleh{' '}
+                            <strong className="font-semibold text-amber-950">{newJabatanOccupant.name || newJabatanOccupant.nama_lengkap}</strong>
+                            {newJabatanOccupant.nip ? ` (NIP: ${newJabatanOccupant.nip})` : ''}.
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-amber-700 pl-6 leading-normal">
+                          Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari satu pejabat aktif untuk mencegah tumpang tindih wewenang dan TTE naskah dinas.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </div>
 

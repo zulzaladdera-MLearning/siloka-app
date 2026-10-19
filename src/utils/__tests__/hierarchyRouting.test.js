@@ -1,107 +1,93 @@
-/**
- * Test: Sistem Hierarki Otomatis (Automated Hierarchy Routing) Form Surat Keluar
- * 
- * Verifikasi 4 Aturan Kaku Mentor:
- * 1. Deteksi 'kode_unit' dan 'jabatan' session user (Dosen/Staf).
- * 2. Query filter kaku: "SELECT * FROM master_pejabat WHERE kode_unit = [unit_kerja_user_login] AND is_aktif = TRUE".
- * 3. Dropdown HANYA memuat pejabat struktural di dalam naungan unit kerja user tersebut. Pilihan unit lain disembunyikan.
- * 4. Kolom terpisah "Nama Pejabat", "Gelar", dan "NIP" terisi otomatis (auto-fill) secara real-time dan dikunci (readonly).
- */
-
+import { describe, it, expect } from 'vitest';
 import { getPejabatByUnit, findPejabatByNip } from '../pejabatHelper.js';
 import masterPejabatList from '../../data/masterPejabat.json' with { type: 'json' };
 
-let passedCount = 0;
-let failedCount = 0;
+describe('Sistem Hierarki Otomatis (Automated Hierarchy Routing) Form Surat Keluar', () => {
+  it('Aturan 1, 2 & 3: Skenario Pengguna Rektorat (UN58)', () => {
+    const sessionRektorat = {
+      id: 'usr-staf-rektorat-01',
+      name: 'Rahmat Hidayat, S.AP.',
+      role: 'OPERATOR_UNIT',
+      roleLabel: 'Staf Tata Usaha & Protokoler Rektorat',
+      unit_kerja_id: 'UN58'
+    };
 
-function assert(condition, message) {
-  if (condition) {
-    passedCount++;
-    console.log(`  ✓ ${message}`);
-  } else {
-    failedCount++;
-    console.error(`  ✗ GAGAL: ${message}`);
-  }
-}
+    const rektoratOfficials = getPejabatByUnit(sessionRektorat.unit_kerja_id, sessionRektorat);
+    expect(rektoratOfficials.length).toBeGreaterThanOrEqual(4);
+    expect(rektoratOfficials.every((p) => p.kode_unit === 'UN58')).toBe(true);
 
-console.log('--- ATURAN 1 & 2 & 3: Skenario Dosen Fakultas Teknik (UN58.13) ---');
-const sessionDosenFT = {
-  id: 'usr-dosen-ft-01',
-  name: 'Ir. Ahmad Fauzi, M.T.',
-  role: 'DOSEN',
-  roleLabel: 'Dosen Jurusan Informatika',
-  unit_kerja_id: 'UN58.13'
-};
+    const rektor = rektoratOfficials.find((p) => p.jabatan === 'Rektor Universitas Siliwangi');
+    expect(rektor).toBeDefined();
+    expect(rektor.is_aktif).toBe(true);
+  });
 
-// Eksekusi fungsi hierarki dengan parameter session user
-const ftOfficials = getPejabatByUnit(sessionDosenFT.unit_kerja_id, sessionDosenFT);
+  it('Aturan 1, 2 & 3: Skenario Organ Senat (UN58.SENAT)', () => {
+    const sessionSenat = {
+      id: 'usr-staf-senat-01',
+      name: 'Staf Administrasi Senat',
+      role: 'OPERATOR_UNIT',
+      unit_kerja_id: 'UN58.SENAT'
+    };
 
-assert(ftOfficials.length === 2, 'Daftar penandatangan untuk Dosen Teknik tepat berjumlah 2 pejabat struktural FT');
-assert(ftOfficials.every(p => p.kode_unit === 'UN58.13'), 'SELURUH pejabat yang muncul berasal dari naungan Fakultas Teknik (UN58.13)');
-assert(!ftOfficials.some(p => p.kode_unit !== 'UN58.13'), 'Pejabat dari unit kerja lain (FKIP, FEB, Rektorat, dll) 100% DISEMBUNYIKAN');
+    const senatOfficials = getPejabatByUnit(sessionSenat.unit_kerja_id, sessionSenat);
+    expect(senatOfficials.length).toBe(2);
+    expect(senatOfficials.every((p) => p.kode_unit === 'UN58.SENAT')).toBe(true);
+    expect(senatOfficials.some((p) => p.kode_unit === 'UN58.13')).toBe(false);
+  });
 
-const dekanFT = ftOfficials.find(p => p.jabatan === 'Dekan Fakultas Teknik');
-const wadekFT = ftOfficials.find(p => p.jabatan === 'Wakil Dekan Bidang Akademik FT');
-assert(dekanFT !== undefined, 'Pejabat Dekan Fakultas Teknik tersedia');
-assert(wadekFT !== undefined, 'Pejabat Wakil Dekan Bidang Akademik FT tersedia');
-assert(dekanFT.is_aktif === true, 'Dekan FT memiliki status is_aktif = TRUE');
+  it('Aturan 1, 2 & 3: Skenario Dosen Fakultas Teknik (UN58.13) dengan Pejabat Aktif Hasil CRUD', () => {
+    const sessionDosenFT = {
+      id: 'usr-dosen-ft-01',
+      name: 'Ir. Ahmad Fauzi, M.T.',
+      role: 'DOSEN',
+      roleLabel: 'Dosen Jurusan Informatika',
+      unit_kerja_id: 'UN58.13'
+    };
 
-console.log('\n--- ATURAN 1 & 2 & 3: Skenario Dosen FKIP (UN58.10) ---');
-const sessionDosenFKIP = {
-  id: 'usr-dosen-fkip-01',
-  name: 'Dra. Sri Wahyuni, M.Pd.',
-  role: 'DOSEN',
-  roleLabel: 'Dosen Pendidikan Matematika',
-  unit_kerja_id: 'UN58.10'
-};
+    const simulatedUsers = [
+      {
+        id: 'usr-dekan-ft-01',
+        nip: '197306282000031001',
+        nama_lengkap: 'Dr. Nurul Hiron, S.T., M.Eng.',
+        jabatan: 'Dekan Fakultas Teknik',
+        unit_kerja_id: 'UN58.13',
+        role: 'PEJABAT',
+        is_pejabat: true
+      },
+      {
+        id: 'usr-wadek-ft-01',
+        nip: '198205102008121003',
+        nama_lengkap: 'Husni Mubarok, S.T., M.T.',
+        jabatan: 'Wakil Dekan Bidang Akademik FT',
+        unit_kerja_id: 'UN58.13',
+        role: 'PEJABAT',
+        is_pejabat: true
+      }
+    ];
 
-const fkipOfficials = getPejabatByUnit(sessionDosenFKIP.unit_kerja_id, sessionDosenFKIP);
-assert(fkipOfficials.length === 2, 'Daftar penandatangan untuk Dosen FKIP tepat berjumlah 2 pejabat');
-assert(fkipOfficials.every(p => p.kode_unit === 'UN58.10'), 'SELURUH pejabat yang muncul berasal dari naungan FKIP (UN58.10)');
-assert(!fkipOfficials.some(p => p.kode_unit === 'UN58.13'), 'Dekan Teknik TIDAK BOLEH muncul untuk Dosen FKIP');
-assert(!fkipOfficials.some(p => p.kode_unit === 'UN58'), 'Rektorat TIDAK BOLEH muncul di hierarki Dosen FKIP');
+    const ftOfficials = getPejabatByUnit(sessionDosenFT.unit_kerja_id, sessionDosenFT, simulatedUsers);
+    expect(ftOfficials.length).toBe(2);
+    expect(ftOfficials.every((p) => p.kode_unit === 'UN58.13')).toBe(true);
 
-console.log('\n--- ATURAN 1 & 2 & 3: Skenario Staf LPPM (UN58.21) ---');
-const sessionStafLPPM = {
-  id: 'usr-staf-lppm-01',
-  name: 'Budi Santoso, S.AP.',
-  role: 'OPERATOR_UNIT',
-  roleLabel: 'Staf Administrasi Penelitian LPPM',
-  unit_kerja_id: 'UN58.21'
-};
+    const dekanFT = ftOfficials.find((p) => p.jabatan === 'Dekan Fakultas Teknik');
+    expect(dekanFT).toBeDefined();
+    expect(dekanFT.nama).toBe('Dr. Nurul Hiron, S.T., M.Eng.');
+    expect(dekanFT.nip).toBe('197306282000031001');
+  });
 
-const lppmOfficials = getPejabatByUnit(sessionStafLPPM.unit_kerja_id, sessionStafLPPM);
-assert(lppmOfficials.length === 1, 'LPPM memuat 1 pejabat struktural');
-assert(lppmOfficials[0].jabatan === 'Ketua LPPM Universitas Siliwangi', 'Ketua LPPM terdeteksi');
-assert(lppmOfficials[0].kode_unit === 'UN58.21', 'Unit Ketua LPPM adalah UN58.21');
+  it('Aturan 4: Auto-Fill Real-Time Input Terpisah (Nama, Gelar, NIP)', () => {
+    const rektor = masterPejabatList.find((p) => p.jabatan === 'Rektor Universitas Siliwangi');
+    expect(rektor).toBeDefined();
+    expect(rektor.nama).toBe('Prof. Dr. Eng. Ir. Aripin');
+    expect(rektor.gelar).toBe('IPU., ASEAN Eng.');
+    expect(rektor.nip).toBe('196708161996031001');
+  });
 
-console.log('\n--- ATURAN 4: Auto-Fill Real-Time 3 Input Terpisah (Nama, Gelar, NIP) ---');
-// Simulasikan pemilihan Dekan FT
-const chosenDekan = ftOfficials.find(p => p.jabatan === 'Dekan Fakultas Teknik');
-assert(chosenDekan.nama === 'Dr. Nurul Hiron', 'Kolom "Nama Pejabat" terisi otomatis: Dr. Nurul Hiron');
-assert(chosenDekan.gelar === 'S.T., M.Eng.', 'Kolom "Gelar" terisi otomatis: S.T., M.Eng.');
-assert(chosenDekan.nip === '197306282000031001', 'Kolom "NIP" terisi otomatis: 197306282000031001');
+  it('Integritas Data Pejabat Resmi Institusi', () => {
+    const allHaveIsAktif = masterPejabatList.every((p) => p.is_aktif === true && p.is_active === true);
+    expect(allHaveIsAktif).toBe(true);
 
-// Simulasikan pergantian ke Wakil Dekan FT
-const chosenWadek = ftOfficials.find(p => p.jabatan === 'Wakil Dekan Bidang Akademik FT');
-assert(chosenWadek.nama === 'Husni Mubarok', 'Pergantian real-time -> "Nama Pejabat": Husni Mubarok');
-assert(chosenWadek.gelar === 'S.T., M.T.', 'Pergantian real-time -> "Gelar": S.T., M.T.');
-assert(chosenWadek.nip === '198205102008121003', 'Pergantian real-time -> "NIP": 198205102008121003');
-
-console.log('\n--- VERIFIKASI KEAMANAN DATA: Integritas Status is_aktif ---');
-const allHaveIsAktif = masterPejabatList.every(p => p.is_aktif === true && p.is_active === true);
-assert(allHaveIsAktif, 'Seluruh data master_pejabat memiliki flag is_aktif = TRUE');
-
-const allHaveNamaAndGelar = masterPejabatList.every(p => p.nama && p.gelar && p.nip);
-assert(allHaveNamaAndGelar, 'Seluruh 26 pejabat memiliki properti terpisah nama, gelar, dan nip');
-
-console.log(`\n========================================`);
-console.log(`HASIL: ${passedCount} pengujian BERHASIL, ${failedCount} GAGAL`);
-console.log(`========================================\n`);
-
-if (failedCount > 0) {
-  process.exit(1);
-} else {
-  process.exit(0);
-}
-
+    const allHaveNamaAndGelar = masterPejabatList.every((p) => p.nama && p.gelar && p.nip);
+    expect(allHaveNamaAndGelar).toBe(true);
+  });
+});

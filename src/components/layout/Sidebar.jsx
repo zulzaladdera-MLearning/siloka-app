@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   LayoutDashboard,
   SendHorizontal,
@@ -23,11 +23,17 @@ import {
   Users,
   KeyRound,
   Mail,
-  Building2
+  Building2,
+  Network
 } from 'lucide-react';
 import { canAccessBrankasDigital, isSuperAdminUser } from '../../utils/authGuards';
 import { hasUserPermission, RBAC_CHANGE_EVENT } from '../../utils/rbacSyncService';
 import { getPathFromTab } from '../../utils/routeNavigation';
+
+export const DEFAULT_SIDEBAR_WIDTH = 256;
+export const MIN_SIDEBAR_WIDTH = 240;
+export const MAX_SIDEBAR_WIDTH = 420;
+export const STORAGE_KEY_SIDEBAR_WIDTH = 'siloka_sidebar_width';
 
 export const buildSidebarMenuItems = ({
   user,
@@ -229,6 +235,11 @@ export const buildSidebarMenuItems = ({
                 label: 'Hak Akses & Izin Pengguna',
                 icon: KeyRound,
               },
+              {
+                id: 'manajemen-disposisi',
+                label: 'Manajemen Alur Disposisi',
+                icon: Network,
+              },
             ],
           },
         ]
@@ -279,7 +290,8 @@ export const Sidebar = ({
       activeTab === 'manajemen-user' ||
       activeTab === 'manajemen-unit' ||
       activeTab === 'manajemen-role' ||
-      activeTab === 'manajemen-permission'
+      activeTab === 'manajemen-permission' ||
+      activeTab === 'manajemen-disposisi'
     ) {
       setOpenSubMenus((prev) => ({ ...prev, manajemen: true }));
     }
@@ -287,11 +299,84 @@ export const Sidebar = ({
 
   const menuItems = buildSidebarMenuItems({ user, unreadCounts });
 
+  // State Lebar Sidebar Fleksibel (Resizable Sidebar)
+  const [sidebarWidth, setSidebarWidth] = useState(() => {
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem(STORAGE_KEY_SIDEBAR_WIDTH);
+        if (saved) {
+          const num = parseInt(saved, 10);
+          if (!isNaN(num) && num >= MIN_SIDEBAR_WIDTH && num <= MAX_SIDEBAR_WIDTH) {
+            return num;
+          }
+        }
+      }
+    } catch (_) {}
+    return DEFAULT_SIDEBAR_WIDTH;
+  });
+
+  const [isResizing, setIsResizing] = useState(false);
+
+  const startResizing = useCallback((e) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+  }, []);
+
+  const resize = useCallback(
+    (e) => {
+      if (isResizing) {
+        const newWidth = e.clientX;
+        if (newWidth >= MIN_SIDEBAR_WIDTH && newWidth <= MAX_SIDEBAR_WIDTH) {
+          setSidebarWidth(newWidth);
+          try {
+            localStorage.setItem(STORAGE_KEY_SIDEBAR_WIDTH, String(newWidth));
+          } catch (_) {}
+        }
+      }
+    },
+    [isResizing]
+  );
+
+  const resetToDefaultWidth = useCallback(() => {
+    setSidebarWidth(DEFAULT_SIDEBAR_WIDTH);
+    try {
+      localStorage.removeItem(STORAGE_KEY_SIDEBAR_WIDTH);
+    } catch (_) {}
+  }, []);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+    };
+  }, [isResizing, resize, stopResizing]);
+
   return (
     <aside
-      className={`fixed md:sticky top-0 left-0 z-50 h-screen transition-transform duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white shrink-0 select-none shadow-2xl md:shadow-none overflow-hidden ${
+      style={{
+        width: isCollapsed ? undefined : `${sidebarWidth}px`,
+        transition: isResizing ? 'none' : undefined
+      }}
+      className={`fixed md:sticky top-0 left-0 z-50 h-screen transition-transform duration-300 ease-in-out bg-unsil-green-950 border-r border-unsil-green-900/60 flex flex-col justify-between text-white shrink-0 select-none shadow-2xl md:shadow-none overflow-hidden relative max-w-[85vw] md:max-w-none ${
         isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-      } md:translate-x-0 ${isCollapsed ? 'w-20' : 'w-64'} ${className}`}
+      } md:translate-x-0 ${isCollapsed ? 'w-20' : ''} ${className}`}
     >
       {/* Sidebar Header & Nav Wrapper */}
       <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
@@ -563,28 +648,7 @@ export const Sidebar = ({
       {/* Sidebar Footer Info */}
       <div className="p-3 border-t border-unsil-green-900/60 bg-unsil-green-950 shrink-0">
         {!isCollapsed ? (
-          <div className="space-y-3">
-            <div className="p-2.5 rounded-lg bg-unsil-green-900/40 border border-unsil-green-800/50 flex items-center gap-2.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-unsil-green-400 animate-pulse shrink-0" />
-              <div className="min-w-0">
-                <div className="text-xs font-semibold text-slate-200 truncate">
-                  Server BKU UNSIL
-                </div>
-                <div className="text-[10px] text-unsil-green-400/90">Koneksi Aman Terenkripsi</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between text-[11px] text-unsil-green-300/80 px-1">
-              <span>UNSIL Siloka v1.0</span>
-              <a
-                href="https://unsil.ac.id"
-                target="_blank"
-                rel="noreferrer"
-                className="hover:text-unsil-gold-300 flex items-center gap-0.5 transition-colors"
-              >
-                Portal <ExternalLink className="w-3 h-3" />
-              </a>
-            </div>
-
+          <div className="space-y-2.5">
             {onLogout && (
               <button
                 onClick={() => {
@@ -600,10 +664,21 @@ export const Sidebar = ({
                 <span>Keluar Sesi</span>
               </button>
             )}
+
+            <div className="flex items-center justify-between text-[11px] text-unsil-green-400/70 px-1 pt-0.5">
+              <span>SILOKA UNSIL v1.0</span>
+              <a
+                href="https://unsil.ac.id"
+                target="_blank"
+                rel="noreferrer"
+                className="hover:text-unsil-gold-300 flex items-center gap-0.5 transition-colors"
+              >
+                Portal <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </div>
         ) : (
-          <div className="flex flex-col items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-unsil-green-400 animate-pulse" title="Server Online" />
+          <div className="flex flex-col items-center">
             {onLogout && (
               <button
                 onClick={onLogout}
@@ -616,6 +691,19 @@ export const Sidebar = ({
           </div>
         )}
       </div>
+
+      {/* Resizer Handle (Tepian Geser) - Polos / Transparan tanpa garis warna */}
+      {!isCollapsed && (
+        <div
+          onMouseDown={startResizing}
+          onDoubleClick={resetToDefaultWidth}
+          className="hidden md:block absolute top-0 right-0 w-2 h-full cursor-col-resize z-50 bg-transparent select-none"
+          title="Tarik untuk mengatur lebar sidebar (Klik 2x untuk reset ke standar)"
+          aria-label="Pengatur Lebar Sidebar"
+          role="separator"
+          aria-orientation="vertical"
+        />
+      )}
     </aside>
   );
 };

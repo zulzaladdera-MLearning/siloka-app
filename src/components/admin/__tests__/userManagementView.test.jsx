@@ -213,6 +213,31 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     deletedUserIdentifiers.delete(testTarget.username.toLowerCase());
   });
 
+  it('memastikan sistem mendeteksi okupansi jabatan struktural tunggal (Rektor/Warek/Dekan) untuk mencegah human error', async () => {
+    const { findPositionOccupant, isSingleIncumbentPosition } = await import(
+      '../../../utils/unitJabatanOptions'
+    );
+    const usersData = (await import('../../../data/users.json')).default;
+
+    // Rektor Universitas Siliwangi adalah jabatan tunggal
+    expect(isSingleIncumbentPosition('Rektor Universitas Siliwangi')).toBe(true);
+
+    // Deteksi petahana aktif Rektor
+    const incumbentRektor = findPositionOccupant('Rektor Universitas Siliwangi', usersData);
+    expect(incumbentRektor).toBeDefined();
+    expect(incumbentRektor.name).toContain('Aripin');
+    expect(incumbentRektor.nip).toBe('196708161996031001');
+
+    // Wakil Rektor Bidang Akademik
+    const incumbentWarek1 = findPositionOccupant('Wakil Rektor Bidang Akademik', usersData);
+    expect(incumbentWarek1).toBeDefined();
+    expect(incumbentWarek1.name).toContain('Dedi Nurjamil');
+
+    // Jika Super Admin mengedit profil petahana itu sendiri, tidak boleh dianggap okupansi ganda (excludeUserId)
+    const selfCheck = findPositionOccupant('Rektor Universitas Siliwangi', usersData, incumbentRektor.id);
+    expect(selfCheck).toBeNull();
+  });
+
   it('memastikan SystemSettingsView mengimpor ikon Info dan komponen dapat di-render tanpa ReferenceError', async () => {
     const SystemSettingsModule = await import('../SystemSettingsView');
     expect(SystemSettingsModule.default).toBeDefined();

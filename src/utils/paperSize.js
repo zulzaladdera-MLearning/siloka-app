@@ -267,6 +267,14 @@ const ARAHAN_TEMPLATE_IDS = new Set([
   'edaran',       // Surat Edaran
   'surat-edaran',
   'keputusan',    // Surat Keputusan
+  'sp',           // Surat Perintah
+  'perintah',
+  'surat-perintah',
+  'st_lembar',    // Surat Tugas Lembar
+  'st_kolom',     // Surat Tugas Kolom
+  'st',           // Surat Tugas
+  'tugas',
+  'surat-tugas',
   'instruksi',    // Instruksi Rektor
   'juklak',       // Petunjuk Pelaksanaan
   'juknis',       // Petunjuk Teknis
@@ -281,6 +289,8 @@ const ARAHAN_KEYWORDS = [
   'surat edaran',
   'surat keputusan',
   'keputusan rektor',
+  'surat perintah',
+  'surat tugas',
   'prosedur operasional standar',
   'standar operasional prosedur',
   'petunjuk pelaksanaan',
@@ -345,6 +355,8 @@ export const detectPaperSize = (input) => {
         kategori.includes('arahan') ||
         kategori.includes('edaran') ||
         kategori.includes('keputusan') ||
+        kategori.includes('perintah') ||
+        kategori.includes('tugas') ||
         kategori.includes('instruksi') ||
         kategori.includes('pedoman') ||
         kategori.includes('peraturan') ||

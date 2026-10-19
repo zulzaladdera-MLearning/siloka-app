@@ -273,13 +273,17 @@ const UNIT_POSITIONS_MAP = {
       'Kepala Biro Akademik, Kemahasiswaan, Perencanaan, dan Kerja Sama',
       'Kepala Bagian Akademik',
       'Kepala Bagian Kemahasiswaan',
-      'Kepala Bagian Perencanaan dan Kerja Sama'
+      'Kepala Bagian Perencanaan dan Kerja Sama',
+      'Ketua Tim Perencanaan'
     ],
     verifikator: [
       'Kepala Bagian Akademik',
       'Kepala Bagian Kemahasiswaan',
       'Kepala Bagian Perencanaan dan Kerja Sama',
-      'Ketua Tim Bidang Akademik'
+      'Ketua Tim Perencanaan',
+      'Ketua Tim Bidang Perencanaan',
+      'Ketua Tim Bidang Akademik',
+      'Ketua Tim Bidang Kemahasiswaan'
     ],
     admin_tu: [
       'Pengadministrasi Persuratan / Loket TU BAKPK',
@@ -288,7 +292,8 @@ const UNIT_POSITIONS_MAP = {
     ],
     drafter: [
       'Penyusun Program & Kerja Sama BAKPK',
-      'Pengelola Data Akademik & Kemahasiswaan'
+      'Pengelola Data Akademik & Kemahasiswaan',
+      'Staf Tim Perencanaan'
     ]
   },
 
@@ -298,6 +303,9 @@ const UNIT_POSITIONS_MAP = {
       'Kepala Biro Keuangan dan Umum',
       'Kepala Bagian Umum',
       'Kepala Bagian Keuangan dan Kepegawaian',
+      'Ketua Tim Keprotokolan dan Humas',
+      'Ketua Tim Hukum, Organisasi, dan Ketatalaksanaan',
+      'Ketua Tim Keuangan',
       'Ketua Tim Bidang Keuangan',
       'Ketua Tim Bidang Kepegawaian',
       'Ketua Tim Tata Usaha dan Rumah Tangga'
@@ -305,8 +313,12 @@ const UNIT_POSITIONS_MAP = {
     verifikator: [
       'Kepala Bagian Umum',
       'Kepala Bagian Keuangan dan Kepegawaian',
+      'Ketua Tim Keprotokolan dan Humas',
+      'Ketua Tim Hukum, Organisasi, dan Ketatalaksanaan',
+      'Ketua Tim Keuangan',
       'Ketua Tim Bidang Keuangan',
-      'Ketua Tim Bidang Kepegawaian'
+      'Ketua Tim Bidang Kepegawaian',
+      'Ketua Tim Tata Usaha dan Rumah Tangga'
     ],
     admin_tu: [
       'Pengadministrasi Persuratan / Loket TU BKU',
@@ -316,7 +328,10 @@ const UNIT_POSITIONS_MAP = {
     ],
     drafter: [
       'Analis Pengelolaan Keuangan APBN',
-      'Analis SDM Aparatur BKU'
+      'Analis SDM Aparatur BKU',
+      'Staf Tim Keprotokolan dan Humas',
+      'Staf Tim Hukum, Organisasi, dan Ketatalaksanaan',
+      'Staf Tim Keuangan'
     ]
   },
 
@@ -722,7 +737,10 @@ export const getDefaultPositionsByUnitAndRole = (cleanUnit, cleanRole, activeLis
   }
 
   // 2. Ambil referensi dari peta unit spesifik jika tersedia
-  const unitGroup = UNIT_POSITIONS_MAP[cleanUnit];
+  const unitGroup =
+    UNIT_POSITIONS_MAP[cleanUnit] ||
+    (unitObj?.kode_unit && UNIT_POSITIONS_MAP[unitObj.kode_unit]) ||
+    (unitObj?.singkatan && UNIT_POSITIONS_MAP[unitObj.singkatan]);
   if (unitGroup) {
     if (unitGroup[cleanRole] && Array.isArray(unitGroup[cleanRole]) && unitGroup[cleanRole].length > 0) {
       return unitGroup[cleanRole];
@@ -950,5 +968,103 @@ export const getUnitByCode = (unitCode, customUnitsList = null) => {
   const clean = String(unitCode || '').trim().toUpperCase();
   const list = customUnitsList || getActiveUnitKerjaList();
   return list.find((u) => u.kode_unit === clean || u.singkatan === clean) || null;
+};
+
+/**
+ * Memeriksa apakah suatu nama jabatan bersifat tunggal (single-incumbent)
+ * pada struktur SOTK perguruan tinggi (misal: Rektor, Dekan, Kepala Biro, Ka UPA, dll.)
+ * @param {string} positionName
+ * @param {string} [roleSlug]
+ * @returns {boolean}
+ */
+export const isSingleIncumbentPosition = (positionName = '', roleSlug = '') => {
+  if (!positionName) return false;
+  const pos = String(positionName).trim().toLowerCase();
+
+  // Pengecualian jabatan jamak / multi-incumbent
+  if (
+    pos.includes('dosen fungsional') ||
+    pos.includes('dosen biasa') ||
+    pos.includes('dosen pengajar') ||
+    pos.includes('dosen / peneliti') ||
+    pos.includes('staf') ||
+    pos.includes('operator') ||
+    pos.includes('pengadministrasi') ||
+    pos.includes('pranata') ||
+    pos.includes('arsiparis') ||
+    pos.includes('anggota') ||
+    pos.includes('analis') ||
+    (pos.includes('auditor') && !pos.includes('ketua'))
+  ) {
+    return false;
+  }
+
+  // Pola jabatan tunggal SOTK institusional & unit kerja
+  const isStructuralTitle =
+    /\b(rektor|wakil rektor|warek|dekan|wakil dekan|wadek|direktur|wakil direktur|kepala biro|kabiro|kepala upa|kepala upt|ketua|sekretaris lembaga|sekretaris senat|sekretaris spi|sekretaris jurusan|koordinator program studi|kaprodi|kepala pusat|koordinator pusat|kepala laboratorium|kepala unit penunjang)\b/i.test(
+      pos
+    );
+
+  return isStructuralTitle || roleSlug === 'pimpinan';
+};
+
+/**
+ * Mencari pejabat petahana yang saat ini aktif menduduki suatu jabatan di sistem
+ * @param {string} positionName
+ * @param {Array} usersList
+ * @param {string} [excludeUserId] - ID user yang diabaikan (misal saat edit diri sendiri)
+ * @param {string} [unitCode] - Kode unit kerja untuk mencocokkan jabatan spesifik unit
+ * @returns {object|null}
+ */
+export const findPositionOccupant = (positionName = '', usersList = [], excludeUserId = null, unitCode = null) => {
+  if (!positionName || !Array.isArray(usersList) || usersList.length === 0) return null;
+  const cleanTarget = String(positionName).trim().toLowerCase();
+  if (!isSingleIncumbentPosition(cleanTarget)) return null;
+
+  return (
+    usersList.find((u) => {
+      if (!u) return false;
+      // Abaikan jika user adalah orang yang sedang diedit
+      if (
+        excludeUserId &&
+        (String(u.id || '').toLowerCase() === String(excludeUserId).toLowerCase() ||
+          (u.nip && String(u.nip).toLowerCase() === String(excludeUserId).toLowerCase()))
+      ) {
+        return false;
+      }
+
+      // Hanya periksa user yang statusnya aktif
+      if (u.is_active === false || u.is_aktif === false || u.status_aktif === false) {
+        return false;
+      }
+
+      const uJabatan = String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase();
+      const uUnit = String(u.unit_kerja_id || u.kode_unit || u.id_unit || '').trim().toUpperCase();
+
+      // Normalisasi perbandingan nama jabatan
+      if (uJabatan === cleanTarget) {
+        // Jabatan institusi universitas (Rektor, Warek, Ketua Senat, Ketua SPI, Ketua DP) unik se-institusi
+        const isInstitutional = /\b(rektor|wakil rektor|ketua senat|ketua spi|ketua dewan penyantun)\b/i.test(cleanTarget);
+        if (isInstitutional) return true;
+
+        // Jika ada spesifikasi kode unit (Dekan FT, Dekan FKIP, Ka Biro, dll.)
+        if (unitCode && uUnit) {
+          return uUnit === String(unitCode).trim().toUpperCase();
+        }
+
+        return true;
+      }
+
+      // Deteksi fleksibel khusus jabatan puncak seperti "Rektor Universitas Siliwangi" vs "Rektor"
+      if (
+        (cleanTarget === 'rektor' && uJabatan.includes('rektor') && !uJabatan.includes('wakil')) ||
+        (cleanTarget.includes('rektor') && !cleanTarget.includes('wakil') && uJabatan === 'rektor')
+      ) {
+        return true;
+      }
+
+      return false;
+    }) || null
+  );
 };
 

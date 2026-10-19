@@ -22,7 +22,8 @@ export const TAB_PATH_MAP = {
   'manajemen-user': '/manajemen-pengguna',
   'manajemen-unit': '/manajemen-unit-kerja',
   'manajemen-role': '/manajemen-peran',
-  'manajemen-permission': '/hak-akses'
+  'manajemen-permission': '/hak-akses',
+  'manajemen-disposisi': '/alur-disposisi'
 };
 
 export const PATH_TAB_MAP = {
@@ -45,7 +46,9 @@ export const PATH_TAB_MAP = {
   '/manajemen-peran': 'manajemen-role',
   '/manajemen-role': 'manajemen-role',
   '/hak-akses': 'manajemen-permission',
-  '/manajemen-permission': 'manajemen-permission'
+  '/manajemen-permission': 'manajemen-permission',
+  '/alur-disposisi': 'manajemen-disposisi',
+  '/manajemen-disposisi': 'manajemen-disposisi'
 };
 
 /**

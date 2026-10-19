@@ -28,7 +28,8 @@ import {
   CheckCircle2,
   ExternalLink,
   CheckSquare,
-  SendHorizontal
+  SendHorizontal,
+  Sparkles
 } from 'lucide-react';
 import {
   OFFICIAL_DISPOSISI_CHECKLIST_COL1,
@@ -55,6 +56,8 @@ import {
   getAllOfficialsWithUserMapping
 } from '../../utils/pejabatHelper';
 import SmartKlasifikasiNumberingPanel from '../documents/SmartKlasifikasiNumberingPanel';
+import { KopSuratUnsil } from '../documents/DocumentTemplates';
+import { isDosenTanpaJabatan, isMandiriPersonalDocument } from '../../utils/authGuards';
 
 // Daftar Template Standar Naskah Dinas Staf / Unit Kerja (13 Jenis Sesuai Tabel 1 Peraturan Rektor No. 3/2023)
 const TEMPLATES = [
@@ -79,11 +82,11 @@ const TEMPLATES = [
     icon: FileText,
     desc: 'Komunikasi kedinasan internal antar pejabat dalam satu unit',
     defaultKlasifikasi: 'KU.01.04',
-    defaultPerihal: 'Laporan Pertanggungjawaban Realisasi Anggaran Operasional Unit',
-    defaultPembuka: 'Bersama ini kami laporkan perkembangan realisasi anggaran operasional dan belanja pemeliharaan sarana prasarana unit kerja dengan rincian sebagai berikut:',
-    defaultIsi: '1. Seluruh berkas kuitansi dan dokumen perpajakan telah diverifikasi oleh staf pengelola keuangan unit.\n2. Alokasi belanja kegiatan telah sesuai dengan Rencana Kerja dan Anggaran (RKA) tahun berjalan.\n3. Berkas digital SPJ telah terunggah secara lengkap pada sistem kearsipan SILOKA.',
-    defaultPenutup: 'Demikian nota dinas ini kami sampaikan sebagai bahan pertimbangan dan arahan lebih lanjut dari Bapak. Atas arahan dan perkenan yang diberikan, kami haturkan terima kasih.',
-    defaultTujuan: 'Pimpinan Unit Kerja / Dekan',
+    defaultPerihal: 'Laporan Realisasi Penyerapan Anggaran BLU Triwulan III TA 2026',
+    defaultPembuka: 'Bersama ini kami sampaikan dengan hormat laporan perkembangan realisasi belanja operasional dan belanja modal di lingkungan Universitas Siliwangi sampai dengan akhir Agustus 2026 sebagai bahan evaluasi pimpinan.',
+    defaultIsi: '1. Realisasi penyerapan anggaran belanja pegawai dan operasional telah mencapai 78,4% dari pagu DIPA yang ditetapkan.\n2. Pengadaan sarana prasarana penunjang laboratorium melalui e-Katalog telah selesai diverifikasi oleh Pejabat Pembuat Komitmen (PPK).\n3. Seluruh berkas pertanggungjawaban (SPJ) telah terdigitalisasi penuh melalui modul kearsipan SILOKA sesuai standar Perka ANRI.',
+    defaultPenutup: 'Demikian nota dinas ini kami sampaikan, atas perhatian dan arahan Bapak diucapkan terima kasih.',
+    defaultTujuan: 'Kepala Biro Perencanaan, Keuangan, dan Umum',
     defaultAlamatTujuan: 'Di Tempat'
   },
   {
@@ -101,16 +104,47 @@ const TEMPLATES = [
     defaultAlamatTujuan: 'Di Lingkungan Universitas Siliwangi'
   },
   {
+    id: 'st_lembar',
+    kode_jenis_naskah: 'SURAT_TUGAS',
+    name: 'Surat Tugas (Format Lembar)',
+    alias: 'Perorangan',
+    icon: Layers,
+    desc: 'Surat penugasan kedinasan untuk 1 orang (format lembaran identitas)',
+    defaultKlasifikasi: 'KP.05.00',
+    defaultPerihal: 'Penugasan Pelaksanaan Kegiatan Kedinasan',
+    defaultPembuka: 'Pimpinan unit kerja dengan ini menugaskan kepada pejabat/pegawai di bawah ini,',
+    defaultIsi: 'Nama : Dr. Nana Sujana, Drs., M.Si.\nNIP : 196808301989031004\nPangkat dan golongan : Pembina Utama Muda, IV/c\nJabatan : Kepala Biro Umum dan Keuangan\n\nUntuk : Menghadiri Rapat Koordinasi Nasional Tata Kelola Keuangan dan Kearsipan Perguruan Tinggi Negeri tanggal 15 s.d. 17 September 2026 di Hotel Grand Mercure, Jakarta Pusat',
+    defaultPenutup: 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.',
+    defaultTujuan: 'Pegawai yang Bersangkutan',
+    defaultAlamatTujuan: 'Di Tempat'
+  },
+  {
+    id: 'st_kolom',
+    kode_jenis_naskah: 'SURAT_TUGAS',
+    name: 'Surat Tugas (Format Kolom)',
+    alias: 'Kolektif / Tabel',
+    icon: Layers,
+    desc: 'Surat penugasan kedinasan tim/kelompok (format tabel matriks 3 kolom)',
+    defaultKlasifikasi: 'KP.05.00',
+    defaultPerihal: 'Penugasan Tim Pelaksanaan Kegiatan Kedinasan',
+    defaultPembuka: 'Pimpinan unit kerja dengan ini menugaskan kepada pegawai yang namanya tercantum di bawah ini,',
+    defaultIsi: '1. Dr. Nana Sujana, Drs., M.Si. | NIP 196808301989031004 | Pembina Utama Muda, IV/c | Kepala Biro Umum dan Keuangan\n2. Budi Santoso, S.E., M.Ak. | NIP 198203202008121002 | Penata Tk. I, III/d | Koordinator Keuangan & BMN\n3. Siti Rohmah, S.AP. | NIP 198809152014042001 | Penata Muda Tk. I, III/b | Staf Administrasi & Kearsipan\n\nUntuk : Mengikuti Bimbingan Teknis Standarisasi Naskah Dinas Elektronik dan Penerapan TTE Tersertifikasi BSSN tanggal 20 s.d. 22 September 2026 di Pusat Diklat Kemendikbudristek, Depok, Jawa Barat',
+    defaultPenutup: 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.',
+    defaultTujuan: 'Para Pegawai yang Ditugaskan',
+    defaultAlamatTujuan: 'Di Lingkungan Universitas Siliwangi'
+  },
+  {
     id: 'tugas',
     kode_jenis_naskah: 'SURAT_TUGAS',
     name: 'Surat Tugas',
+    alias: 'Perorangan',
     icon: Layers,
     desc: 'Penugasan staf/pegawai untuk menjalankan kegiatan kedinasan',
     defaultKlasifikasi: 'KP.05.00',
     defaultPerihal: 'Penugasan Pelaksanaan Bimbingan Teknis Kearsipan dan TTE BSrE',
-    defaultPembuka: 'Pimpinan unit kerja dengan ini menugaskan kepada pegawai yang namanya tercantum di bawah ini:',
-    defaultIsi: 'Nama : Staf Pelaksana Administrasi Persuratan\nNIP  : 198809152014042001\nUntuk : Mengikuti Bimbingan Teknis Pengelolaan Arsip Dinamis dan Penerapan TTE BSrE di Bandung pada tanggal 22-24 September 2026.',
-    defaultPenutup: 'Surat tugas ini diberikan untuk dilaksanakan dengan penuh rasa tanggung jawab dan setelah selesai melaksanakan tugas agar segera menyampaikan laporan tertulis.',
+    defaultPembuka: 'Pimpinan unit kerja dengan ini menugaskan kepada pejabat/pegawai di bawah ini,',
+    defaultIsi: 'Nama : Staf Pelaksana Administrasi Persuratan\nNIP : 198809152014042001\nPangkat dan golongan : Penata Muda Tk. I, III/b\nJabatan : Staf Pengelola Kearsipan\n\nUntuk : Mengikuti Bimbingan Teknis Pengelolaan Arsip Dinamis dan Penerapan TTE BSrE di Bandung pada tanggal 22-24 September 2026',
+    defaultPenutup: 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.',
     defaultTujuan: 'Pegawai yang Bersangkutan',
     defaultAlamatTujuan: 'Di Tempat'
   },
@@ -133,12 +167,12 @@ const TEMPLATES = [
     kode_jenis_naskah: 'SURAT_KETERANGAN',
     name: 'Surat Keterangan',
     icon: CheckCircle,
-    desc: 'Keterangan resmi keaktifan pegawai atau status kedinasan',
+    desc: 'Keterangan resmi keaktifan pegawai atau status kedinasan (Contoh 15 Gambar 4)',
     defaultKlasifikasi: 'PP.00.03',
-    defaultPerihal: 'Surat Keterangan Bebas Administrasi dan Perlengkapan',
-    defaultPembuka: 'Yang bertanda tangan di bawah ini menerangkan dengan sesungguhnya bahwa:',
-    defaultIsi: 'Nama      : Siti Rohmah, S.AP.\nNIP       : 198809152014042001\nJabatan   : Staf Persuratan dan Kearsipan\nUnit Kerja: Biro Keuangan dan Umum UNSIL\n\nAdalah benar telah menyelesaikan seluruh kewajiban administrasi persuratan dan inventaris BMN dengan baik dan tidak memiliki tanggungan dinas.',
-    defaultPenutup: 'Demikian surat keterangan ini kami buat dengan sebenarnya untuk dapat dipergunakan sebagaimana mestinya.',
+    defaultPerihal: 'Surat Keterangan Keaktifan Pegawai / Status Kedinasan',
+    defaultPembuka: 'Yang bertanda tangan di bawah ini,',
+    defaultIsi: 'nama : Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.\nNIP : 196708161996031001\npangkat dan golongan : Pembina Utama Madya / IV/d\njabatan : Rektor Universitas Siliwangi\n\ndengan ini menerangkan bahwa,\nnama : Fajar Nugraha, S.T., M.Kom.\nNIP : 198805212015041002\npangkat dan golongan : Penata Muda Tingkat I / III/b\njabatan : Dosen Asisten Ahli pada Fakultas Teknik Universitas Siliwangi\n\nIsi Keterangan:\nBahwa yang bersangkutan adalah benar Pegawai Negeri Sipil / Tenaga Pendidik aktif pada Universitas Siliwangi dan saat ini sedang ditugaskan sebagai Koordinator Sistem Informasi dan Transformasi Digital (SILOKA) serta berkelakuan baik dan tidak sedang menjalani hukuman disiplin tingkat sedang maupun berat.',
+    defaultPenutup: 'Surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.',
     defaultTujuan: 'Pihak yang Berkepentingan',
     defaultAlamatTujuan: 'Di Tempat'
   },
@@ -147,14 +181,14 @@ const TEMPLATES = [
     kode_jenis_naskah: 'SURAT_PENGANTAR',
     name: 'Surat Pengantar',
     icon: Send,
-    desc: 'Pengantar pengiriman naskah, berkas SPJ, atau laporan dinas',
+    desc: 'Pengantar pengiriman naskah, berkas SPJ, atau laporan dinas (Contoh 17 Gambar 5)',
     defaultKlasifikasi: 'KU.01.04',
-    defaultPerihal: 'Penyampaian Berkas Usulan Pencairan Anggaran Operasional',
-    defaultPembuka: 'Bersama surat ini, kami sampaikan berkas usulan pencairan anggaran operasional dengan perincian berkas sebagai berikut:',
-    defaultIsi: '1. Rencana Penggunaan Dana (RPD) Triwulan III - 1 (satu) Berkas (Asli)\n2. Bukti Kuitansi Pengeluaran Riil - 1 (satu) Berkas (Asli)\n3. Berita Acara Verifikasi Internal - 1 (satu) Lembar (Asli)',
-    defaultPenutup: 'Demikian untuk diketahui dan diproses sesuai dengan peraturan perundang-undangan yang berlaku. Atas kerja sama yang baik, kami sampaikan terima kasih.',
-    defaultTujuan: 'Kepala Biro Perencanaan, Keuangan, dan Umum',
-    defaultAlamatTujuan: 'Universitas Siliwangi'
+    defaultPerihal: 'Surat Pengantar Pengiriman Berkas dan Dokumen Kedinasan',
+    defaultPembuka: 'Bersama ini kami sampaikan:',
+    defaultIsi: '1. Berkas Rekonsiliasi Laporan Keuangan Universitas Siliwangi Semester I Tahun Anggaran 2026 | 2 (dua) bundel | Disampaikan dengan hormat untuk diverifikasi dan diterbitkan Berita Acara Rekonsiliasi (BAR).\n2. Surat Pernyataan Tanggung Jawab Mutlak (SPTJM) Belanja Modal TA 2026 | 1 (satu) berkas | Sebagai kelengkapan berkas rekonsiliasi pengesahan belanja modal.',
+    defaultPenutup: 'Demikian surat pengantar ini kami sampaikan untuk dipergunakan sebagaimana mestinya. Atas perhatian dan kerja sama Saudara, kami ucapkan terima kasih.',
+    defaultTujuan: 'Kepala Kantor Pelayanan Perbendaharaan Negara (KPPN) Tasikmalaya',
+    defaultAlamatTujuan: 'Jalan Otto Iskandardinata Nomor 12 Kota Tasikmalaya'
   },
   {
     id: 'pernyataan',
@@ -164,9 +198,9 @@ const TEMPLATES = [
     desc: 'Pernyataan kedinasan atau kebenaran administratif tertulis',
     defaultKlasifikasi: 'KP.02.01',
     defaultPerihal: 'Surat Pernyataan Tanggung Jawab Mutlak (SPTJM)',
-    defaultPembuka: 'Yang bertanda tangan di bawah ini dengan ini menyatakan dengan sesungguhnya bahwa:',
-    defaultIsi: '1. Seluruh data dan dokumen pendukung yang diajukan adalah benar dan sah sesuai fakta integritas kedinasan.\n2. Apabila di kemudian hari ditemukan ketidaksesuaian, kami bersedia bertanggung jawab penuh sesuai ketentuan peraturan perundang-undangan yang berlaku.',
-    defaultPenutup: 'Demikian pernyataan ini kami buat secara sadar tanpa paksaan dari pihak manapun.',
+    defaultPembuka: 'Yang bertanda tangan di bawah ini,',
+    defaultIsi: 'nama : Dr. Ade Rustiana, Drs., M.Si.\nNIP : 196801021992031002\npangkat dan golongan : Pembina Utama Muda / IV/c\njabatan : Wakil Rektor Bidang Umum dan Keuangan\nalamat : Jalan Siliwangi Nomor 24 Kota Tasikmalaya\n\nIsi Pernyataan:\nDengan ini menyatakan dengan sesungguhnya bahwa seluruh data, laporan rekonsiliasi belanja modal, dan dokumen pertanggungjawaban keuangan Universitas Siliwangi Tahun Anggaran 2026 telah disusun secara benar, objektif, dan sesuai dengan Standar Akuntansi Pemerintahan (SAP). Apabila di kemudian hari ditemukan ketidaksesuaian atau kekeliruan data, saya bersedia bertanggung jawab sepenuhnya sesuai ketentuan hukum yang berlaku.',
+    defaultPenutup: 'Surat pernyataan ini dibuat untuk dipergunakan sebagaimana mestinya.',
     defaultTujuan: 'Pimpinan Universitas Siliwangi',
     defaultAlamatTujuan: 'Tasikmalaya'
   },
@@ -205,12 +239,12 @@ const TEMPLATES = [
     icon: FileText,
     desc: 'Catatan resmi pelaksanaan kegiatan/serah terima fakultas',
     defaultKlasifikasi: 'PL.01.02',
-    defaultPerihal: 'Berita Acara Serah Terima Pengelolaan Aset Laboratorium',
-    defaultPembuka: 'Pada hari ini, Senin tanggal 21 September 2026, telah dilaksanakan serah terima aset dengan hasil:',
-    defaultIsi: '1. Telah dilakukan pengecekan fisik 30 unit komputer laboratorium dalam kondisi baik dan berfungsi normal.\n2. Seluruh aset telah terdaftar dalam sistem pencatatan BMN SILOKA.',
-    defaultPenutup: 'Berita Acara ini dibuat dalam rangkap secukupnya untuk dipergunakan sebagaimana mestinya.',
-    defaultTujuan: 'Arsip Subbagian Umum & Aset BMN',
-    defaultAlamatTujuan: 'Fakultas Teknik'
+    defaultPerihal: 'Berita Acara Serah Terima Pengadaan Perangkat Komputer Server dan Jaringan Terpusat',
+    defaultPembuka: 'Pada hari ini, Selasa, tanggal 08, bulan September, tahun 2026, kami masing-masing:',
+    defaultIsi: '1. Dr. Kurnia, S.P., M.P., NIP 197503122002121001 dan Kepala Biro Perencanaan, Keuangan, dan Umum, selanjutnya disebut Pihak Pertama, dan\n2. Ir. Hendra Gunawan, M.T. (Pejabat Pembuat Komitmen Sarana dan Prasarana), selanjutnya disebut Pihak Kedua,\n\ntelah melaksanakan:\n1. Pemeriksaan fisik dan uji fungsi terhadap Pengadaan Perangkat Komputer Server dan Jaringan Terpusat SILOKA Tahun Anggaran 2026.\n2. Serah terima barang operasional teknologi informasi dalam kondisi baik, lengkap, dan memenuhi spesifikasi teknis Kerangka Acuan Kerja (KAK).\n\nBerita acara ini dibuat dengan sesungguhnya berdasarkan Surat Keputusan Rektor Universitas Siliwangi Nomor 142/UN58/KP.02/2026 tanggal 15 Januari 2026 tentang Penetapan Tim Pemeriksa dan Penerima Hasil Pekerjaan Pengadaan Barang/Jasa di Lingkungan Universitas Siliwangi.',
+    defaultPenutup: 'Berita acara ini dibuat rangkap dua (2) untuk dipergunakan sebagaimana mestinya.',
+    defaultTujuan: 'Ir. Hendra Gunawan, M.T.',
+    defaultAlamatTujuan: 'Tasikmalaya'
   },
   {
     id: 'pos',
@@ -287,13 +321,13 @@ const TEMPLATES = [
     kode_jenis_naskah: 'NOTULA',
     name: 'Notula Rapat',
     icon: FileText,
-    desc: 'Catatan ringkas resmi jalannya sidang atau rapat pimpinan (Tabel 1 No. 20)',
+    desc: 'Catatan ringkas jalannya rapat pimpinan (Contoh 19 Gambar 1)',
     defaultKlasifikasi: 'HM.00.01',
-    defaultPerihal: 'Notula Rapat Pimpinan Evaluasi Kinerja dan Program Kerja Universitas Siliwangi',
-    defaultPembuka: 'Risalah dan catatan resmi jalannya rapat pimpinan Universitas Siliwangi dengan pokok bahasan:',
-    defaultIsi: '1. Evaluasi capaian indikator kinerja utama (IKU) universitas dan unit kerja.\n2. Tindak lanjut percepatan layanan akademik, keuangan, dan kemahasiswaan.',
-    defaultPenutup: 'Demikian notula rapat ini disahkan oleh Pemimpin Rapat untuk ditindaklanjuti.',
-    defaultTujuan: 'Seluruh Peserta Rapat Pimpinan',
+    defaultPerihal: 'Rapat Koordinasi Evaluasi Implementasi Tata Naskah Dinas Elektronik SILOKA',
+    defaultPembuka: '',
+    defaultIsi: 'Nama rapat : Rapat Koordinasi Evaluasi Implementasi Tata Naskah Dinas Elektronik SILOKA\nHari, tanggal : Selasa, 08 September 2026\nPukul : 09.00 - 12.00 WIB\nTempat : Ruang Sidang Rektorat Lt. 2 Universitas Siliwangi\nSusunan acara :\n1. Pembukaan oleh Pembawa Acara\n2. Pengarahan Rektor Universitas Siliwangi\n3. Pemaparan Laporan Kemajuan Penerapan TTE BSrE oleh Tim SILOKA\n4. Diskusi dan Tanggapan Dekan serta Kepala Biro\n5. Perumusan Simpulan dan Penutup\n\nPemimpin rapat : Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng. (Rektor)\nPencatat/notulis : Rina Permatasari, S.Sos. (Pranata Humas)\nPeserta rapat :\n1. Wakil Rektor Bidang Akademik\n2. Wakil Rektor Bidang Umum dan Keuangan\n3. Wakil Rektor Bidang Kemahasiswaan dan Alumni\n4. Para Dekan Fakultas di lingkungan UNSIL\n5. Kepala Lembaga (LPPM dan LP3M)\n6. Koordinator Pusat Teknologi Informasi dan Pangkalan Data\n\n1. Persoalan yang dibahas : Integrasi menyeluruh modul tanda tangan digital bersertifikat BSrE BSSN ke seluruh 20 format tata naskah dinas resmi SILOKA serta penguatan validasi QR-Code verifikasi dokumen kedinasan.\n2. Tanggapan peserta rapat : Para Dekan menyetujui percepatan implementasi template resmi naskah dinas per September 2026 dan meminta pelatihan teknis (Bimtek) bagi seluruh staf tata usaha fakultas.\n3. Simpulan : Seluruh fakultas dan biro diwajibkan menggunakan aplikasi SILOKA untuk pembuatan dan pengesahan seluruh naskah dinas resmi mulai pekan depan. Bimtek tata persuratan elektronik diagendakan pada hari Jumat, 11 September 2026.',
+    defaultPenutup: '',
+    defaultTujuan: 'Seluruh Peserta Rapat',
     defaultAlamatTujuan: 'Universitas Siliwangi'
   },
   {
@@ -301,28 +335,28 @@ const TEMPLATES = [
     kode_jenis_naskah: 'LAPORAN',
     name: 'Laporan',
     icon: FileText,
-    desc: 'Laporan pertanggungjawaban pelaksanaan tugas kedinasan (Pasal 26 Per. Rektor No. 3/2023)',
+    desc: 'Laporan pelaksanaan kegiatan kedinasan (Contoh 20 Gambar 2)',
     defaultKlasifikasi: 'PR.04.01',
-    defaultPerihal: 'Laporan Capaian Pelaksanaan Program Kerja dan Evaluasi Kinerja Bidang',
-    defaultPembuka: 'Bersama ini disampaikan Laporan Pelaksanaan Program Kerja dan Evaluasi Kinerja di lingkungan Universitas Siliwangi:',
-    defaultIsi: '1. Latar Belakang dan Dasar Pelaksanaan.\n2. Ruang Lingkup dan Kegiatan yang Dilaksanakan.\n3. Hasil yang Dicapai dan Rekomendasi Tindak Lanjut.',
-    defaultPenutup: 'Demikian laporan ini disusun dengan sebenarnya sebagai bentuk akuntabilitas kinerja.',
+    defaultPerihal: 'PELAKSANAAN AUDIT KESIAPAN TEKNOLOGI DAN IMPLEMENTASI TATA NASKAH DINAS ELEKTRONIK APLIKASI SILOKA UNIVERSITAS SILIWANGI TAHUN 2026',
+    defaultPembuka: '',
+    defaultIsi: 'A. Pendahuluan\n1. Latar Belakang: Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 3 Tahun 2023, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.\n2. Dasar: 1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional; 2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan; 3. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi; 4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.\n3. Ruang Lingkup: Ruang lingkup pelaksanaan kegiatan meliputi pengujian 20 format naskah dinas resmi, integrasi Tanda Tangan Elektronik (TTE) tersertifikasi BSrE BSSN, keandalan server basis data surat dinas, serta pelatihan operasional bagi staf pengadministrasi persuratan.\n\nB. Kegiatan yang Dilaksanakan\n1. Melakukan validasi kesesuaian layout visual 20 format naskah dinas dengan pedoman tata naskah dinas resmi UNSIL.\n2. Melaksanakan uji coba penerbitan TTE BSrE dengan enkripsi hash dokumen dan stempel QR-Code verifikasi dinas.\n3. Menyelenggarakan bimbingan teknis (Bimtek) administrasi naskah dinas elektronik kepada seluruh perwakilan fakultas dan unit kerja.\n\nC. Hasil yang Dicapai\n1. Sebanyak 20 format naskah dinas resmi berhasil diintegrasikan dengan sempurna ke dalam aplikasi SILOKA.\n2. Tingkat kepatuhan format persuratan kedinasan mencapai 100% dan siap dioperasikan penuh pada semester ganjil TA 2026/2027.\n3. Telah tersertifikasi secara elektronik dan aman dari risiko pemalsuan dokumen kedinasan.\n\nD. Penutup\nDemikian laporan ini dibuat dengan sebenarnya sebagai bahan evaluasi dan pertanggungjawaban pelaksanaan kegiatan. Atas perhatian dan dukungan pimpinan Universitas Siliwangi, diucapkan terima kasih.',
+    defaultPenutup: 'Demikian laporan ini dibuat dengan sebenarnya sebagai bahan evaluasi dan pertanggungjawaban pelaksanaan kegiatan.',
     defaultTujuan: 'Rektor Universitas Siliwangi',
-    defaultAlamatTujuan: 'Kota Tasikmalaya'
+    defaultAlamatTujuan: 'Tasikmalaya'
   },
   {
     id: 'telaah-staf',
     kode_jenis_naskah: 'TELAAH_STAF',
     name: 'Telaah Staf',
     icon: FileText,
-    desc: 'Kajian analisis permasalahan dan saran kebijakan (Pasal 27 Per. Rektor No. 3/2023)',
+    desc: 'Kajian analisis permasalahan dan saran kebijakan (Contoh 21 Gambar 3)',
     defaultKlasifikasi: 'OT.01.00',
-    defaultPerihal: 'Telaah Staf Optimalisasi Tata Kelola Layanan dan Kebijakan Strategis Universitas Siliwangi',
-    defaultPembuka: 'I. PERSOALAN: Kebutuhan penguatan integrasi layanan akademik, keuangan, dan kemahasiswaan berbasis digital.',
-    defaultIsi: 'II. PRAANGGAPAN & FAKTA YANG MEMENGARUHI: Sesuai Peraturan Rektor No. 3 Tahun 2023 dan SK Rektor No. 2803 Tahun 2023.\nIII. ANALISIS & SIMPULAN: Diperlukan penetapan kebijakan terpadu lintas unit kerja.',
-    defaultPenutup: 'IV. SARAN: Mohon perkenan arahan dan persetujuan pimpinan atas rekomendasi kebijakan di atas.',
+    defaultPerihal: 'OPTIMALISASI KEAMANAN DATA KEARSIPAN DAN IMPLEMENTASI TATA NASKAH DINAS ELEKTRONIK PADA APLIKASI SILOKA UNIVERSITAS SILIWANGI',
+    defaultPembuka: '',
+    defaultIsi: 'Kepada : Rektor Universitas Siliwangi\nDari : Kepala Biro Umum dan Keuangan\nTanggal : 08 September 2026\nNomor : \nLampiran : 1 (satu) Berkas\nHal : Telaah Staf Peningkatan Keandalan Server dan Sertifikasi TTE BSrE SILOKA\n\nI. Persoalan\nBagian persoalan memuat pernyataan singkat dan jelas tentang persoalan yang akan dipecahkan.\n\nII. Praanggapan\nPraanggapan memuat dugaan yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi dan merupakan kemungkinan kejadian di masa mendatang.\n\nIII. Fakta-fakta yang mempengaruhi\nBagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan.\n\nIV. Analisis\nBagian ini memuat analisis pengaruh praanggapan dan fakta terhadap persoalan serta akibatnya, hambatan serta keuntungan dan kerugiannya, serta pemecahan atau cara bertindak yang mungkin atau dapat dilakukan.\n\nV. Simpulan\nBagian simpulan memuat intisari hasil analisis dan pilihan satu cara bertindak atau jalan keluar sebagai pemecahan persoalan yang dihadapi.\n\nVI. Saran\nBagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang dihadapi.',
+    defaultPenutup: '',
     defaultTujuan: 'Rektor Universitas Siliwangi',
-    defaultAlamatTujuan: 'Kota Tasikmalaya'
+    defaultAlamatTujuan: 'Tasikmalaya'
   },
   {
     id: 'disposisi-rektor',
@@ -361,7 +395,8 @@ const mapTemplateIdToType = (tplId) => {
   if (idStr === 'nota-dinas' || idStr === 'nota_dinas' || idStr === 'nd') return 'nd';
   if (idStr === 'surat-dinas' || idStr === 'surat_dinas' || idStr === 'sd') return 'sd';
   if (idStr === 'undangan' || idStr === 'surat_undangan' || idStr === 'surat-undangan') return 'undangan_lembar';
-  if (idStr === 'tugas' || idStr === 'surat_tugas' || idStr === 'surat-tugas' || idStr === 'st') return 'st_lembar';
+  if (idStr === 'st_kolom' || idStr === 'st-kolom') return 'st_kolom';
+  if (idStr === 'st_lembar' || idStr === 'st-lembar' || idStr === 'tugas' || idStr === 'surat_tugas' || idStr === 'surat-tugas' || idStr === 'st') return 'st_lembar';
   if (idStr === 'edaran' || idStr === 'surat_edaran' || idStr === 'surat-edaran' || idStr === 'se') return 'se';
   if (idStr === 'perintah' || idStr === 'surat_perintah' || idStr === 'surat-perintah' || idStr === 'sp') return 'sp';
   if (idStr === 'keputusan' || idStr === 'sk') return 'sk';
@@ -384,7 +419,9 @@ export const CreateLetterModal = ({
   currentUser,
   initialMode = 'surat-keluar',
   allLetters = [],
-  allUsers = []
+  allUsers = [],
+  followUpDisposisi = null,
+  onClearFollowUp = null
 }) => {
   if (!isOpen) return null;
 
@@ -392,13 +429,22 @@ export const CreateLetterModal = ({
   const generateRandomSeq = () => String(Math.floor(100 + Math.random() * 900)).padStart(4, '0');
 
   // Mode Dokumen: 'surat-keluar' (Penyusunan naskah kedinasan) | 'surat-masuk' (Registrasi surat masuk eksternal)
-  const [letterType, setLetterType] = useState(() => initialMode || 'surat-keluar');
+  const [letterType, setLetterType] = useState(() => (followUpDisposisi ? 'surat-keluar' : initialMode || 'surat-keluar'));
 
   useEffect(() => {
-    if (initialMode) {
+    if (followUpDisposisi && isOpen) {
+      setLetterType('surat-keluar');
+      setSelectedTemplateId('nota-dinas');
+      setPerihal(`Tindak Lanjut E-Disposisi: ${followUpDisposisi.perihal || 'Naskah Dinas'}`);
+      setNomorSuratAsal(followUpDisposisi.nomorSurat || followUpDisposisi.nomorAgenda || '');
+      setTujuan(followUpDisposisi.pemberiDisposisi || TEMPLATES[0].defaultTujuan);
+      setKalimatPembuka(
+        `Menindaklanjuti E-Disposisi Nomor Agenda ${followUpDisposisi.nomorAgenda || '-'} perihal "${followUpDisposisi.perihal || '-'}" dengan arahan: "${followUpDisposisi.instruksi || 'Tindak lanjuti sesuai arahan'}", bersama ini kami sampaikan:`
+      );
+    } else if (initialMode && isOpen) {
       setLetterType(initialMode);
     }
-  }, [initialMode, isOpen]);
+  }, [followUpDisposisi, initialMode, isOpen]);
 
   // Mode Tampilan: 'split' (Form & Pratinjau berdampingan) | 'form' (Hanya Formulir) | 'preview' (Hanya Pratinjau A4)
   const [viewMode, setViewMode] = useState(() => {
@@ -407,7 +453,7 @@ export const CreateLetterModal = ({
     }
     return 'split';
   });
-  const [selectedTemplateId, setSelectedTemplateId] = useState('surat-dinas');
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => (followUpDisposisi ? 'nota-dinas' : 'surat-dinas'));
 
   // Auto-fill kode unit berdasarkan unit kerja user yang login
   const defaultUnit =
@@ -425,18 +471,43 @@ export const CreateLetterModal = ({
   const searchDropdownRef = useRef(null);
 
   // Field Surat Keluar
-  const [nomorSuratAsal, setNomorSuratAsal] = useState('');
+  const [nomorSuratAsal, setNomorSuratAsal] = useState(() => {
+    if (followUpDisposisi) {
+      return followUpDisposisi.nomorSurat || followUpDisposisi.nomorAgenda || '';
+    }
+    return '';
+  });
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
-  const [perihal, setPerihal] = useState(TEMPLATES[0].defaultPerihal);
+  const [perihal, setPerihal] = useState(() => {
+    if (followUpDisposisi) {
+      return `Tindak Lanjut E-Disposisi: ${followUpDisposisi.perihal || 'Naskah Dinas'}`;
+    }
+    return '';
+  });
   const [kategori, setKategori] = useState('Surat Keluar');
-  const [sifatSurat, setSifatSurat] = useState('Biasa');
-  const [lampiran, setLampiran] = useState('1 (satu) Berkas');
+  const [sifatSurat, setSifatSurat] = useState(() => {
+    if (followUpDisposisi?.sifatInstruksi) {
+      return followUpDisposisi.sifatInstruksi.includes('Segera') ? 'Segera' : 'Biasa';
+    }
+    return 'Biasa';
+  });
+  const [lampiran, setLampiran] = useState('-');
   const [pengirim, setPengirim] = useState(defaultUnit.nama_unit);
-  const [tujuan, setTujuan] = useState(TEMPLATES[0].defaultTujuan);
-  const [alamatTujuan, setAlamatTujuan] = useState(TEMPLATES[0].defaultAlamatTujuan);
-  const [kalimatPembuka, setKalimatPembuka] = useState(TEMPLATES[0].defaultPembuka);
-  const [isiPokok, setIsiPokok] = useState(TEMPLATES[0].defaultIsi);
-  const [kalimatPenutup, setKalimatPenutup] = useState(TEMPLATES[0].defaultPenutup);
+  const [tujuan, setTujuan] = useState(() => {
+    if (followUpDisposisi) {
+      return followUpDisposisi.pemberiDisposisi || '';
+    }
+    return '';
+  });
+  const [alamatTujuan, setAlamatTujuan] = useState('');
+  const [kalimatPembuka, setKalimatPembuka] = useState(() => {
+    if (followUpDisposisi) {
+      return `Menindaklanjuti E-Disposisi Nomor Agenda ${followUpDisposisi.nomorAgenda || '-'} perihal "${followUpDisposisi.perihal || '-'}" dengan arahan: "${followUpDisposisi.instruksi || 'Tindak lanjuti sesuai arahan'}", bersama ini kami sampaikan:`;
+    }
+    return '';
+  });
+  const [isiPokok, setIsiPokok] = useState('');
+  const [kalimatPenutup, setKalimatPenutup] = useState('');
 
   // Field Khusus Registrasi Surat Masuk Eksternal
   const [nomorSuratAsalMasuk, setNomorSuratAsalMasuk] = useState('1204/B/LLDIKTI4/KL/2026');
@@ -646,9 +717,7 @@ export const CreateLetterModal = ({
   const [gelarSigner, setGelarSigner] = useState('');
   const [nipSigner, setNipSigner] = useState('');
   const [tteVerified, setTteVerified] = useState(false);
-  const [tembusanText, setTembusanText] = useState(
-    '1. Rektor Universitas Siliwangi (sebagai laporan)\n2. Kepala Satuan Pengawas Internal (SPI)'
-  );
+  const [tembusanText, setTembusanText] = useState('');
 
   // 1. Deteksi 'kode_unit' dan 'jabatan' dari user (Dosen/Staf) yang sedang login (Session User)
   const sessionUserUnit = currentUser?.unit_kerja_id || currentUser?.kode_unit || 'UN58.13.1';
@@ -658,11 +727,15 @@ export const CreateLetterModal = ({
     (currentUser?.role === 'PEJABAT' ? 'Pejabat Struktural' : 'Dosen Biasa (Tanpa Tugas Tambahan)');
   const sessionUserName = currentUser?.nama_lengkap || currentUser?.name || 'Dosen / Staf Pengusul';
 
-  // Deteksi apakah pengguna yang aktif adalah dosen (sesuai instruksi: sembunyikan label/banner Tabel 1)
+  // Deteksi apakah pengguna yang aktif adalah dosen (fungsional / tanpa jabatan struktural)
   const isDosen = useMemo(() => {
+    if (!currentUser) return false;
+    if (currentUser.is_pejabat === true) return false;
+    if (isDosenTanpaJabatan(currentUser)) return true;
     const role = String(currentUser?.role || '').toUpperCase();
     const roleLabel = String(currentUser?.roleLabel || currentUser?.jabatan || sessionUserJabatan || '').toLowerCase();
-    return role === 'DOSEN' || roleLabel.includes('dosen');
+    const isStructural = roleLabel.includes('dekan') || roleLabel.includes('rektor') || roleLabel.includes('kepala biro');
+    return !isStructural && (role === 'DOSEN' || roleLabel.includes('dosen'));
   }, [currentUser, sessionUserJabatan]);
 
   // Berkas Lampiran Pindaian Surat Keluar
@@ -773,26 +846,41 @@ export const CreateLetterModal = ({
   }, [currentUser]);
 
   // Reactive Signatory Binding
-  const applySignatory = (typeMeta, preferredRole = null) => {
+  const applySignatory = (typeMeta, preferredRoleOrId = null) => {
     if (!typeMeta || !Array.isArray(typeMeta.available_signatories) || typeMeta.available_signatories.length === 0) {
       return;
     }
 
     let targetSigner = null;
-    if (!typeMeta.can_choose_signatory) {
-      // Only DEKAN is authorized per Tabel 1!
-      targetSigner = typeMeta.available_signatories.find((s) => s.role_penandatangan === 'DEKAN') || typeMeta.available_signatories[0];
-      setSelectedSignatoryRole('DEKAN');
-    } else {
-      // Kajur or Dekan is authorized
-      const roleToUse = preferredRole || selectedSignatoryRole || 'KETUA_JURUSAN';
-      targetSigner = typeMeta.available_signatories.find((s) => s.role_penandatangan === roleToUse) || typeMeta.default_signatory || typeMeta.available_signatories[0];
-      setSelectedSignatoryRole(targetSigner?.role_penandatangan || 'KETUA_JURUSAN');
+    const isMandiri = typeMeta.is_mandiri || isMandiriPersonalDocument({
+      jenis_naskah: typeMeta.kode_jenis_naskah,
+      kode_jenis_naskah: typeMeta.kode_jenis_naskah,
+      templateId: selectedTemplateId
+    });
+
+    if (preferredRoleOrId) {
+      targetSigner = typeMeta.available_signatories.find(
+        (s) => String(s.id) === String(preferredRoleOrId) || s.role_penandatangan === preferredRoleOrId
+      );
+    }
+
+    if (!targetSigner) {
+      if (isMandiri) {
+        targetSigner =
+          typeMeta.available_signatories.find((s) => s.role_penandatangan === 'DOSEN_MANDIRI') ||
+          typeMeta.available_signatories[0];
+      } else {
+        targetSigner =
+          typeMeta.default_signatory ||
+          typeMeta.available_signatories.find((s) => s.role_penandatangan === 'DEKAN') ||
+          typeMeta.available_signatories[0];
+      }
     }
 
     if (targetSigner) {
+      setSelectedSignatoryRole(targetSigner.role_penandatangan);
       setSelectedPejabatId(String(targetSigner.id));
-      setNamaJabatanSigner(targetSigner.jabatan);
+      setNamaJabatanSigner(targetSigner.format_an || targetSigner.jabatan);
       setNamaPejabatSigner(targetSigner.nama);
       setGelarSigner(targetSigner.gelar);
       setNipSigner(targetSigner.nip);
@@ -804,7 +892,7 @@ export const CreateLetterModal = ({
     let isMounted = true;
     setIsLoadingScoping(true);
 
-    fetchAvailableLetterTypes(currentUser)
+    fetchAvailableLetterTypes(currentUser, allUsers)
       .then((data) => {
         if (!isMounted) return;
         const types = (data && Array.isArray(data.types) && data.types.length > 0)
@@ -813,8 +901,22 @@ export const CreateLetterModal = ({
         setAvailableNaskahTypes(types);
         setIsLoadingScoping(false);
 
-        // Cari tipe naskah yang aktif atau fallback ke tipe pertama
-        const currentMeta = types.find((t) => t.kode_jenis_naskah === selectedKodeNaskah) || types[0];
+        // Cari tipe naskah yang aktif berdasarkan selectedTemplateId atau fallback
+        const activeTpl = TEMPLATES.find((t) => t.id === selectedTemplateId) || TEMPLATES[0];
+        const targetKode = activeTpl?.kode_jenis_naskah;
+        const currentMeta =
+          types.find((t) => {
+            if (selectedTemplateId === 'st_lembar') {
+              return t.kode_jenis_naskah === 'SURAT_TUGAS_LEMBAR' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+            }
+            if (selectedTemplateId === 'st_kolom') {
+              return t.kode_jenis_naskah === 'SURAT_TUGAS_KOLOM' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+            }
+            return t.kode_jenis_naskah === targetKode;
+          }) ||
+          types.find((t) => t.kode_jenis_naskah === selectedKodeNaskah) ||
+          types[0];
+
         if (currentMeta) {
           setSelectedKodeNaskah(currentMeta.kode_jenis_naskah);
           applySignatory(currentMeta, selectedSignatoryRole);
@@ -825,7 +927,21 @@ export const CreateLetterModal = ({
         console.warn('Error fetchAvailableLetterTypes:', err);
         setAvailableNaskahTypes(FALLBACK_SCOPED_LETTER_TYPES);
         setIsLoadingScoping(false);
-        const currentMeta = FALLBACK_SCOPED_LETTER_TYPES.find((t) => t.kode_jenis_naskah === selectedKodeNaskah) || FALLBACK_SCOPED_LETTER_TYPES[0];
+        const activeTpl = TEMPLATES.find((t) => t.id === selectedTemplateId) || TEMPLATES[0];
+        const targetKode = activeTpl?.kode_jenis_naskah;
+        const currentMeta =
+          FALLBACK_SCOPED_LETTER_TYPES.find((t) => {
+            if (selectedTemplateId === 'st_lembar') {
+              return t.kode_jenis_naskah === 'SURAT_TUGAS_LEMBAR' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+            }
+            if (selectedTemplateId === 'st_kolom') {
+              return t.kode_jenis_naskah === 'SURAT_TUGAS_KOLOM' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+            }
+            return t.kode_jenis_naskah === targetKode;
+          }) ||
+          FALLBACK_SCOPED_LETTER_TYPES.find((t) => t.kode_jenis_naskah === selectedKodeNaskah) ||
+          FALLBACK_SCOPED_LETTER_TYPES[0];
+
         if (currentMeta) {
           applySignatory(currentMeta, selectedSignatoryRole);
         }
@@ -834,7 +950,7 @@ export const CreateLetterModal = ({
     return () => {
       isMounted = false;
     };
-  }, [currentUser, selectedUnitCode]);
+  }, [currentUser, selectedUnitCode, allUsers]);
 
   const currentTypeMeta = useMemo(() => {
     return (
@@ -844,6 +960,16 @@ export const CreateLetterModal = ({
     );
   }, [availableNaskahTypes, selectedKodeNaskah]);
 
+  const isMandiriDoc = useMemo(() => {
+    if (!isDosen) return false;
+    if (currentTypeMeta?.is_mandiri) return true;
+    return isMandiriPersonalDocument({
+      jenis_naskah: selectedKodeNaskah,
+      kode_jenis_naskah: selectedKodeNaskah,
+      templateId: selectedTemplateId
+    });
+  }, [isDosen, currentTypeMeta, selectedKodeNaskah, selectedTemplateId]);
+
   const dekanSignatory = useMemo(() => {
     return currentTypeMeta?.available_signatories?.find((s) => s.role_penandatangan === 'DEKAN');
   }, [currentTypeMeta]);
@@ -852,30 +978,35 @@ export const CreateLetterModal = ({
     return currentTypeMeta?.available_signatories?.find((s) => s.role_penandatangan === 'KETUA_JURUSAN');
   }, [currentTypeMeta]);
 
-  // Handler pemilihan jenis naskah (two-way reactive binding)
-  const handleSelectKodeNaskah = (kode) => {
-    setSelectedKodeNaskah(kode);
-    const meta = availableNaskahTypes.find((t) => t.kode_jenis_naskah === kode);
-    if (meta) {
-      applySignatory(meta, selectedSignatoryRole);
-      // Sinkronkan data form dari template jika cocok
-      const matchingTpl = TEMPLATES.find((tpl) => tpl.kode_jenis_naskah === kode);
-      if (matchingTpl) {
-        setSelectedTemplateId(matchingTpl.id);
-        setPerihal(matchingTpl.defaultPerihal);
-        setKalimatPembuka(matchingTpl.defaultPembuka);
-        setIsiPokok(matchingTpl.defaultIsi);
-        setKalimatPenutup(matchingTpl.defaultPenutup);
-        setTujuan(matchingTpl.defaultTujuan);
-        setAlamatTujuan(matchingTpl.defaultAlamatTujuan);
-        if (matchingTpl.defaultKlasifikasi) {
-          setKodeKlasifikasi(matchingTpl.defaultKlasifikasi);
-        }
-      }
+  const rektorSignatory = useMemo(() => {
+    return currentTypeMeta?.available_signatories?.find((s) => s.role_penandatangan === 'REKTOR');
+  }, [currentTypeMeta]);
+
+  const currentSignatoryObj = useMemo(() => {
+    if (!currentTypeMeta?.available_signatories) return null;
+    return (
+      currentTypeMeta.available_signatories.find((s) => String(s.id) === String(selectedPejabatId)) ||
+      currentTypeMeta.available_signatories.find((s) => s.role_penandatangan === selectedSignatoryRole) ||
+      currentTypeMeta.available_signatories[0] ||
+      null
+    );
+  }, [currentTypeMeta, selectedPejabatId, selectedSignatoryRole]);
+
+  // Handler pemilihan pejabat penandatangan via dropdown select
+  const handleSelectSignatory = (signerId) => {
+    if (!currentTypeMeta?.available_signatories) return;
+    const found = currentTypeMeta.available_signatories.find((s) => String(s.id) === String(signerId));
+    if (found) {
+      setSelectedSignatoryRole(found.role_penandatangan);
+      setSelectedPejabatId(String(found.id));
+      setNamaJabatanSigner(found.format_an || found.jabatan);
+      setNamaPejabatSigner(found.nama);
+      setGelarSigner(found.gelar);
+      setNipSigner(found.nip);
     }
   };
 
-  // Handler pemilihan peran penandatangan (Ketua Jurusan vs Dekan)
+  // Handler pemilihan peran penandatangan (kompatibilitas role string)
   const handleSelectSignatoryRole = (role) => {
     setSelectedSignatoryRole(role);
     if (currentTypeMeta) {
@@ -924,30 +1055,669 @@ export const CreateLetterModal = ({
     return getPaperSizeInfo(selectedTemplateId);
   }, [selectedTemplateId]);
 
+  // Deteksi format khusus naskah dinas resmi UNSIL
+  const isStLembar = selectedTemplateId === 'st_lembar' || selectedTemplateId === 'tugas';
+  const isStKolom = selectedTemplateId === 'st_kolom';
+  const isSuratTugas = isStLembar || isStKolom;
+  const isNotaDinas = selectedTemplateId === 'nota-dinas' || selectedTemplateId === 'nd';
+  const isSuratPernyataan = selectedTemplateId === 'pernyataan' || selectedTemplateId === 'surat-pernyataan' || selectedTemplateId === 'sper';
+  const isBeritaAcara = selectedTemplateId === 'berita-acara' || selectedTemplateId === 'berita_acara' || selectedTemplateId === 'ba';
+  const isNotula = selectedTemplateId === 'notula';
+  const isLaporan = selectedTemplateId === 'laporan' || selectedTemplateId === 'lap';
+  const isTelaahStaf = selectedTemplateId === 'telaah-staf' || selectedTemplateId === 'telaah_staf' || selectedTemplateId === 'ts';
+  const isSuratKeterangan = selectedTemplateId === 'keterangan' || selectedTemplateId === 'surat-keterangan' || selectedTemplateId === 'sket';
+  const isSuratPengantar = selectedTemplateId === 'pengantar' || selectedTemplateId === 'surat-pengantar' || selectedTemplateId === 'speng';
+
+  // Format tanggal Bahasa Indonesia untuk lembar A4
+  const formattedDateA4 = useMemo(() => {
+    try {
+      const d = new Date(tanggal);
+      return d.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch {
+      return tanggal;
+    }
+  }, [tanggal]);
+
+  // Smart Parser untuk Surat Pernyataan (Sesuai Image 2 / Contoh 14 Spesimen Resmi)
+  const sperParsed = useMemo(() => {
+    if (!isSuratPernyataan) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let nama = '';
+    let nip = '';
+    let pangkatGolongan = '';
+    let jabatan = '';
+    let alamat = '';
+    const isiLines = [];
+    let readingIsi = false;
+
+    lines.forEach((l) => {
+      if (/^nama\s*:/i.test(l)) {
+        nama = l.replace(/^nama\s*:\s*/i, '');
+      } else if (/^nip\s*:/i.test(l)) {
+        nip = l.replace(/^nip\s*:\s*/i, '');
+      } else if (/^pangkat(?:\s+dan\s+golongan)?\s*:/i.test(l)) {
+        pangkatGolongan = l.replace(/^pangkat(?:\s+dan\s+golongan)?\s*:\s*/i, '');
+      } else if (/^jabatan\s*:/i.test(l)) {
+        jabatan = l.replace(/^jabatan\s*:\s*/i, '');
+      } else if (/^alamat\s*:/i.test(l)) {
+        alamat = l.replace(/^alamat\s*:\s*/i, '');
+      } else if (/^isi(?:\s+pernyataan)?\s*:?/i.test(l)) {
+        readingIsi = true;
+        const remaining = l.replace(/^isi(?:\s+pernyataan)?\s*:?\s*/i, '');
+        if (remaining) isiLines.push(remaining);
+      } else if (readingIsi) {
+        isiLines.push(l);
+      } else {
+        isiLines.push(l);
+      }
+    });
+
+    return {
+      nama: nama || (isiLines.length === 0 ? '' : currentUser?.nama_lengkap || ''),
+      nip: nip || (isiLines.length === 0 ? '' : currentUser?.nip || ''),
+      pangkatGolongan: pangkatGolongan || '',
+      jabatan: jabatan || '',
+      alamat: alamat || '',
+      isiPernyataan: isiLines.join('\n')
+    };
+  }, [isSuratPernyataan, isiPokok, currentUser]);
+
+  // Smart Parser untuk Berita Acara (Sesuai Contoh 12 Spesimen Resmi)
+  const baParsed = useMemo(() => {
+    if (!isBeritaAcara) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let pihak1 = '';
+    let pihak2 = '';
+    const kegiatanList = [];
+    let dasar = '';
+    let readingKegiatan = false;
+    let readingDasar = false;
+
+    lines.forEach((l) => {
+      if (/^1[\.\)]\s+/i.test(l) && /pihak\s+pertama/i.test(l)) {
+        pihak1 = l.replace(/^1[\.\)]\s+/i, '');
+        return;
+      }
+      if (/^2[\.\)]\s+/i.test(l) && /pihak\s+kedua/i.test(l)) {
+        pihak2 = l.replace(/^2[\.\)]\s+/i, '');
+        return;
+      }
+      if (/^telah\s+melaksanakan/i.test(l)) {
+        readingKegiatan = true;
+        readingDasar = false;
+        const s = l.replace(/^telah\s+melaksanakan\s*:?\s*/i, '');
+        if (s) kegiatanList.push(s);
+        return;
+      }
+      if (/^berdasarkan\s*:/i.test(l) || /berita\s+acara\s+ini\s+dibuat\s+dengan\s+sesungguhnya\s+berdasarkan/i.test(l)) {
+        readingDasar = true;
+        readingKegiatan = false;
+        dasar = l.replace(/^(?:berdasarkan|berita\s+acara\s+ini\s+dibuat\s+dengan\s+sesungguhnya\s+berdasarkan)\s*:?\s*/i, '');
+        return;
+      }
+
+      if (readingDasar) {
+        dasar += ` ${l}`;
+      } else if (readingKegiatan) {
+        kegiatanList.push(l);
+      } else {
+        if (/pihak\s+pertama/i.test(l)) pihak1 = l;
+        else if (/pihak\s+kedua/i.test(l)) pihak2 = l;
+        else kegiatanList.push(l);
+      }
+    });
+
+    return {
+      pihak1,
+      pihak2,
+      kegiatanList,
+      dasar: dasar || perihal
+    };
+  }, [isBeritaAcara, isiPokok, perihal]);
+
+  // Smart Parser untuk Surat Tugas Format Lembaran (Image 1 / Gambar 2 Spesimen Resmi)
+  const stLembarParsed = useMemo(() => {
+    if (!isStLembar) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let nama = '';
+    let nip = '';
+    let pangkatGolongan = '';
+    let jabatan = '';
+    let untukTugas = '';
+    const otherLines = [];
+
+    lines.forEach((l) => {
+      if (/^nama\s*:/i.test(l)) {
+        nama = l.replace(/^nama\s*:\s*/i, '');
+      } else if (/^nip\s*:/i.test(l)) {
+        nip = l.replace(/^nip\s*:\s*/i, '');
+      } else if (/^pangkat(?:\s+dan\s+golongan)?\s*:/i.test(l)) {
+        pangkatGolongan = l.replace(/^pangkat(?:\s+dan\s+golongan)?\s*:\s*/i, '');
+      } else if (/^jabatan\s*:/i.test(l)) {
+        jabatan = l.replace(/^jabatan\s*:\s*/i, '');
+      } else if (/^untuk\s*:/i.test(l)) {
+        untukTugas = l.replace(/^untuk\s*:\s*/i, '');
+      } else {
+        otherLines.push(l);
+      }
+    });
+
+    // Fallback jika diketik teks berurutan tanpa label
+    if (!nama && otherLines[0]) nama = otherLines[0];
+    if (!nip && otherLines[1]) nip = otherLines[1];
+    if (!pangkatGolongan && otherLines[2]) pangkatGolongan = otherLines[2];
+    if (!jabatan && otherLines[3]) jabatan = otherLines[3];
+    if (!untukTugas && otherLines.length > 4) {
+      untukTugas = otherLines.slice(4).join(' ');
+    } else if (!untukTugas && otherLines.length > 0 && (nama || nip || pangkatGolongan || jabatan)) {
+      const remaining = otherLines.filter(
+        (line) => line !== nama && line !== nip && line !== pangkatGolongan && line !== jabatan
+      );
+      if (remaining.length > 0) untukTugas = remaining.join(' ');
+    }
+
+    return {
+      nama,
+      nip,
+      pangkatGolongan,
+      jabatan,
+      untukTugas: untukTugas || (otherLines.length === 0 && !nama ? '' : '')
+    };
+  }, [isStLembar, isiPokok]);
+
+  // Smart Parser untuk Surat Tugas Format Kolom (Image 2 / Gambar 3 Spesimen Resmi)
+  const stKolomParsed = useMemo(() => {
+    if (!isStKolom) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    const pesertaList = [];
+    let untukTugas = '';
+    const nonTableLines = [];
+
+    lines.forEach((l) => {
+      if (/^untuk\s*:/i.test(l)) {
+        untukTugas = l.replace(/^untuk\s*:\s*/i, '');
+        return;
+      }
+
+      // Baris tabel dengan delimiter pipe: "1. Nama | NIP | Pangkat | Jabatan"
+      if (l.includes('|')) {
+        const parts = l.split('|').map((p) => p.trim());
+        const rawNoAndName = parts[0] || '';
+        const noMatch = rawNoAndName.match(/^(\d+)[\.\)]\s*(.+)$/);
+        const no = noMatch ? parseInt(noMatch[1], 10) : pesertaList.length + 1;
+        const nama = noMatch ? noMatch[2] : rawNoAndName;
+        const nip = (parts[1] || '').replace(/^nip\s*/i, '');
+        const pangkatGolongan = parts[2] || '';
+        const jabatan = parts[3] || '';
+
+        pesertaList.push({
+          no,
+          nama,
+          nip,
+          pangkatGolongan,
+          jabatan
+        });
+      } else {
+        const listMatch = l.match(/^(\d+)[\.\)]\s*(.+)$/);
+        if (listMatch) {
+          pesertaList.push({
+            no: parseInt(listMatch[1], 10),
+            nama: listMatch[2],
+            nip: '',
+            pangkatGolongan: '',
+            jabatan: ''
+          });
+        } else {
+          nonTableLines.push(l);
+        }
+      }
+    });
+
+    if (!untukTugas && nonTableLines.length > 0) {
+      untukTugas = nonTableLines.join(' ');
+    }
+
+    return {
+      pesertaList,
+      untukTugas
+    };
+  }, [isStKolom, isiPokok]);
+
+  // Smart Parser untuk Surat Keterangan (Sesuai Contoh 15 / Gambar 4 Spesimen Resmi)
+  const sketParsed = useMemo(() => {
+    if (!isSuratKeterangan) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let pejabatNama = '';
+    let pejabatNip = '';
+    let pejabatPangkatGol = '';
+    let pejabatJabatan = '';
+    let pegawaiNama = '';
+    let pegawaiNip = '';
+    let pegawaiPangkatGol = '';
+    let pegawaiJabatan = '';
+    const isiLines = [];
+    let phase = 'pejabat'; // 'pejabat' | 'pegawai' | 'isi'
+
+    lines.forEach((l) => {
+      if (/^dengan ini menerangkan bahwa/i.test(l)) {
+        phase = 'pegawai';
+        return;
+      }
+      if (/^isi(?:\s+keterangan)?\s*:?/i.test(l)) {
+        phase = 'isi';
+        const remaining = l.replace(/^isi(?:\s+keterangan)?\s*:?\s*/i, '');
+        if (remaining) isiLines.push(remaining);
+        return;
+      }
+
+      if (phase === 'pejabat') {
+        if (/^nama\s*:/i.test(l)) pejabatNama = l.replace(/^nama\s*:\s*/i, '');
+        else if (/^nip\s*:/i.test(l)) pejabatNip = l.replace(/^nip\s*:\s*/i, '');
+        else if (/^pangkat(?:\s+dan\s+golongan)?\s*:/i.test(l)) pejabatPangkatGol = l.replace(/^pangkat(?:\s+dan\s+golongan)?\s*:\s*/i, '');
+        else if (/^jabatan\s*:/i.test(l)) pejabatJabatan = l.replace(/^jabatan\s*:\s*/i, '');
+        else isiLines.push(l);
+      } else if (phase === 'pegawai') {
+        if (/^nama\s*:/i.test(l)) pegawaiNama = l.replace(/^nama\s*:\s*/i, '');
+        else if (/^nip\s*:/i.test(l)) pegawaiNip = l.replace(/^nip\s*:\s*/i, '');
+        else if (/^pangkat(?:\s+dan\s+golongan)?\s*:/i.test(l)) pegawaiPangkatGol = l.replace(/^pangkat(?:\s+dan\s+golongan)?\s*:\s*/i, '');
+        else if (/^jabatan\s*:/i.test(l)) pegawaiJabatan = l.replace(/^jabatan\s*:\s*/i, '');
+        else isiLines.push(l);
+      } else {
+        isiLines.push(l);
+      }
+    });
+
+    return {
+      pejabatNama: pejabatNama || namaPejabatSigner || '',
+      pejabatNip: pejabatNip || nipSigner || '',
+      pejabatPangkatGol: pejabatPangkatGol || '',
+      pejabatJabatan: pejabatJabatan || namaJabatanSigner || '',
+      pegawaiNama: pegawaiNama || (tujuan && tujuan !== 'Pihak yang Berkepentingan' ? tujuan : ''),
+      pegawaiNip: pegawaiNip || '',
+      pegawaiPangkatGol: pegawaiPangkatGol || '',
+      pegawaiJabatan: pegawaiJabatan || '',
+      isiKeterangan: isiLines.join('\n')
+    };
+  }, [isSuratKeterangan, isiPokok, namaPejabatSigner, nipSigner, namaJabatanSigner, tujuan]);
+
+  // Smart Parser untuk Surat Pengantar (Sesuai Contoh 17 / Gambar 5 Spesimen Resmi)
+  const spengParsed = useMemo(() => {
+    if (!isSuratPengantar) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    const items = [];
+
+    lines.forEach((l) => {
+      if (l.includes('|')) {
+        const parts = l.split('|').map((p) => p.trim());
+        const rawJenis = parts[0] || '';
+        const cleanJenis = rawJenis.replace(/^\d+[\.\)]\s*/, '');
+        const jumlah = parts[1] || '';
+        const keterangan = parts[2] || '';
+        items.push({ jenis: cleanJenis, jumlah, keterangan });
+      } else if (l.includes(' - ')) {
+        const parts = l.split(' - ').map((p) => p.trim());
+        const rawJenis = parts[0] || '';
+        const cleanJenis = rawJenis.replace(/^\d+[\.\)]\s*/, '');
+        const jumlah = parts[1] || '';
+        const keterangan = parts.slice(2).join(' - ') || '';
+        items.push({ jenis: cleanJenis, jumlah, keterangan });
+      } else if (/^\d+[\.\)]\s*/.test(l)) {
+        const cleanJenis = l.replace(/^\d+[\.\)]\s*/, '');
+        items.push({ jenis: cleanJenis, jumlah: '1 (satu) berkas', keterangan: '-' });
+      } else if (l.length > 5) {
+        items.push({ jenis: l, jumlah: '1 (satu) berkas', keterangan: '-' });
+      }
+    });
+
+    return { items };
+  }, [isSuratPengantar, isiPokok]);
+
+  // Smart Parser untuk Notula (Sesuai Contoh 19 / Gambar 1 Spesimen Resmi)
+  const notulaParsed = useMemo(() => {
+    if (!isNotula) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let namaRapat = '';
+    let hariTanggal = '';
+    let pukul = '';
+    let tempat = '';
+    const susunanAcara = [];
+    let pemimpinRapat = '';
+    let notulis = '';
+    const pesertaRapat = [];
+    let persoalanDibahas = '';
+    let tanggapanPeserta = '';
+    let simpulan = '';
+
+    let section = 'meta';
+
+    lines.forEach((l) => {
+      if (/^nama\s*rapat\s*:/i.test(l)) {
+        namaRapat = l.replace(/^nama\s*rapat\s*:\s*/i, '');
+        return;
+      }
+      if (/^hari[,\s]+tanggal\s*:/i.test(l)) {
+        hariTanggal = l.replace(/^hari[,\s]+tanggal\s*:\s*/i, '');
+        return;
+      }
+      if (/^pukul\s*:/i.test(l)) {
+        pukul = l.replace(/^pukul\s*:\s*/i, '');
+        return;
+      }
+      if (/^tempat\s*:/i.test(l)) {
+        tempat = l.replace(/^tempat\s*:\s*/i, '');
+        return;
+      }
+      if (/^susunan\s*acara\s*:?/i.test(l)) {
+        section = 'susunan';
+        return;
+      }
+      if (/^pemimpin\s*rapat\s*:/i.test(l)) {
+        pemimpinRapat = l.replace(/^pemimpin\s*rapat\s*:\s*/i, '');
+        section = 'meta';
+        return;
+      }
+      if (/^(?:pencatat\/notulis|notulis)\s*:/i.test(l)) {
+        notulis = l.replace(/^(?:pencatat\/notulis|notulis)\s*:\s*/i, '');
+        section = 'meta';
+        return;
+      }
+      if (/^peserta\s*rapat\s*:?/i.test(l)) {
+        section = 'peserta';
+        return;
+      }
+      if (/^1[\.\)]\s*persoalan\s*(?:yang\s+dibahas)?\s*:/i.test(l)) {
+        persoalanDibahas = l.replace(/^1[\.\)]\s*persoalan\s*(?:yang\s+dibahas)?\s*:\s*/i, '');
+        section = 'persoalan';
+        return;
+      }
+      if (/^2[\.\)]\s*tanggapan\s*(?:peserta\s*rapat)?\s*:/i.test(l)) {
+        tanggapanPeserta = l.replace(/^2[\.\)]\s*tanggapan\s*(?:peserta\s*rapat)?\s*:\s*/i, '');
+        section = 'tanggapan';
+        return;
+      }
+      if (/^3[\.\)]\s*simpulan\s*:/i.test(l)) {
+        simpulan = l.replace(/^3[\.\)]\s*simpulan\s*:\s*/i, '');
+        section = 'simpulan';
+        return;
+      }
+
+      if (section === 'susunan') {
+        susunanAcara.push(l.replace(/^\d+[\.\)]\s*/, ''));
+      } else if (section === 'peserta') {
+        pesertaRapat.push(l.replace(/^\d+[\.\)]\s*/, ''));
+      } else if (section === 'persoalan') {
+        persoalanDibahas += (persoalanDibahas ? ' ' : '') + l;
+      } else if (section === 'tanggapan') {
+        tanggapanPeserta += (tanggapanPeserta ? ' ' : '') + l;
+      } else if (section === 'simpulan') {
+        simpulan += (simpulan ? ' ' : '') + l;
+      }
+    });
+
+    return {
+      namaRapat: namaRapat || perihal,
+      hariTanggal: hariTanggal || formattedDateA4,
+      pukul: pukul || '09.00 - 12.00 WIB',
+      tempat: tempat || (alamatTujuan || 'Universitas Siliwangi'),
+      susunanAcara,
+      pemimpinRapat: pemimpinRapat || namaPejabatSigner || '',
+      notulis: notulis || currentUser?.nama_lengkap || '',
+      pesertaRapat,
+      persoalanDibahas,
+      tanggapanPeserta,
+      simpulan
+    };
+  }, [isNotula, isiPokok, perihal, formattedDateA4, alamatTujuan, namaPejabatSigner, currentUser]);
+
+  // Smart Parser untuk Laporan (Sesuai Contoh 20 / Gambar 2 Spesimen Resmi)
+  const lapParsed = useMemo(() => {
+    if (!isLaporan) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let latarBelakang = '';
+    let dasar = '';
+    let ruangLingkup = '';
+    let kegiatanDilaksanakan = '';
+    let hasilDicapai = '';
+    let penutup = '';
+
+    let curSec = '';
+
+    lines.forEach((l) => {
+      if (/^1[\.\)]\s*latar\s*belakang\s*:?/i.test(l)) {
+        curSec = 'latarBelakang';
+        const rem = l.replace(/^1[\.\)]\s*latar\s*belakang\s*:?\s*/i, '');
+        if (rem) latarBelakang = rem;
+        return;
+      }
+      if (/^2[\.\)]\s*dasar\s*:?/i.test(l)) {
+        curSec = 'dasar';
+        const rem = l.replace(/^2[\.\)]\s*dasar\s*:?\s*/i, '');
+        if (rem) dasar = rem;
+        return;
+      }
+      if (/^3[\.\)]\s*ruang\s*lingkup\s*:?/i.test(l)) {
+        curSec = 'ruangLingkup';
+        const rem = l.replace(/^3[\.\)]\s*ruang\s*lingkup\s*:?\s*/i, '');
+        if (rem) ruangLingkup = rem;
+        return;
+      }
+      if (/^[bB][\.\)]\s*kegiatan/i.test(l)) {
+        curSec = 'kegiatan';
+        const rem = l.replace(/^[bB][\.\)]\s*kegiatan(?:\s+yang\s+dilaksanakan)?\s*:?\s*/i, '');
+        if (rem) kegiatanDilaksanakan = rem;
+        return;
+      }
+      if (/^[cC][\.\)]\s*hasil/i.test(l)) {
+        curSec = 'hasil';
+        const rem = l.replace(/^[cC][\.\)]\s*hasil(?:\s+yang\s+dicapai)?\s*:?\s*/i, '');
+        if (rem) hasilDicapai = rem;
+        return;
+      }
+      if (/^[dD][\.\)]\s*penutup/i.test(l)) {
+        curSec = 'penutup';
+        const rem = l.replace(/^[dD][\.\)]\s*penutup\s*:?\s*/i, '');
+        if (rem) penutup = rem;
+        return;
+      }
+
+      if (curSec === 'latarBelakang') latarBelakang += (latarBelakang ? '\n' : '') + l;
+      else if (curSec === 'dasar') dasar += (dasar ? '\n' : '') + l;
+      else if (curSec === 'ruangLingkup') ruangLingkup += (ruangLingkup ? '\n' : '') + l;
+      else if (curSec === 'kegiatan') kegiatanDilaksanakan += (kegiatanDilaksanakan ? '\n' : '') + l;
+      else if (curSec === 'hasil') hasilDicapai += (hasilDicapai ? '\n' : '') + l;
+      else if (curSec === 'penutup') penutup += (penutup ? '\n' : '') + l;
+      else {
+        if (!latarBelakang) latarBelakang = l;
+      }
+    });
+
+    return {
+      tentang: perihal,
+      latarBelakang,
+      dasar,
+      ruangLingkup,
+      kegiatanDilaksanakan,
+      hasilDicapai,
+      penutup: penutup || kalimatPenutup
+    };
+  }, [isLaporan, isiPokok, perihal, kalimatPenutup]);
+
+  // Smart Parser untuk Telaah Staf (Sesuai Contoh 21 / Gambar 3 Spesimen Resmi)
+  const tsParsed = useMemo(() => {
+    if (!isTelaahStaf) return null;
+    const lines = isiPokok ? isiPokok.split('\n').map((l) => l.trim()).filter(Boolean) : [];
+    let kepada = '';
+    let dari = '';
+    let tanggal = '';
+    let nomor = '';
+    let lampiranStr = '';
+    let hal = '';
+    let persoalan = '';
+    let pranggapan = '';
+    let faktaMempengaruhi = '';
+    let analisis = '';
+    let simpulan = '';
+    let saran = '';
+
+    let curSec = '';
+
+    lines.forEach((l) => {
+      if (/^kepada\s*:/i.test(l)) {
+        kepada = l.replace(/^kepada\s*:\s*/i, '');
+        return;
+      }
+      if (/^dari\s*:/i.test(l)) {
+        dari = l.replace(/^dari\s*:\s*/i, '');
+        return;
+      }
+      if (/^tanggal\s*:/i.test(l)) {
+        tanggal = l.replace(/^tanggal\s*:\s*/i, '');
+        return;
+      }
+      if (/^nomor\s*:/i.test(l)) {
+        nomor = l.replace(/^nomor\s*:\s*/i, '');
+        return;
+      }
+      if (/^lampiran\s*:/i.test(l)) {
+        lampiranStr = l.replace(/^lampiran\s*:\s*/i, '');
+        return;
+      }
+      if (/^hal\s*:/i.test(l)) {
+        hal = l.replace(/^hal\s*:\s*/i, '');
+        return;
+      }
+
+      if (/^I[\.\)]\s*persoalan/i.test(l)) {
+        curSec = 'persoalan';
+        const rem = l.replace(/^I[\.\)]\s*persoalan\s*:?\s*/i, '');
+        if (rem) persoalan = rem;
+        return;
+      }
+      if (/^II[\.\)]\s*pra?anggapan/i.test(l)) {
+        curSec = 'pranggapan';
+        const rem = l.replace(/^II[\.\)]\s*pra?anggapan\s*:?\s*/i, '');
+        if (rem) pranggapan = rem;
+        return;
+      }
+      if (/^III[\.\)]\s*fakta/i.test(l)) {
+        curSec = 'fakta';
+        const rem = l.replace(/^III[\.\)]\s*fakta(?:-fakta)?(?:\s+yang\s+mempengaruhi)?\s*:?\s*/i, '');
+        if (rem) faktaMempengaruhi = rem;
+        return;
+      }
+      if (/^IV[\.\)]\s*analisis/i.test(l)) {
+        curSec = 'analisis';
+        const rem = l.replace(/^IV[\.\)]\s*analisis\s*:?\s*/i, '');
+        if (rem) analisis = rem;
+        return;
+      }
+      if (/^V[\.\)]\s*simpulan/i.test(l)) {
+        curSec = 'simpulan';
+        const rem = l.replace(/^V[\.\)]\s*simpulan\s*:?\s*/i, '');
+        if (rem) simpulan = rem;
+        return;
+      }
+      if (/^VI[\.\)]\s*saran/i.test(l)) {
+        curSec = 'saran';
+        const rem = l.replace(/^VI[\.\)]\s*saran\s*:?\s*/i, '');
+        if (rem) saran = rem;
+        return;
+      }
+
+      if (curSec === 'persoalan') persoalan += (persoalan ? '\n' : '') + l;
+      else if (curSec === 'pranggapan') pranggapan += (pranggapan ? '\n' : '') + l;
+      else if (curSec === 'fakta') faktaMempengaruhi += (faktaMempengaruhi ? '\n' : '') + l;
+      else if (curSec === 'analisis') analisis += (analisis ? '\n' : '') + l;
+      else if (curSec === 'simpulan') simpulan += (simpulan ? '\n' : '') + l;
+      else if (curSec === 'saran') saran += (saran ? '\n' : '') + l;
+    });
+
+    return {
+      tentang: perihal,
+      kepada: kepada || tujuan,
+      dari: dari || pengirim,
+      tanggal: tanggal || formattedDateA4,
+      nomor: nomor || previewNomorSurat,
+      lampiran: lampiranStr || lampiran,
+      hal: hal || perihal,
+      persoalan,
+      pranggapan,
+      faktaMempengaruhi,
+      analisis,
+      simpulan,
+      saran
+    };
+  }, [isTelaahStaf, isiPokok, perihal, tujuan, pengirim, formattedDateA4, previewNomorSurat, lampiran]);
+
   // Format Kop Surat Dinamis resmi sesuai Pasal 30(2) & Pasal 31(1,2,6) Peraturan Rektor No. 3/2023
   const kopConfig = useMemo(() => {
     return determineKopSurat(activeUnitObj || currentUser);
   }, [activeUnitObj, currentUser]);
 
-  // Handler pergantian template
+  // Handler pergantian template (hanya menyinkronkan metadata template, tidak menimpa teks yang telah diketik)
   const handleSelectTemplate = (tpl) => {
     setSelectedTemplateId(tpl.id);
-    setPerihal(tpl.defaultPerihal);
-    setKalimatPembuka(tpl.defaultPembuka);
-    setIsiPokok(tpl.defaultIsi);
-    setKalimatPenutup(tpl.defaultPenutup);
-    setTujuan(tpl.defaultTujuan);
-    setAlamatTujuan(tpl.defaultAlamatTujuan);
     if (tpl.defaultKlasifikasi) {
       setKodeKlasifikasi(tpl.defaultKlasifikasi);
     }
     if (tpl.kode_jenis_naskah) {
-      setSelectedKodeNaskah(tpl.kode_jenis_naskah);
-      const meta = availableNaskahTypes.find((t) => t.kode_jenis_naskah === tpl.kode_jenis_naskah);
+      const meta = availableNaskahTypes.find((t) => {
+        if (tpl.id === 'st_lembar') {
+          return t.kode_jenis_naskah === 'SURAT_TUGAS_LEMBAR' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+        }
+        if (tpl.id === 'st_kolom') {
+          return t.kode_jenis_naskah === 'SURAT_TUGAS_KOLOM' || t.kode_jenis_naskah === 'SURAT_TUGAS';
+        }
+        return (
+          t.kode_jenis_naskah === tpl.kode_jenis_naskah ||
+          (tpl.kode_jenis_naskah === 'SURAT_TUGAS' && t.kode_jenis_naskah.startsWith('SURAT_TUGAS'))
+        );
+      });
       if (meta) {
+        setSelectedKodeNaskah(meta.kode_jenis_naskah);
         applySignatory(meta, selectedSignatoryRole);
+      } else {
+        setSelectedKodeNaskah(tpl.kode_jenis_naskah);
       }
     }
+  };
+
+  // Helper memuat draf contoh kalimat resmi UNSIL atau mengosongkan kembali form
+  const hasCustomContent = Boolean(perihal || kalimatPembuka || isiPokok || tujuan || alamatTujuan);
+
+  const loadSampleDraft = () => {
+    const activeTpl = TEMPLATES.find((t) => t.id === selectedTemplateId) || TEMPLATES[0];
+    setPerihal(activeTpl.defaultPerihal || '');
+    setTujuan(activeTpl.defaultTujuan || '');
+    setAlamatTujuan(activeTpl.defaultAlamatTujuan || '');
+    setKalimatPembuka(activeTpl.defaultPembuka || '');
+    setIsiPokok(activeTpl.defaultIsi || '');
+    setKalimatPenutup(activeTpl.defaultPenutup || '');
+    if (isSuratTugas || isSuratPernyataan || isBeritaAcara) {
+      setLampiran('-');
+      setTembusanText('');
+    } else if (isNotaDinas) {
+      setLampiran('-');
+      setTembusanText('Wakil Rektor Bidang Keuangan dan Umum\nKetua Satuan Pengawas Internal (SPI)');
+    } else {
+      setLampiran('1 (satu) Berkas');
+      setTembusanText('Rektor Universitas Siliwangi (sebagai laporan)\nKepala Satuan Pengawas Internal (SPI)');
+    }
+  };
+
+  const clearDraft = () => {
+    setPerihal('');
+    setTujuan('');
+    setAlamatTujuan('');
+    setKalimatPembuka('');
+    setIsiPokok('');
+    setKalimatPenutup('');
+    setLampiran('-');
+    setTembusanText('');
   };
 
   const [securityTriggerMeta, setSecurityTriggerMeta] = useState({
@@ -1281,7 +2051,14 @@ export const CreateLetterModal = ({
             nip: nipSigner,
             unitKerja: activeUnitObj.kode_unit,
             unit_kerja_id: activeUnitObj.kode_unit,
-            tteVerified: false
+            tteVerified: false,
+            // Properti khusus Surat Tugas (Lembar / Kolom)
+            nama: stLembarParsed?.nama || '',
+            nipPegawai: stLembarParsed?.nip || '',
+            pangkatGolongan: stLembarParsed?.pangkatGolongan || '',
+            jabatanPegawai: stLembarParsed?.jabatan || '',
+            untukTugas: (isStLembar ? stLembarParsed?.untukTugas : stKolomParsed?.untukTugas) || perihal,
+            pesertaList: stKolomParsed?.pesertaList || []
           },
           status: 'DRAFT_MENUNGGU_PARAF',
           status_progres: 'DRAFT_MENUNGGU_PARAF',
@@ -1303,12 +2080,18 @@ export const CreateLetterModal = ({
           unit_kerja_id: activeUnitObj.kode_unit,
           created_by_user_id: currentUser?.id || 'usr-02',
           created_at: new Date().toISOString(),
+          parentLetterId: followUpDisposisi?.letterId || null,
+          parentNomorAgenda: followUpDisposisi?.nomorAgenda || null,
+          parentDispositionId: followUpDisposisi?.dispositionId || null,
+          isFollowUpDisposisi: Boolean(followUpDisposisi),
           riwayatParaf: [
             {
               nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
               jabatan: currentUser?.roleLabel || 'Pembuat Naskah / Konseptor',
               waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-              catatan: `Penyusunan Draf ${currentTypeMeta?.nama_jenis_naskah} - Diajukan untuk verifikasi paraf sebelum TTE oleh ${namaJabatanSigner}`
+              catatan: `Penyusunan Draf ${currentTypeMeta?.nama_jenis_naskah}${
+                followUpDisposisi ? ` (Tindak Lanjut E-Disposisi Agenda ${followUpDisposisi.nomorAgenda})` : ''
+              } - Diajukan untuk verifikasi paraf sebelum TTE oleh ${namaJabatanSigner}`
             }
           ],
           disposisi: null
@@ -1387,10 +2170,25 @@ export const CreateLetterModal = ({
           nip: nipSigner,
           unitKerja: activeUnitObj.kode_unit,
           unit_kerja_id: activeUnitObj.kode_unit,
-          tteVerified: false
+          tteVerified: isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI' && targetStatus !== 'Draft',
+          // Properti khusus Surat Tugas (Lembar / Kolom)
+          nama: stLembarParsed?.nama || '',
+          nipPegawai: stLembarParsed?.nip || '',
+          pangkatGolongan: stLembarParsed?.pangkatGolongan || '',
+          jabatanPegawai: stLembarParsed?.jabatan || '',
+          untukTugas: (isStLembar ? stLembarParsed?.untukTugas : stKolomParsed?.untukTugas) || perihal,
+          pesertaList: stKolomParsed?.pesertaList || []
         },
-        status: targetStatus === 'Draft' ? 'Draft' : 'DRAFT_MENUNGGU_PARAF',
-        statusTimestamp: targetStatus === 'Draft' ? 'Tersimpan sebagai Draf Naskah' : 'Diajukan untuk Paraf Berjenjang (Pasal 59) & TTE Pimpinan',
+        status: targetStatus === 'Draft'
+          ? 'Draft'
+          : isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+          ? 'Disetujui'
+          : 'DRAFT_MENUNGGU_PARAF',
+        statusTimestamp: targetStatus === 'Draft'
+          ? 'Tersimpan sebagai Draf Naskah'
+          : isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+          ? 'Naskah Mandiri Resmi Diterbitkan & Ditandatangani'
+          : `Diajukan untuk Paraf Berjenjang & TTE ${namaJabatanSigner || 'Pimpinan'}`,
         tujuan_aksi: 'DISPOSISI',
         isSignatureRequest: false,
         ringkasan: `${kalimatPembuka} ${isiPokok.replace(/\n/g, ' ')}`,
@@ -1398,7 +2196,7 @@ export const CreateLetterModal = ({
         lampiranUrl: uploadedFileDataUrl || uploadedFileUrl || null,
         lampiranName: uploadedFileName || null,
         lampiranSize: uploadedFileSize || null,
-        tteVerified: false,
+        tteVerified: isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI' && targetStatus !== 'Draft',
         jabatanPenandatangan: namaJabatanSigner,
         namaPenandatangan: `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}`,
         namaPejabat: namaPejabatSigner,
@@ -1408,12 +2206,22 @@ export const CreateLetterModal = ({
         unit_kerja_id: activeUnitObj.kode_unit,
         created_by_user_id: currentUser?.id || 'usr-02',
         created_at: new Date().toISOString(),
+        parentLetterId: followUpDisposisi?.letterId || null,
+        parentNomorAgenda: followUpDisposisi?.nomorAgenda || null,
+        parentDispositionId: followUpDisposisi?.dispositionId || null,
+        isFollowUpDisposisi: Boolean(followUpDisposisi),
         riwayatParaf: [
           {
             nama: currentUser?.nama_lengkap || currentUser?.name || 'Staf Pelaksana Persuratan',
-            jabatan: currentUser?.roleLabel || 'Operator Unit',
+            jabatan: currentUser?.roleLabel || (isMandiriDoc ? 'Dosen Pembuat Naskah' : 'Operator Unit'),
             waktu: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }),
-            catatan: `${targetStatus === 'Draft' ? 'Penyusunan Draf' : 'Registrasi naskah'} ${TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || 'Surat Keluar'} - Diterbitkan Nomor Resmi: ${officialNomorSurat}`
+            catatan: isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+              ? `Naskah Mandiri ${currentTypeMeta?.nama_jenis_naskah || 'Naskah Dinas'} ditandatangani mandiri oleh pembuat - Diterbitkan Nomor Resmi: ${officialNomorSurat}`
+              : `${targetStatus === 'Draft' ? 'Penyusunan Draf' : 'Registrasi naskah'} ${
+                  TEMPLATES.find((t) => t.id === selectedTemplateId)?.name || 'Surat Keluar'
+                }${
+                  followUpDisposisi ? ` (Tindak Lanjut E-Disposisi Agenda ${followUpDisposisi.nomorAgenda})` : ''
+                } - Diterbitkan Nomor Resmi: ${officialNomorSurat}`
           }
         ],
         disposisi: null
@@ -1428,25 +2236,12 @@ export const CreateLetterModal = ({
     }
   };
 
-  // Format tanggal Bahasa Indonesia untuk lembar A4
-  const formattedDateA4 = useMemo(() => {
-    try {
-      const d = new Date(tanggal);
-      return d.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-    } catch {
-      return tanggal;
-    }
-  }, [tanggal]);
-
   const tembusanList = useMemo(() => {
     return tembusanText
       .split('\n')
       .map((line) => line.trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .map((line) => line.replace(/^\d+[\.\)]\s*/, ''));
   }, [tembusanText]);
 
   return (
@@ -1554,30 +2349,72 @@ export const CreateLetterModal = ({
 
         {/* TEMPLATE SELECTOR DROPDOWN (KHUSUS SURAT KELUAR) */}
         {letterType === 'surat-keluar' && (
-          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center gap-3 shrink-0">
-            <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
-              Template:
-            </span>
-            <select
-              value={selectedTemplateId}
-              onChange={(e) => {
-                const tpl = TEMPLATES.find(
-                  (t) =>
-                    t.id === e.target.value &&
-                    availableNaskahTypes.some((n) => n.kode_jenis_naskah === t.kode_jenis_naskah)
-                );
-                if (tpl) handleSelectTemplate(tpl);
-              }}
-              className="w-full max-w-md bg-white border border-amber-400 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300/50 transition cursor-pointer font-medium"
+          <div className="px-5 py-2.5 bg-slate-50 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+            <div className="flex items-center gap-3 flex-1 min-w-[280px]">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                Template:
+              </span>
+              <select
+                value={selectedTemplateId}
+                onChange={(e) => {
+                  const tpl = TEMPLATES.find((t) => t.id === e.target.value);
+                  if (tpl) handleSelectTemplate(tpl);
+                }}
+                className="w-full max-w-md bg-white border border-amber-400 rounded-lg px-3 py-2 text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-300/50 transition cursor-pointer font-medium"
+              >
+                {isDosen ? (
+                  <>
+                    <optgroup label="Naskah Mandiri / Fungsional (TTD Dosen Sendiri)">
+                      {TEMPLATES.filter((tpl) =>
+                        isMandiriPersonalDocument({ jenis_naskah: tpl.kode_jenis_naskah, templateId: tpl.id }) &&
+                        availableNaskahTypes.some((t) =>
+                          t.kode_jenis_naskah === tpl.kode_jenis_naskah ||
+                          (tpl.kode_jenis_naskah === 'SURAT_TUGAS' && t.kode_jenis_naskah.startsWith('SURAT_TUGAS'))
+                        )
+                      ).map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name} {tpl.alias ? `(${tpl.alias})` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="Naskah Konsep / Draf Usulan (Diajukan untuk TTE Pimpinan)">
+                      {TEMPLATES.filter((tpl) =>
+                        !isMandiriPersonalDocument({ jenis_naskah: tpl.kode_jenis_naskah, templateId: tpl.id }) &&
+                        availableNaskahTypes.some((t) =>
+                          t.kode_jenis_naskah === tpl.kode_jenis_naskah ||
+                          (tpl.kode_jenis_naskah === 'SURAT_TUGAS' && t.kode_jenis_naskah.startsWith('SURAT_TUGAS'))
+                        )
+                      ).map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>
+                          {tpl.name} {tpl.alias ? `(${tpl.alias})` : ''}
+                        </option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  TEMPLATES.filter((tpl) =>
+                    availableNaskahTypes.some((t) =>
+                      t.kode_jenis_naskah === tpl.kode_jenis_naskah ||
+                      (tpl.kode_jenis_naskah === 'SURAT_TUGAS' && t.kode_jenis_naskah.startsWith('SURAT_TUGAS'))
+                    )
+                  ).map((tpl) => (
+                    <option key={tpl.id} value={tpl.id}>
+                      {tpl.name} {tpl.alias ? `(${tpl.alias})` : ''}
+                    </option>
+                  ))
+                )}
+              </select>
+            </div>
+
+            <button
+              type="button"
+              onClick={hasCustomContent ? clearDraft : loadSampleDraft}
+              className="text-[11px] font-medium text-slate-600 hover:text-unsil-green-900 border border-slate-300 hover:border-unsil-green-700 bg-white hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition flex items-center gap-1.5 shrink-0 shadow-2xs"
+              title={hasCustomContent ? "Kosongkan seluruh isian naskah" : "Muat draf contoh kalimat resmi UNSIL"}
             >
-              {TEMPLATES.filter((tpl) =>
-                availableNaskahTypes.some((t) => t.kode_jenis_naskah === tpl.kode_jenis_naskah)
-              ).map((tpl) => (
-                <option key={tpl.id} value={tpl.id}>
-                  {tpl.name} {tpl.alias ? `(${tpl.alias})` : ''}
-                </option>
-              ))}
-            </select>
+              <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+              <span>{hasCustomContent ? 'Kosongkan Form' : 'Gunakan Contoh Kalimat'}</span>
+            </button>
           </div>
         )}
 
@@ -1712,7 +2549,7 @@ export const CreateLetterModal = ({
                           </optgroup>
                         ))}
                         <optgroup label="── Pilihan Lainnya ──">
-                          <option value="MANUAL">✍️ Ketik Manual Tujuan Lain / Non-Pejabat...</option>
+                          <option value="MANUAL">Ketik Manual Tujuan Lain / Non-Pejabat...</option>
                         </optgroup>
                       </select>
 
@@ -2137,7 +2974,7 @@ export const CreateLetterModal = ({
                       <div className="p-3 rounded-lg bg-white/95 border border-emerald-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
                         <div className="flex items-start sm:items-center gap-2.5 min-w-0">
                           <div className="w-8 h-8 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-unsil-green-800 shrink-0 font-bold text-sm shadow-2xs">
-                            🏛️
+                            <Building className="w-4 h-4 text-unsil-green-800" />
                           </div>
                           <div className="min-w-0">
                             <div className="text-[10px] uppercase font-bold text-slate-400">
@@ -2172,6 +3009,36 @@ export const CreateLetterModal = ({
                 /* FORM SURAT KELUAR / NOTA DINAS                                           */
                 /* ========================================================================= */
                 <div className="space-y-4">
+                  {/* Banner Mode Tindak Lanjut E-Disposisi */}
+                  {followUpDisposisi && (
+                    <div className="p-3.5 bg-emerald-50 border border-emerald-300 rounded-xl flex items-start justify-between gap-3 text-xs shadow-2xs">
+                      <div className="flex items-start gap-2.5">
+                        <CheckCircle2 className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold text-unsil-green-950 block">
+                            ⚡ Mode Tindak Lanjut E-Disposisi Resmi UNSIL
+                          </span>
+                          <p className="text-slate-700 mt-0.5">
+                            Menindaklanjuti Agenda <strong className="font-mono text-unsil-green-950">{followUpDisposisi.nomorAgenda}</strong>: "{followUpDisposisi.instruksi}"
+                          </p>
+                          <p className="text-[11px] text-slate-500 mt-1">
+                            Naskah balasan ini otomatis menautkan referensi surat asal. Lembar disposisi akan otomatis selesai saat naskah disahkan melalui TTE pimpinan.
+                          </p>
+                        </div>
+                      </div>
+                      {onClearFollowUp && (
+                        <button
+                          type="button"
+                          onClick={onClearFollowUp}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-slate-700 bg-white px-2 py-1 rounded border border-slate-200 shrink-0 cursor-pointer"
+                          title="Buat naskah baru tanpa menautkan ke disposisi"
+                        >
+                          Lepas Tautan
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* PANEL SISTEM PENOMORAN OTOMATIS & KLASIFIKASI JRA/SKKAAD (PENCEGAH HUMAN ERROR) */}
                   <SmartKlasifikasiNumberingPanel
                     templateKey={selectedTemplateId || selectedKodeNaskah}
@@ -2196,15 +3063,15 @@ export const CreateLetterModal = ({
                     onSecurityTriggerChange={setSecurityTriggerMeta}
                   />
 
-                  {/* Rumus Penomoran Otomatis Display (Readonly / Generated Automatically) */}
+                  {/* Nomor Surat Keluar (Otomatis) */}
                   <div className="p-3.5 rounded-xl bg-emerald-50/80 border border-emerald-200 shadow-xs">
                     <div className="flex items-center justify-between mb-1.5">
-                      <span className="text-[11px] font-bold uppercase tracking-wider text-unsil-green-900 flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-unsil-green-950 flex items-center gap-1.5">
                         <Lock className="w-3.5 h-3.5 text-emerald-700" />
-                        Nomor Surat Keluar (Generated Automatically — Read-Only)
+                        Nomor Surat Keluar (Otomatis)
                       </span>
-                      <span className="text-[10px] font-mono text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded font-semibold border border-emerald-300/60">
-                        Tata Naskah Dinas UNSIL
+                      <span className="text-[10px] font-medium text-emerald-800 bg-emerald-100/90 px-2 py-0.5 rounded-full border border-emerald-300/60">
+                        Format Baku UNSIL
                       </span>
                     </div>
 
@@ -2213,62 +3080,13 @@ export const CreateLetterModal = ({
                         type="text"
                         readOnly
                         value={previewNomorSurat}
-                        className="font-mono font-bold text-xs sm:text-sm text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-emerald-300 shadow-xs select-all cursor-not-allowed w-full sm:w-auto"
-                        title="Read-only: Format penomoran dirakit otomatis sesuai aturan Tata Naskah Dinas & SK Rektor No. 2803/2023"
+                        className="font-mono font-bold text-xs sm:text-sm text-slate-800 bg-white px-3 py-1.5 rounded-lg border border-emerald-300 shadow-xs select-all cursor-default w-full sm:w-auto"
+                        title="Format nomor surat dirakit otomatis sesuai tata naskah dinas resmi UNSIL"
                       />
-                      <span className="text-[10px] text-slate-500 italic">
-                        Nomor urut resmi diterbitkan & dikunci secara atomik saat tombol simpan ditekan.
+                      <span className="text-[11px] text-slate-600">
+                        💡 Anda tidak perlu mengetik nomor manual. Nomor resmi akan otomatis terbit saat surat disimpan.
                       </span>
                     </div>
-                  </div>
-
-                  {/* SELEKSI JENIS NASKAH DINAS (TABEL 1 PERATURAN REKTOR NO. 3/2023) */}
-                  <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1.5">
-                      <label className="text-[11px] font-bold uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
-                        <FileText className="w-4 h-4 text-unsil-green-800" />
-                        Jenis Naskah Dinas (Tabel 1) *
-                      </label>
-                      {!isDosen && (
-                        <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-unsil-green-950 bg-emerald-100/90 px-2 py-0.5 rounded border border-emerald-300">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                          Kewenangan Penandatanganan Sesuai Tabel 1 Tata Naskah Dinas UNSIL
-                        </span>
-                      )}
-                    </div>
-
-                    <select
-                      value={selectedKodeNaskah}
-                      onChange={(e) => handleSelectKodeNaskah(e.target.value)}
-                      disabled={isLoadingScoping}
-                      className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition shadow-xs cursor-pointer"
-                    >
-                      {availableNaskahTypes.map((t) => (
-                        <option key={t.kode_jenis_naskah} value={t.kode_jenis_naskah}>
-                          {t.nama_jenis_naskah} ({t.can_choose_signatory ? 'Wewenang: Ketua Jurusan / Dekan' : 'Wewenang Khusus: Dekan'})
-                        </option>
-                      ))}
-                    </select>
-
-                    {currentTypeMeta && (
-                      <div
-                        className={`p-2 rounded-lg text-[10.5px] leading-relaxed flex items-start gap-2 border ${
-                          currentTypeMeta.can_choose_signatory
-                            ? 'bg-emerald-50/80 border-emerald-200 text-emerald-950'
-                            : 'bg-amber-50/80 border-amber-200 text-amber-950'
-                        }`}
-                      >
-                        {currentTypeMeta.can_choose_signatory ? (
-                          <CheckCircle className="w-3.5 h-3.5 text-emerald-700 shrink-0 mt-0.5" />
-                        ) : (
-                          <Lock className="w-3.5 h-3.5 text-amber-700 shrink-0 mt-0.5" />
-                        )}
-                        <div>
-                          <p className="font-bold">{currentTypeMeta.badge_keterangan}</p>
-                          <p className="text-[10px] opacity-90 mt-0.5">{currentTypeMeta.catatan_kewenangan}</p>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Grid Metadata Surat: Unit Kerja, Klasifikasi Arsip, Tingkat Keamanan */}
@@ -2476,13 +3294,31 @@ export const CreateLetterModal = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Tujuan / Penerima (Yth.)
+                    {isSuratTugas
+                      ? 'Penerima / Pegawai yang Ditugaskan'
+                      : isNotaDinas
+                      ? 'Penerima Nota Dinas (Yth.)'
+                      : isSuratPernyataan
+                      ? 'Tujuan Penggunaan Pernyataan'
+                      : isBeritaAcara
+                      ? 'Pihak Kedua / Rekanan'
+                      : 'Tujuan / Penerima (Yth.)'}
                   </label>
                   <input
                     type="text"
                     value={tujuan}
                     onChange={(e) => setTujuan(e.target.value)}
-                    placeholder="Contoh: Kepala Biro Keuangan dan Umum"
+                    placeholder={
+                      isSuratTugas
+                        ? 'Contoh: Pegawai yang Bersangkutan / Tim Pelaksana'
+                        : isNotaDinas
+                        ? 'Contoh: Kepala Biro Perencanaan, Keuangan, dan Umum'
+                        : isSuratPernyataan
+                        ? 'Contoh: Pimpinan Universitas Siliwangi'
+                        : isBeritaAcara
+                        ? 'Contoh: Ir. Hendra Gunawan, M.T. (PPK Sarana dan Prasarana)'
+                        : 'Contoh: Kepala Biro Keuangan dan Umum'
+                    }
                     required
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium text-slate-800"
                   />
@@ -2490,13 +3326,29 @@ export const CreateLetterModal = ({
 
                 <div>
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                    Alamat / Tempat Tujuan
+                    {isSuratTugas
+                      ? 'Unit / Lokasi Pegawai'
+                      : isNotaDinas
+                      ? 'Tempat / Lokasi Penerima'
+                      : isSuratPernyataan
+                      ? 'Kota Penandatanganan'
+                      : isBeritaAcara
+                      ? 'Tempat Pembuatan (Dibuat di)'
+                      : 'Alamat / Tempat Tujuan'}
                   </label>
                   <input
                     type="text"
                     value={alamatTujuan}
                     onChange={(e) => setAlamatTujuan(e.target.value)}
-                    placeholder="Contoh: Kota Tasikmalaya / Di Tempat"
+                    placeholder={
+                      isSuratTugas
+                        ? 'Contoh: Di Lingkungan Universitas Siliwangi / Di Tempat'
+                        : isNotaDinas
+                        ? 'Contoh: Di Tempat'
+                        : isSuratPernyataan || isBeritaAcara
+                        ? 'Contoh: Tasikmalaya'
+                        : 'Contoh: Kota Tasikmalaya / Di Tempat'
+                    }
                     className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800"
                   />
                 </div>
@@ -2505,13 +3357,31 @@ export const CreateLetterModal = ({
               {/* Hal / Perihal */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Hal / Perihal Naskah Dinas
+                  {isSuratTugas
+                    ? 'Hal / Perihal Penugasan'
+                    : isNotaDinas
+                    ? 'Hal Nota Dinas'
+                    : isSuratPernyataan
+                    ? 'Perihal / Judul Pernyataan'
+                    : isBeritaAcara
+                    ? 'Uraian Singkat / Perihal Berita Acara'
+                    : 'Hal / Perihal Naskah Dinas'}
                 </label>
                 <input
                   type="text"
                   value={perihal}
                   onChange={(e) => setPerihal(e.target.value)}
-                  placeholder="Contoh: Permohonan Koordinasi dan Fasilitasi..."
+                  placeholder={
+                    isSuratTugas
+                      ? 'Contoh: Penugasan Pelaksanaan Bimbingan Teknis Kearsipan dan TTE BSrE'
+                      : isNotaDinas
+                      ? 'Contoh: Laporan Realisasi Penyerapan Anggaran BLU Triwulan III TA 2026'
+                      : isSuratPernyataan
+                      ? 'Contoh: Surat Pernyataan Tanggung Jawab Mutlak (SPTJM)'
+                      : isBeritaAcara
+                      ? 'Contoh: Berita Acara Serah Terima Pengadaan Perangkat Komputer Server...'
+                      : 'Contoh: Permohonan Koordinasi dan Fasilitasi...'
+                  }
                   required
                   className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800"
                 />
@@ -2520,25 +3390,100 @@ export const CreateLetterModal = ({
               {/* Paragraf Pembuka */}
               <div>
                 <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Kalimat / Paragraf Pembuka
+                  {isSuratTugas
+                    ? 'Kalimat Pembuka Penugasan (Diakhiri Koma)'
+                    : isNotaDinas
+                    ? 'Kalimat Pembuka Nota Dinas'
+                    : isSuratPernyataan
+                    ? 'Kalimat Pembuka (Default: Yang bertanda tangan di bawah ini,)'
+                    : isBeritaAcara
+                    ? 'Komparisi Waktu Pelaksanaan'
+                    : 'Kalimat / Paragraf Pembuka'}
                 </label>
                 <textarea
                   rows={2}
                   value={kalimatPembuka}
                   onChange={(e) => setKalimatPembuka(e.target.value)}
+                  placeholder={
+                    isSuratTugas
+                      ? 'Contoh: Rektor Universitas Siliwangi dengan ini menugaskan kepada pejabat/pegawai di bawah ini,'
+                      : isNotaDinas
+                      ? 'Contoh: Bersama ini kami sampaikan dengan hormat laporan perkembangan realisasi belanja operasional dan belanja modal di lingkungan Universitas Siliwangi sampai dengan akhir Agustus 2026 sebagai bahan evaluasi pimpinan.'
+                      : isSuratPernyataan
+                      ? 'Contoh: Yang bertanda tangan di bawah ini,'
+                      : isBeritaAcara
+                      ? 'Contoh: Pada hari ini, Selasa, tanggal 08, bulan September, tahun 2026, kami masing-masing:'
+                      : 'Tuliskan kalimat pembuka naskah dinas...&#10;Contoh: Sehubungan dengan pelaksanaan program kerja sama riset, bersama ini kami sampaikan permohonan koordinasi:'
+                  }
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20"
                 />
               </div>
 
               {/* Batang Tubuh / Isi Pokok */}
               <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Isi Pokok / Rincian Naskah (Multi-Baris)
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    {isStLembar
+                      ? 'Identitas Pegawai & Rincian Tugas (Format Lembaran)'
+                      : isStKolom
+                      ? 'Daftar Pegawai & Rincian Tugas (Format Kolom / Tabel)'
+                      : isNotaDinas
+                      ? 'Isi Pokok Nota Dinas (Multi-Baris)'
+                      : isSuratPernyataan
+                      ? 'Identitas Pembuat & Isi Pernyataan (Format: nama : ..., NIP : ..., Isi Pernyataan: ...)'
+                      : isBeritaAcara
+                      ? 'Para Pihak, Uraian Kegiatan, dan Dasar Berita Acara'
+                      : 'Isi Pokok / Rincian Naskah (Multi-Baris)'}
+                  </label>
+                  {(isSuratTugas || isSuratPernyataan || isBeritaAcara || isSuratKeterangan || isSuratPengantar || isNotula || isLaporan || isTelaahStaf) && (
+                    <span className="text-[10px] text-unsil-green-800 font-medium">
+                      {isStLembar
+                        ? 'Format 1 Pegawai'
+                        : isStKolom
+                        ? 'Format Kolektif / Pemisah |'
+                        : isSuratPernyataan
+                        ? 'Format Spesimen Gambar 14'
+                        : isBeritaAcara
+                        ? 'Format Spesimen Gambar 12'
+                        : isSuratKeterangan
+                        ? 'Format Spesimen Gambar 4'
+                        : isSuratPengantar
+                        ? 'Format Tabel Gambar 5'
+                        : isNotula
+                        ? 'Format Spesimen Gambar 1'
+                        : isLaporan
+                        ? 'Format Spesimen Gambar 2'
+                        : 'Format Spesimen Gambar 3'}
+                    </span>
+                  )}
+                </div>
                 <textarea
-                  rows={4}
+                  rows={isSuratTugas || isSuratPernyataan || isBeritaAcara || isSuratKeterangan || isSuratPengantar || isNotula || isLaporan || isTelaahStaf ? 6 : 4}
                   value={isiPokok}
                   onChange={(e) => setIsiPokok(e.target.value)}
+                  placeholder={
+                    isStLembar
+                      ? 'Tuliskan identitas pegawai dan tugas...&#10;Contoh:&#10;Nama : Dr. Nana Sujana, Drs., M.Si.&#10;NIP : 196808301989031004&#10;Pangkat dan golongan : Pembina Utama Muda, IV/c&#10;Jabatan : Kepala Biro Umum dan Keuangan&#10;&#10;Untuk : Menghadiri Rapat Koordinasi Nasional... pada tanggal 15 s.d. 17 September 2026 bertempat di Hotel Grand Mercure, Jakarta Pusat.'
+                      : isStKolom
+                      ? 'Tuliskan daftar pegawai dan tugas (gunakan pemisah |)...&#10;Contoh:&#10;1. Dr. Nana Sujana, Drs., M.Si. | NIP 196808301989031004 | Pembina Utama Muda, IV/c | Kepala Biro Umum dan Keuangan&#10;2. Budi Santoso, S.E., M.Ak. | NIP 198203202008121002 | Penata Tk. I, III/d | Koordinator Keuangan & BMN&#10;&#10;Untuk : Mengikuti Bimbingan Teknis... pada tanggal 20 s.d. 22 September 2026 bertempat di Depok, Jawa Barat.'
+                      : isNotaDinas
+                      ? 'Tuliskan butir-butir laporan atau isi pokok nota dinas...&#10;Contoh:&#10;1. Realisasi penyerapan anggaran belanja pegawai dan operasional telah mencapai 78,4% dari pagu DIPA yang ditetapkan.&#10;2. Pengadaan sarana prasarana penunjang laboratorium melalui e-Katalog telah selesai diverifikasi oleh PPK.&#10;3. Seluruh berkas pertanggungjawaban (SPJ) telah terdigitalisasi penuh melalui modul kearsipan SILOKA.'
+                      : isSuratPernyataan
+                      ? 'Tuliskan identitas dan isi pernyataan...&#10;Contoh:&#10;nama : Dr. Ade Rustiana, Drs., M.Si.&#10;NIP : 196801021992031002&#10;pangkat dan golongan : Pembina Utama Muda / IV/c&#10;jabatan : Wakil Rektor Bidang Umum dan Keuangan&#10;alamat : Jalan Siliwangi Nomor 24 Kota Tasikmalaya&#10;&#10;Isi Pernyataan:&#10;Dengan ini menyatakan dengan sesungguhnya bahwa seluruh data, laporan rekonsiliasi belanja modal, dan dokumen pertanggungjawaban keuangan Universitas Siliwangi Tahun Anggaran 2026 telah disusun secara benar, objektif, dan sesuai dengan Standar Akuntansi Pemerintahan (SAP).'
+                      : isBeritaAcara
+                      ? 'Tuliskan komparisi para pihak, kegiatan, dan dasar pelaksanaan...&#10;Contoh:&#10;1. Dr. Kurnia, S.P., M.P., NIP 197503122002121001 dan Kepala Biro Perencanaan, Keuangan, dan Umum, selanjutnya disebut Pihak Pertama, dan&#10;2. Ir. Hendra Gunawan, M.T. (Pejabat Pembuat Komitmen Sarana dan Prasarana), selanjutnya disebut Pihak Kedua,&#10;&#10;telah melaksanakan:&#10;1. Pemeriksaan fisik dan uji fungsi terhadap Pengadaan Perangkat Komputer Server...&#10;2. Serah terima barang operasional teknologi informasi dalam kondisi baik...&#10;&#10;Berita acara ini dibuat dengan sesungguhnya berdasarkan Surat Keputusan Rektor Universitas Siliwangi Nomor 142/UN58/KP.02/2026 tanggal 15 Januari 2026...'
+                      : isSuratKeterangan
+                      ? 'Tuliskan data pejabat, pihak yang diterangkan, dan isi keterangan...&#10;Contoh:&#10;nama : Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.&#10;NIP : 196708161996031001&#10;pangkat dan golongan : Pembina Utama Madya / IV/d&#10;jabatan : Rektor Universitas Siliwangi&#10;&#10;dengan ini menerangkan bahwa,&#10;nama : Fajar Nugraha, S.T., M.Kom.&#10;NIP : 198805212015041002&#10;pangkat dan golongan : Penata Muda Tingkat I / III/b&#10;jabatan : Dosen Asisten Ahli pada Fakultas Teknik Universitas Siliwangi&#10;&#10;Isi Keterangan:&#10;Bahwa yang bersangkutan adalah benar Pegawai Negeri Sipil / Tenaga Pendidik aktif pada Universitas Siliwangi dan saat ini sedang ditugaskan sebagai Koordinator Sistem Informasi dan Transformasi Digital (SILOKA) serta berkelakuan baik.'
+                      : isSuratPengantar
+                      ? 'Tuliskan daftar dokumen/barang (gunakan pemisah | atau -)...&#10;Contoh:&#10;1. Berkas Rekonsiliasi Laporan Keuangan Universitas Siliwangi Semester I TA 2026 | 2 (dua) bundel | Disampaikan dengan hormat untuk diverifikasi dan diterbitkan BAR.&#10;2. Surat Pernyataan Tanggung Jawab Mutlak (SPTJM) Belanja Modal TA 2026 | 1 (satu) berkas | Sebagai kelengkapan berkas rekonsiliasi pengesahan belanja modal.'
+                      : isNotula
+                      ? 'Tuliskan metadata, susunan acara, peserta, dan substansi rapat...&#10;Contoh:&#10;Nama rapat : Rapat Koordinasi Evaluasi Implementasi Tata Naskah Dinas Elektronik SILOKA&#10;Hari, tanggal : Selasa, 08 September 2026&#10;Pukul : 09.00 - 12.00 WIB&#10;Tempat : Ruang Sidang Rektorat Lt. 2 Universitas Siliwangi&#10;Susunan acara :&#10;1. Pembukaan oleh Pembawa Acara&#10;2. Pengarahan Rektor Universitas Siliwangi&#10;3. Pemaparan Laporan Kemajuan Penerapan TTE BSrE oleh Tim SILOKA&#10;&#10;Pemimpin rapat : Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng. (Rektor)&#10;Pencatat/notulis : Rina Permatasari, S.Sos. (Pranata Humas)&#10;Peserta rapat :&#10;1. Wakil Rektor Bidang Akademik&#10;2. Para Dekan Fakultas di lingkungan UNSIL&#10;&#10;1. Persoalan yang dibahas : Integrasi menyeluruh modul tanda tangan digital bersertifikat BSrE BSSN...&#10;2. Tanggapan peserta rapat : Para Dekan menyetujui percepatan implementasi...&#10;3. Simpulan : Seluruh fakultas dan biro diwajibkan menggunakan aplikasi SILOKA...'
+                      : isLaporan
+                      ? 'Tuliskan sistematika laporan A s.d. D...&#10;Contoh:&#10;A. Pendahuluan&#10;1. Latar Belakang: Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan...&#10;2. Dasar: 1. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas...&#10;3. Ruang Lingkup: Ruang lingkup pelaksanaan kegiatan meliputi pengujian 20 format naskah dinas resmi...&#10;&#10;B. Kegiatan yang Dilaksanakan&#10;1. Melakukan validasi kesesuaian layout visual 20 format naskah dinas dengan pedoman tata naskah dinas resmi UNSIL.&#10;2. Melaksanakan uji coba penerbitan TTE BSrE dengan enkripsi hash dokumen dan stempel QR-Code verifikasi dinas.&#10;&#10;C. Hasil yang Dicapai&#10;1. Sebanyak 20 format naskah dinas resmi berhasil diintegrasikan dengan sempurna ke dalam aplikasi SILOKA.&#10;&#10;D. Penutup&#10;Demikian laporan ini dibuat dengan sebenarnya sebagai bahan evaluasi dan pertanggungjawaban pelaksanaan kegiatan.'
+                      : isTelaahStaf
+                      ? 'Tuliskan memo dan kajian telaah I s.d. VI...&#10;Contoh:&#10;Kepada : Rektor Universitas Siliwangi&#10;Dari : Kepala Biro Umum dan Keuangan&#10;Tanggal : 08 September 2026&#10;Nomor : &#10;Lampiran : 1 (satu) Berkas&#10;Hal : Telaah Staf Peningkatan Keandalan Server dan Sertifikasi TTE BSrE SILOKA&#10;&#10;I. Persoalan&#10;Bagian persoalan memuat pernyataan singkat dan jelas tentang persoalan yang akan dipecahkan.&#10;&#10;II. Praanggapan&#10;Praanggapan memuat dugaan yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi.&#10;&#10;III. Fakta-fakta yang mempengaruhi&#10;Bagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan.&#10;&#10;IV. Analisis&#10;Bagian ini memuat analisis pengaruh praanggapan dan fakta terhadap persoalan serta akibatnya.&#10;&#10;V. Simpulan&#10;Bagian simpulan memuat intisari hasil analisis dan pilihan satu cara bertindak sebagai pemecahan persoalan.&#10;&#10;VI. Saran&#10;Bagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang dihadapi.'
+                      : 'Tuliskan rincian kegiatan atau muatan pokok isi surat...&#10;Contoh:&#10;1. Hari/Tanggal : Senin, 21 September 2026&#10;2. Waktu : Pukul 09.00 WIB s.d. selesai&#10;3. Tempat : Ruang Rapat Rektorat Lantai 2 Kampus UNSIL'
+                  }
                   className="w-full p-2 font-mono bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20"
                 />
               </div>
@@ -2552,28 +3497,44 @@ export const CreateLetterModal = ({
                   rows={2}
                   value={kalimatPenutup}
                   onChange={(e) => setKalimatPenutup(e.target.value)}
+                  placeholder={
+                    isSuratTugas
+                      ? 'Contoh: Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.'
+                      : isNotaDinas
+                      ? 'Contoh: Demikian nota dinas ini kami sampaikan, atas perhatian dan arahan Bapak diucapkan terima kasih.'
+                      : isSuratPernyataan
+                      ? 'Contoh: Surat pernyataan ini dibuat untuk dipergunakan sebagaimana mestinya.'
+                      : isBeritaAcara
+                      ? 'Contoh: Berita acara ini dibuat rangkap dua (2) untuk dipergunakan sebagaimana mestinya.'
+                      : isSuratKeterangan
+                      ? 'Contoh: Surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.'
+                      : isSuratPengantar
+                      ? 'Contoh: Demikian surat pengantar ini kami sampaikan untuk dipergunakan sebagaimana mestinya. Atas perhatian dan kerja sama Saudara, kami ucapkan terima kasih.'
+                      : isLaporan
+                      ? 'Contoh: Demikian laporan ini dibuat dengan sebenarnya sebagai bahan evaluasi dan pertanggungjawaban pelaksanaan kegiatan.'
+                      : 'Tuliskan kalimat penutup naskah dinas...&#10;Contoh: Mengingat pentingnya agenda tersebut, kami mengharapkan kehadiran Saudara tepat waktu. Atas perhatian dan kerja sama yang baik, diucapkan terima kasih.'
+                  }
                   className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800 focus:ring-2 focus:ring-unsil-green-800/20"
                 />
               </div>
 
-              {/* Penandatangan Kedinasan (Auto-Fill & Locked) */}
-              {/* Penandatangan Kedinasan (Automated Hierarchy Routing: Auto-Fill & Locked) */}
+              {/* Penandatangan Kedinasan */}
               <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[11px] font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-700" />
-                    Pejabat Penandatangan &amp; Otoritas TTE BSrE
+                    Penandatangan Naskah Dinas
                   </span>
                   <span className="inline-flex items-center gap-1 text-[10px] text-emerald-800 bg-emerald-100/80 px-2 py-0.5 rounded-full font-semibold border border-emerald-200">
                     <ShieldCheck className="w-3 h-3 text-emerald-700" />
-                    TTE Otomatis Pasca-Paraf (Pasal 61)
+                    {isMandiriDoc ? 'Tanda Tangan Mandiri' : 'TTE Resmi Pasca-Paraf'}
                   </span>
                 </div>
 
-                {/* 1. Deteksi Session User (Dosen/Staf Login) */}
+                {/* 1. Deteksi Pengguna Aktif */}
                 <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] bg-slate-100/90 px-2.5 py-1.5 rounded-lg border border-slate-200">
                   <span className="text-slate-600">
-                    Session User: <strong className="text-slate-900">{sessionUserName}</strong>
+                    Pengguna Aktif: <strong className="text-slate-900">{sessionUserName}</strong>
                   </span>
                   <span className="text-unsil-green-900 font-semibold flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
@@ -2581,118 +3542,89 @@ export const CreateLetterModal = ({
                   </span>
                 </div>
 
-                {/* 2 & 3. Kontrol Otoritas Penandatangan: Selektor Radio Kajur vs Dekan & Kunci Dekan (Tabel 1) */}
-                {currentTypeMeta?.can_choose_signatory ? (
-                  <div className="p-3 bg-emerald-50/70 border border-emerald-300 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[10.5px] font-bold text-emerald-950 flex items-center gap-1.5">
-                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
-                        Pilih Pejabat Penandatangan (Kewenangan Bersama Sesuai Tabel 1):
-                      </label>
-                      <span className="text-[9.5px] bg-emerald-100 text-emerald-900 font-semibold px-2 py-0.5 rounded-full border border-emerald-300">
-                        Kajur / Dekan
-                      </span>
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {/* Pilihan 1: Ketua Jurusan */}
-                      {kajurSignatory && (
-                        <label
-                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
-                            selectedSignatoryRole === 'KETUA_JURUSAN'
-                              ? 'bg-white border-unsil-green-700 ring-2 ring-unsil-green-700/20 shadow-xs'
-                              : 'bg-white/60 border-slate-200 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="signatoryRoleChoice"
-                            value="KETUA_JURUSAN"
-                            checked={selectedSignatoryRole === 'KETUA_JURUSAN'}
-                            onChange={() => handleSelectSignatoryRole('KETUA_JURUSAN')}
-                            className="mt-0.5 text-unsil-green-800 focus:ring-unsil-green-800"
-                          />
-                          <div className="text-[11px] leading-tight">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-unsil-green-800 block mb-0.5">
-                              Ketua Jurusan (Unit Pemohon)
-                            </span>
-                            <p className="font-bold text-slate-900">{kajurSignatory.nama_gelar || kajurSignatory.nama}</p>
-                            <p className="text-slate-500 text-[10px] mt-0.5">{kajurSignatory.jabatan}</p>
-                            <span className="text-[9px] font-mono text-emerald-700 font-semibold">NIP: {kajurSignatory.nip}</span>
-                          </div>
-                        </label>
-                      )}
-
-                      {/* Pilihan 2: Dekan Fakultas */}
-                      {dekanSignatory && (
-                        <label
-                          className={`flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition ${
-                            selectedSignatoryRole === 'DEKAN'
-                              ? 'bg-white border-unsil-green-700 ring-2 ring-unsil-green-700/20 shadow-xs'
-                              : 'bg-white/60 border-slate-200 hover:bg-white'
-                          }`}
-                        >
-                          <input
-                            type="radio"
-                            name="signatoryRoleChoice"
-                            value="DEKAN"
-                            checked={selectedSignatoryRole === 'DEKAN'}
-                            onChange={() => handleSelectSignatoryRole('DEKAN')}
-                            className="mt-0.5 text-unsil-green-800 focus:ring-unsil-green-800"
-                          />
-                          <div className="text-[11px] leading-tight">
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-unsil-green-800 block mb-0.5">
-                              Dekan Fakultas (Pimpinan Induk)
-                            </span>
-                            <p className="font-bold text-slate-900">{dekanSignatory.nama_gelar || dekanSignatory.nama}</p>
-                            <p className="text-slate-500 text-[10px] mt-0.5">{dekanSignatory.jabatan}</p>
-                            <span className="text-[9px] font-mono text-emerald-700 font-semibold">NIP: {dekanSignatory.nip}</span>
-                          </div>
-                        </label>
-                      )}
-                    </div>
+                {/* 2 & 3. Kontrol Otoritas Penandatangan via Dropdown Select */}
+                <div className="p-3 bg-emerald-50/70 border border-emerald-300 rounded-xl space-y-2.5">
+                  <div className="flex items-center justify-between">
+                    <label htmlFor="signatory-select-authority" className="text-[10.5px] font-bold text-emerald-950 flex items-center gap-1.5">
+                      <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" />
+                      {isMandiriDoc
+                        ? 'Pilih Penandatangan / Pengesah Naskah:'
+                        : 'Pilih Pejabat Penandatangan Akhir (TTE Pimpinan):'}
+                    </label>
+                    <span className="text-[9.5px] bg-emerald-100 text-emerald-900 font-bold px-2 py-0.5 rounded-full border border-emerald-300">
+                      {selectedSignatoryRole === 'DOSEN_MANDIRI' ? 'TTD Mandiri Dosen' : 'TTE Resmi Pimpinan'}
+                    </span>
                   </div>
-                ) : (
-                  <div className="p-3 bg-amber-50/90 border border-amber-300 rounded-xl space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-[11px] font-bold text-amber-950 flex items-center gap-1.5">
-                        <Lock className="w-3.5 h-3.5 text-amber-700" />
-                        Penandatangan Terkunci: Dekan Fakultas
-                      </label>
-                      <span className="text-[9.5px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
-                        Khusus Dekan (Tabel 1)
-                      </span>
+
+                  {/* Dropdown Select Penandatangan */}
+                  {(!currentTypeMeta?.available_signatories || currentTypeMeta.available_signatories.length === 0) ? (
+                    <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg text-amber-950 text-xs space-y-1">
+                      <p className="font-bold flex items-center gap-1.5 text-amber-900">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        Pejabat Struktural Belum Terdaftar
+                      </p>
+                      <p className="text-[11px] text-amber-800 leading-relaxed">
+                        Belum ada akun pimpinan aktif untuk unit kerja ini di Manajemen Pengguna. Silakan koordinasikan dengan Administrator untuk menambahkan data pejabat terkait.
+                      </p>
                     </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <select
+                        id="signatory-select-authority"
+                        value={selectedPejabatId || currentSignatoryObj?.id || ''}
+                        onChange={(e) => handleSelectSignatory(e.target.value)}
+                        className="w-full px-2.5 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 shadow-2xs cursor-pointer"
+                      >
+                        {currentTypeMeta.available_signatories.map((sig) => (
+                          <option key={sig.id} value={sig.id}>
+                            {sig.nama_opsi || `${sig.display_role_label || sig.role_penandatangan}: ${sig.nama_gelar || sig.nama} (${sig.jabatan})`}
+                          </option>
+                        ))}
+                      </select>
 
-                    <p className="text-[10.5px] text-amber-900 leading-relaxed">
-                      Sesuai <strong>Tabel 1 Peraturan Rektor No. 3 Tahun 2023</strong>, dokumen <strong>{currentTypeMeta?.nama_jenis_naskah}</strong> merupakan wewenang hukum Dekan Fakultas. Pilihan Ketua Jurusan dinonaktifkan secara otomatis.
-                    </p>
+                      <p className="text-[10px] text-emerald-900/90 leading-relaxed">
+                        {isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+                          ? 'Sesuai Peraturan Rektor No. 3 Tahun 2023, naskah mandiri ditandatangani langsung oleh dosen pembuat tanpa alur paraf berjenjang.'
+                          : isMandiriDoc
+                          ? 'Naskah mandiri ini dialirkan untuk diverifikasi dan disahkan oleh atasan langsung / pejabat berwenang terkait.'
+                          : 'Naskah konsep draf usulan dialirkan berjenjang untuk paraf verifikasi dan penandatanganan elektronik (TTE) pimpinan.'}
+                      </p>
+                    </div>
+                  )}
 
-                    {dekanSignatory && (
-                      <div className="p-2.5 bg-white rounded-lg border border-amber-200 text-[11px] flex items-center justify-between shadow-2xs">
-                        <div>
-                          <p className="font-bold text-slate-900">{dekanSignatory.nama_gelar || dekanSignatory.nama}</p>
-                          <p className="text-slate-500 text-[10px]">{dekanSignatory.jabatan}</p>
-                        </div>
-                        <span className="text-[9.5px] font-mono font-bold text-unsil-green-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                          NIP: {dekanSignatory.nip}
+                  {/* Kartu Ringkas Profil Penandatangan Terpilih */}
+                  {currentSignatoryObj && (
+                    <div className="p-2.5 bg-white rounded-lg border border-emerald-200 text-[11px] flex items-center justify-between shadow-2xs">
+                      <div className="space-y-0.5">
+                        <span className="text-[9px] font-bold uppercase tracking-wider text-unsil-green-800 block">
+                          {currentSignatoryObj.display_role_label || currentSignatoryObj.role_penandatangan}
+                        </span>
+                        <p className="font-bold text-slate-900">{currentSignatoryObj.nama_gelar || currentSignatoryObj.nama}</p>
+                        <p className="text-slate-500 text-[10px]">{currentSignatoryObj.jabatan}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[9.5px] font-mono font-bold text-unsil-green-900 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 block">
+                          NIP: {currentSignatoryObj.nip || '-'}
+                        </span>
+                        <span className="text-[8.5px] text-slate-400 mt-0.5 block">
+                          SSOT Manajemen Pengguna
                         </span>
                       </div>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                </div>
 
-                {/* 4. Tiga Input Terpisah: "Nama Pejabat", "Gelar", dan "NIP" (Auto-Fill & ReadOnly Locked) */}
+                {/* 4. Tiga Input Terpisah: "Nama Pejabat", "Gelar", dan "NIP" (Terisi Otomatis) */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                   {/* Input 1: Nama Pejabat */}
                   <div>
                     <div className="flex items-center justify-between mb-0.5">
                       <label className="block text-[10px] text-slate-500 font-semibold">
-                        Nama Pejabat
+                        Nama Penandatangan
                       </label>
-                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
-                        <Lock className="w-2.5 h-2.5 text-amber-700" />
-                        Readonly
+                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                        Otomatis
                       </span>
                     </div>
                     <div className="relative">
@@ -2700,8 +3632,8 @@ export const CreateLetterModal = ({
                         type="text"
                         readOnly
                         value={namaPejabatSigner}
-                        placeholder="Nama Pejabat"
-                        title="Nama Pejabat terisi otomatis dan dikunci (readonly)."
+                        placeholder="Nama Penandatangan"
+                        title="Nama penandatangan terisi otomatis sesuai pilihan."
                         className="w-full p-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 cursor-not-allowed select-all focus:outline-none"
                       />
                     </div>
@@ -2713,9 +3645,9 @@ export const CreateLetterModal = ({
                       <label className="block text-[10px] text-slate-500 font-semibold">
                         Gelar
                       </label>
-                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
-                        <Lock className="w-2.5 h-2.5 text-amber-700" />
-                        Readonly
+                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                        Otomatis
                       </span>
                     </div>
                     <div className="relative">
@@ -2724,7 +3656,7 @@ export const CreateLetterModal = ({
                         readOnly
                         value={gelarSigner}
                         placeholder="Gelar Resmi"
-                        title="Gelar akademik/profesi terisi otomatis dan dikunci (readonly)."
+                        title="Gelar akademik/profesi terisi otomatis."
                         className="w-full p-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 cursor-not-allowed select-all focus:outline-none"
                       />
                     </div>
@@ -2736,9 +3668,9 @@ export const CreateLetterModal = ({
                       <label className="block text-[10px] text-slate-500 font-semibold">
                         NIP
                       </label>
-                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-amber-800 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200 font-medium">
-                        <Lock className="w-2.5 h-2.5 text-amber-700" />
-                        Readonly
+                      <span className="inline-flex items-center gap-0.5 text-[8.5px] text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200 font-medium">
+                        <CheckCircle2 className="w-2.5 h-2.5 text-emerald-600" />
+                        Otomatis
                       </span>
                     </div>
                     <div className="relative">
@@ -2747,37 +3679,44 @@ export const CreateLetterModal = ({
                         readOnly
                         value={nipSigner}
                         placeholder="NIP 18 Digit"
-                        title="NIP pejabat terisi otomatis dan dikunci (readonly)."
+                        title="NIP penandatangan terisi otomatis."
                         className="w-full p-2 bg-slate-100/90 border border-slate-200 rounded-lg text-xs font-mono font-medium text-slate-800 cursor-not-allowed select-all focus:outline-none tracking-wide"
                       />
                     </div>
                   </div>
                 </div>
 
-                {/* Banner Safeguard Automated Hierarchy Routing Sesuai Tabel 1 */}
+                {/* Banner Pedoman Tata Naskah Dinas */}
                 {!isDosen && (
                   <div className="p-2.5 rounded-lg bg-emerald-50/90 border border-emerald-300 flex items-start gap-2 text-[10px] text-emerald-950 leading-relaxed shadow-2xs">
                     <ShieldCheck className="w-4 h-4 text-emerald-700 shrink-0 mt-0.5" />
                     <span>
-                      <strong>Kewenangan Penandatanganan Sesuai Tabel 1 Tata Naskah Dinas UNSIL:</strong> Penandatangan dibatasi secara kaku sesuai hierarki unit pembuat (Fakultas / Jurusan). Kolom <em>Nama Pejabat</em>, <em>Gelar</em>, dan <em>NIP</em> dikunci secara otomatis (<em>readonly</em>) untuk mencegah ketidaksesuaian tata kelola kedinasan.
+                      <strong>Kewenangan Penandatanganan Sesuai Tata Naskah Dinas UNSIL:</strong> Pejabat penandatangan, gelar, dan NIP terisi secara otomatis sesuai hierarki unit kerja untuk memastikan kepatuhan tata kelola persuratan resmi.
                     </span>
                   </div>
                 )}
               </div>
 
-              {/* Tembusan */}
-              <div>
-                <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
-                  Tembusan (Satu per baris)
-                </label>
-                <textarea
-                  rows={2}
-                  value={tembusanText}
-                  onChange={(e) => setTembusanText(e.target.value)}
-                  placeholder="1. Rektor Universitas Siliwangi&#10;2. ..."
-                  className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800"
-                />
-              </div>
+              {/* Tembusan (Hanya untuk naskah yang memiliki klausul tembusan seperti Surat Dinas) */}
+              {!isSuratTugas ? (
+                <div>
+                  <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500 mb-1">
+                    Tembusan (Satu per baris)
+                  </label>
+                  <textarea
+                    rows={2}
+                    value={tembusanText}
+                    onChange={(e) => setTembusanText(e.target.value)}
+                    placeholder="Tuliskan pihak tembusan tanpa nomor manual (satu per baris).&#10;Contoh:&#10;Rektor Universitas Siliwangi (sebagai laporan)&#10;Kepala Satuan Pengawas Internal (SPI)"
+                    className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg text-xs text-slate-800"
+                  />
+                </div>
+              ) : (
+                <div className="p-2.5 rounded-lg bg-slate-100 border border-slate-200 text-[11px] text-slate-600 flex items-center justify-between">
+                  <span>Sesuai spesimen resmi Gambar 2 & 3 Peraturan Rektor No. 3/2023, <strong>Surat Tugas tidak mencantumkan klausul tembusan</strong>.</span>
+                  <span className="text-[10px] text-slate-500 font-semibold bg-white px-2 py-0.5 rounded border border-slate-300">Otomatis Tanpa Tembusan</span>
+                </div>
+              )}
 
               {/* Unggah Dokumen Lampiran Resmi PDF */}
               <div>
@@ -3034,166 +3973,1701 @@ export const CreateLetterModal = ({
                     id="siloka-create-letter-a4-preview"
                     data-paper-size={currentPaperInfo.code}
                     data-template-id={selectedTemplateId}
-                    className={`printable-document bg-white w-full max-w-[210mm] p-8 sm:p-12 shadow-2xl border border-slate-300 rounded-xs text-black font-serif text-[11.5px] leading-relaxed flex flex-col justify-between ${
+                    className={`printable-document bg-white w-full max-w-[210mm] p-8 sm:p-12 border border-black rounded-none shadow-none text-black font-serif text-[11.5px] leading-relaxed flex flex-col justify-between print:border-none print:shadow-none ${
+                      isTelaahStaf ? 'pasal47-without-kop' : 'pasal47-with-kop'
+                    } ${
                       currentPaperInfo.isF4 ? 'f4-sheet min-h-[330mm]' : 'a4-sheet min-h-[297mm]'
                     }`}
                     style={{ minHeight: currentPaperInfo.height }}
                   >
                     {/* BAGIAN ATAS DOKUMEN */}
                     <div>
-                      {/* Kop Surat Resmi Universitas Siliwangi */}
-                      <div className="mb-4 pb-0 text-black font-serif">
-                        <div className="flex items-center gap-3 sm:gap-4">
-                          <div className="w-20 h-20 sm:w-[88px] sm:h-[88px] shrink-0 flex items-center justify-center select-none protected-asset">
-                            <img
-                              src="/unsil-logo.png"
-                              alt="Logo Resmi Universitas Siliwangi"
-                              className="w-full h-full object-contain select-none pointer-events-none protected-asset"
-                              draggable="false"
-                            />
+                      {/* Kop Surat Resmi Universitas Siliwangi (Sesuai Gambar 3: Disembunyikan untuk Telaah Staf) */}
+                      {!isTelaahStaf && (
+                        <KopSuratUnsil
+                          unit={activeUnitObj || currentUser}
+                          hideUnit={selectedTemplateId === 'surat-dinas' || isSuratTugas}
+                          forceUniversityHeader={selectedTemplateId === 'surat-dinas' || isSuratTugas}
+                        />
+                      )}
+
+                      {/* Header Tabel Naskah Standar atau Format Khusus Sesuai Spesimen Resmi UNSIL */}
+                      {isNotaDinas ? (
+                        /* ========================================================================= */
+                        /* FORMAT NOTA DINAS (SESUAI IMAGE 1 / CONTOH 06 PERATURAN REKTOR NO. 3/2023)*/
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul Nota Dinas (Tanpa Garis Bawah, Nomor Tanpa Titik Dua) */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              NOTA DINAS
+                            </h2>
+                            <p className="font-serif text-xs text-black mt-0.5">
+                              Nomor {previewNomorSurat || '............/............/............/............'}
+                            </p>
                           </div>
 
-                          <div className="flex-1 text-center font-serif leading-tight pr-2">
-                            <p className="text-[11px] sm:text-[13px] font-bold uppercase tracking-normal text-black leading-snug">
-                              {kopConfig.kementerianText}
-                            </p>
-                            <h2 className="text-[12.5px] sm:text-[14.5px] font-bold uppercase tracking-normal text-black mt-0.5 leading-snug">
-                              {kopConfig.universitasText}
-                            </h2>
+                          {/* Header Memo Yth / Dari / Hal (Sesuai Gambar 1: Tanpa Border Kotak/Garis) */}
+                          <div className="my-4 font-serif text-[11.5px] space-y-1 text-black">
+                            <div className="flex items-start">
+                              <span className="w-16 shrink-0 font-normal">Yth.</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tujuan || <span className="text-slate-400 select-none">........................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-16 shrink-0 font-normal">Dari</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {pengirim || <span className="text-slate-400 select-none">........................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-16 shrink-0 font-normal">Hal</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {perihal || <span className="text-slate-400 select-none">........................................................</span>}
+                              </span>
+                            </div>
+                          </div>
 
-                            {kopConfig.unitText && (
-                              <h3 className="text-[13px] sm:text-[15px] font-black uppercase tracking-normal text-black mt-0.5 leading-snug font-serif">
-                                {kopConfig.unitText}
-                              </h3>
+                          {/* Batang Tubuh Isi Nota Dinas */}
+                          <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black space-y-3.5">
+                            {!kalimatPembuka && !isiPokok && !kalimatPenutup ? (
+                              /* Tampilan Spesimen Blangko Resmi Saat Form Masih Kosong Sesuai Gambar 1 */
+                              <div className="space-y-3 text-slate-400 font-serif select-none">
+                                <div className="space-y-1">
+                                  <p className="leading-relaxed">
+                                    Kalimat pembuka <span className="tracking-widest">...........................................................................................................</span>
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ................................................................................................................................
+                                  </p>
+                                </div>
+                                <div className="space-y-1 my-2">
+                                  <p className="leading-relaxed">
+                                    Isi Pokok <span className="tracking-widest">...................................................................................................................</span>
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ................................................................................................................................
+                                  </p>
+                                </div>
+                                <div className="space-y-1">
+                                  <p className="leading-relaxed">
+                                    Kalimat penutup <span className="tracking-widest">...........................................................................................................</span>
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ................................................................................................................................
+                                  </p>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                {kalimatPembuka && (
+                                  <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPembuka}</p>
+                                )}
+                                {isiPokok && (
+                                  <div className="space-y-1 leading-relaxed">
+                                    {isiPokok.split('\n').map((line, idx) => {
+                                      const trimmed = line.trim();
+                                      if (!trimmed) return <div key={idx} className="h-1.5" />;
+                                      return (
+                                        <p key={idx} className="indent-8 sm:indent-10 leading-relaxed">
+                                          {line}
+                                        </p>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                                {kalimatPenutup && (
+                                  <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPenutup}</p>
+                                )}
+                              </>
                             )}
-
-                            <p className="text-[10px] sm:text-[11.5px] font-medium text-black mt-1 leading-snug">
-                              {kopConfig.alamatText}
+                          </div>
+                        </div>
+                      ) : isSuratPernyataan ? (
+                        /* ========================================================================= */
+                        /* FORMAT SURAT PERNYATAAN (SESUAI IMAGE 2 / CONTOH 14 PERATURAN REKTOR 3/23)*/
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul & Nomor Surat Pernyataan */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              SURAT PERNYATAAN
+                            </h2>
+                            <p className="font-serif text-xs text-black mt-0.5">
+                              Nomor {previewNomorSurat || '........../...../...../.........'}
                             </p>
-                            <p className="text-[9.5px] sm:text-[10.5px] font-medium text-black leading-tight">
-                              Laman: {kopConfig.lamanText} | Pos-el: {kopConfig.emailText}
+                          </div>
+
+                          {/* Pembuka Yang Bertanda Tangan di Bawah Ini */}
+                          <div className="text-xs text-black font-serif space-y-3 leading-relaxed">
+                            <p>
+                              {kalimatPembuka ? (
+                                kalimatPembuka.endsWith(',') ? kalimatPembuka : `${kalimatPembuka},`
+                              ) : (
+                                'Yang bertanda tangan di bawah ini,'
+                              )}
+                            </p>
+
+                            {/* Identitas Diri (Sesuai Image 2: Label Huruf Kecil & Kolon Sejajar) */}
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sperParsed?.nama || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sperParsed?.nip || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sperParsed?.pangkatGolongan || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sperParsed?.jabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">alamat</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sperParsed?.alamat || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Isi Pernyataan Sesuai Image 2 */}
+                            <div className="pt-2 text-justify font-serif leading-relaxed">
+                              {sperParsed?.isiPernyataan ? (
+                                <div className="space-y-2 whitespace-pre-line">
+                                  {sperParsed.isiPernyataan.toLowerCase().startsWith('isi pernyataan') ? (
+                                    <p>{sperParsed.isiPernyataan}</p>
+                                  ) : (
+                                    <p>
+                                      <span className="font-normal">Isi Pernyataan </span>
+                                      {sperParsed.isiPernyataan}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5 text-slate-400 select-none">
+                                  <p className="leading-relaxed">
+                                    Isi Pernyataan <span className="tracking-widest">........................................................................................................................</span>
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Penutup Baku Sesuai Image 2 */}
+                            <p className="pt-2">
+                              {kalimatPenutup || 'Surat pernyataan ini dibuat untuk dipergunakan sebagaimana mestinya.'}
                             </p>
                           </div>
                         </div>
+                      ) : isBeritaAcara ? (
+                        /* ========================================================================= */
+                        /* FORMAT BERITA ACARA (SESUAI CONTOH 12 PERATURAN REKTOR NO. 3/2023)        */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul & Nomor Berita Acara */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              BERITA ACARA
+                            </h2>
+                            <p className="font-serif text-xs text-black mt-0.5">
+                              Nomor {previewNomorSurat || '........../...../...../.........'}
+                            </p>
+                          </div>
 
-                        <div className="mt-2 border-b-2 border-black" />
-                        <div className="mt-[1.5px] border-b border-black" />
-                      </div>
+                          {/* Komparisi Para Pihak Sesuai Contoh 12 */}
+                          <div className="text-xs text-justify font-serif text-black space-y-3 leading-relaxed">
+                            <p>
+                              {kalimatPembuka || (
+                                <>
+                                  Pada hari ini, <span className="font-semibold">....................</span>, tanggal{' '}
+                                  <span className="font-semibold">....................</span>, bulan{' '}
+                                  <span className="font-semibold">....................</span>, tahun{' '}
+                                  <span className="font-semibold">....................</span>, kami masing-masing:
+                                </>
+                              )}
+                            </p>
 
-                      {/* Header Tabel Naskah Standar atau Format Khusus */}
-                      {selectedTemplateId === 'nota-dinas' ? (
-                        <div className="mb-4 text-center">
-                          <h3 className="text-base font-bold uppercase tracking-wider text-black underline">
-                            NOTA DINAS
-                          </h3>
-                          <p className="text-xs font-mono font-bold mt-1 text-slate-800">
-                            Nomor: {previewNomorSurat}
+                            <div className="space-y-2">
+                              <div className="flex items-start gap-2">
+                                <span className="shrink-0 font-normal">1.</span>
+                                <p className="flex-1 leading-relaxed">
+                                  {baParsed?.pihak1 ? (
+                                    baParsed.pihak1.toLowerCase().includes('pihak pertama') ? (
+                                      baParsed.pihak1
+                                    ) : (
+                                      <>
+                                        {baParsed.pihak1}, selanjutnya disebut <span className="font-bold">Pihak Pertama</span>, dan
+                                      </>
+                                    )
+                                  ) : (
+                                    <span className="text-slate-400 select-none">
+                                      ..................................................................................................................................................................................
+                                      <br />
+                                      selanjutnya disebut Pihak Pertama, dan
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                              <div className="flex items-start gap-2">
+                                <span className="shrink-0 font-normal">2.</span>
+                                <p className="flex-1 leading-relaxed">
+                                  {baParsed?.pihak2 ? (
+                                    baParsed.pihak2.toLowerCase().includes('pihak kedua') ? (
+                                      baParsed.pihak2
+                                    ) : (
+                                      <>
+                                        {baParsed.pihak2}, selanjutnya disebut <span className="font-bold">Pihak Kedua</span>,
+                                      </>
+                                    )
+                                  ) : (
+                                    <span className="text-slate-400 select-none">
+                                      ..................................................................................................................................................................................
+                                      <br />
+                                      selanjutnya disebut Pihak Kedua,
+                                    </span>
+                                  )}
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Uraian Kegiatan */}
+                            <div>
+                              <p>
+                                telah melaksanakan{' '}
+                                {baParsed?.kegiatanList && baParsed.kegiatanList.length > 0
+                                  ? ''
+                                  : '..................................................................................................................................................................................................................................................................................................................................................................................................'}
+                              </p>
+                              {baParsed?.kegiatanList && baParsed.kegiatanList.length > 0 && (
+                                <div className="pl-6 space-y-1 pt-1">
+                                  {baParsed.kegiatanList.map((item, idx) => (
+                                    <div key={idx} className="flex items-start gap-2">
+                                      <span className="shrink-0 font-normal">{idx + 1}.</span>
+                                      <p className="leading-relaxed">{item}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Dasar & Jumlah Rangkap Sesuai Contoh 12 */}
+                            <div className="pt-2 space-y-2">
+                              <p>
+                                Berita acara ini dibuat dengan sesungguhnya berdasarkan{' '}
+                                {baParsed?.dasar ||
+                                  '....................................................................................................................................................................................................................................................................................................................................................'}
+                                .
+                              </p>
+                              <p>
+                                {kalimatPenutup ||
+                                  'Berita acara ini dibuat rangkap dua (2) untuk dipergunakan sebagaimana mestinya.'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isStLembar ? (
+                        /* ========================================================================= */
+                        /* FORMAT SURAT TUGAS - BENTUK LEMBARAN (SESUAI IMAGE 1 / GAMBAR 2 RESMI)    */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul Surat Tugas (Font Normal Serif, Uppercase Sesuai Image 1) */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-normal tracking-wider uppercase text-black">
+                              SURAT TUGAS
+                            </h2>
+                            <p className="font-serif text-[11px] text-black mt-0.5">
+                              Nomor {previewNomorSurat || '......./......../......../.......'}
+                            </p>
+                          </div>
+
+                          {/* Kalimat Pembuka */}
+                          <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            <p>
+                              {kalimatPembuka ? (
+                                kalimatPembuka.endsWith(',') ? kalimatPembuka : `${kalimatPembuka},`
+                              ) : (
+                                <span className="text-slate-400 select-none">
+                                  (Kalimat pembuka) <span className="tracking-widest">.........................................................................................................................</span>
+                                  <br />
+                                  <span className="tracking-widest">....................................................................................................................,</span>
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Identitas Personal Bentuk Lembaran (Sesuai Image 1) */}
+                          <div className="my-5 font-serif text-[11.5px] space-y-1.5 text-black">
+                            <div className="flex items-baseline">
+                              <span className="w-44 sm:w-48 shrink-0">Nama</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="text-black flex-1 font-serif">
+                                {stLembarParsed?.nama || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-44 sm:w-48 shrink-0">NIP</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="text-black flex-1 font-serif">
+                                {stLembarParsed?.nip || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-44 sm:w-48 shrink-0">Pangkat dan golongan</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="text-black flex-1 font-serif">
+                                {stLembarParsed?.pangkatGolongan || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-44 sm:w-48 shrink-0">Jabatan</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="text-black flex-1 font-serif">
+                                {stLembarParsed?.jabatan || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Uraian Tugas, Tanggal, dan Tempat */}
+                          <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            {stLembarParsed?.untukTugas ? (
+                              <p>
+                                {stLembarParsed.untukTugas.toLowerCase().startsWith('untuk')
+                                  ? stLembarParsed.untukTugas
+                                  : `Untuk ${stLembarParsed.untukTugas}`}
+                              </p>
+                            ) : (
+                              <div className="space-y-1 text-slate-400 select-none">
+                                <p className="leading-relaxed">
+                                  Untuk <span className="tracking-widest">.........................................................................</span> tanggal <span className="tracking-widest">..........................</span> di
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ...............................................................................................................................
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ...............................................................................................................................
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Kalimat Penutup Baku Sesuai Spesimen Image 1 */}
+                          <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            <p>
+                              {kalimatPenutup || 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isStKolom ? (
+                        /* ========================================================================= */
+                        /* FORMAT SURAT TUGAS - BENTUK KOLOM (SESUAI IMAGE 2 / GAMBAR 3 RESMI)       */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul Surat Tugas Kolom (Sesuai Image 2: "Nomor: ") */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-normal tracking-wider uppercase text-black">
+                              SURAT TUGAS
+                            </h2>
+                            <p className="font-serif text-[11px] text-black mt-0.5">
+                              Nomor: {previewNomorSurat || '......./......../......../.......'}
+                            </p>
+                          </div>
+
+                          {/* Kalimat Pembuka */}
+                          <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            <p>
+                              {kalimatPembuka ? (
+                                kalimatPembuka.endsWith(',') ? kalimatPembuka : `${kalimatPembuka},`
+                              ) : (
+                                <span className="text-slate-400 select-none">
+                                  (Kalimat pembuka) <span className="tracking-widest">.........................................................................................................................</span>
+                                  <br />
+                                  <span className="tracking-widest">....................................................................................................................,</span>
+                                </span>
+                              )}
+                            </p>
+                          </div>
+
+                          {/* Tabel Kolom Bergaris Tegas (Sesuai Image 2) */}
+                          <div className="my-4 overflow-x-auto font-serif text-black">
+                            <table className="w-full border-collapse border border-black text-[11px]">
+                              <thead>
+                                <tr className="border-b border-black font-normal text-black text-center">
+                                  <th className="border-r border-black p-2 w-12 text-center font-normal">No.</th>
+                                  <th className="border-r border-black p-2 text-center font-normal">Nama, NIP, Pangkat dan Golongan</th>
+                                  <th className="p-2 text-center font-normal">Jabatan</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-black text-black">
+                                {stKolomParsed?.pesertaList && stKolomParsed.pesertaList.length > 0 ? (
+                                  stKolomParsed.pesertaList.map((p, idx) => (
+                                    <tr key={idx}>
+                                      <td className="border-r border-black p-2 text-center align-top">{p.no || idx + 1}.</td>
+                                      <td className="border-r border-black p-2 align-top space-y-0.5">
+                                        <p className="font-normal text-black">{p.nama}</p>
+                                        {p.nip && <p className="text-[10.5px] text-black">NIP {p.nip}</p>}
+                                        {p.pangkatGolongan && <p className="text-[10.5px] text-black">{p.pangkatGolongan}</p>}
+                                      </td>
+                                      <td className="p-2 align-top text-black">{p.jabatan}</td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  /* Baris Blangko Kosong Sesuai Gambar 3 / Image 2 */
+                                  <tr>
+                                    <td className="border-r border-black p-4 h-28 text-center align-top">&nbsp;</td>
+                                    <td className="border-r border-black p-4 h-28 align-top">&nbsp;</td>
+                                    <td className="p-4 h-28 align-top">&nbsp;</td>
+                                  </tr>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Uraian Tugas, Tanggal, dan Tempat */}
+                          <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            {stKolomParsed?.untukTugas ? (
+                              <p>
+                                {stKolomParsed.untukTugas.toLowerCase().startsWith('untuk')
+                                  ? stKolomParsed.untukTugas
+                                  : `Untuk ${stKolomParsed.untukTugas}`}
+                              </p>
+                            ) : (
+                              <div className="space-y-1 text-slate-400 select-none">
+                                <p className="leading-relaxed">
+                                  Untuk <span className="tracking-widest">.........................................................................</span> tanggal <span className="tracking-widest">..........................</span> di
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ...............................................................................................................................
+                                </p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Kalimat Penutup Baku */}
+                          <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+                            <p>
+                              {kalimatPenutup || 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isSuratKeterangan ? (
+                        /* ========================================================================= */
+                        /* FORMAT SURAT KETERANGAN (SESUAI CONTOH 15 / GAMBAR 4 SPESIMEN RESMI)     */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul & Nomor Surat Keterangan (Nomor Tanpa Titik Dua) */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              SURAT KETERANGAN
+                            </h2>
+                            <p className="font-serif text-xs text-black mt-0.5">
+                              Nomor {previewNomorSurat || '........../...../...../.........'}
+                            </p>
+                          </div>
+
+                          {/* Isi Surat Keterangan */}
+                          <div className="text-xs text-black font-serif space-y-3 leading-relaxed">
+                            <p>Yang bertanda tangan di bawah ini,</p>
+
+                            {/* Pejabat yang menerangkan */}
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pejabatNama || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pejabatNip || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pejabatPangkatGol || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pejabatJabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                            </div>
+
+                            <p className="pt-2">dengan ini menerangkan bahwa,</p>
+
+                            {/* Pegawai yang diterangkan */}
+                            <div className="space-y-1 text-xs">
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pegawaiNama || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pegawaiNip || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pegawaiPangkatGol || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="flex-1 font-serif text-black">
+                                  {sketParsed?.pegawaiJabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Narasi Isi Keterangan */}
+                            <div className="pt-2 text-justify font-serif leading-relaxed">
+                              {sketParsed?.isiKeterangan ? (
+                                <div className="space-y-2 whitespace-pre-line">
+                                  {sketParsed.isiKeterangan.toLowerCase().startsWith('isi keterangan') ? (
+                                    <p>{sketParsed.isiKeterangan}</p>
+                                  ) : (
+                                    <p>
+                                      <span className="font-normal">Isi Keterangan </span>
+                                      {sketParsed.isiKeterangan}
+                                    </p>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="space-y-1.5 text-slate-400 select-none">
+                                  <p className="leading-relaxed">
+                                    Isi Keterangan <span className="tracking-widest">........................................................................................................................</span>
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                  <p className="leading-relaxed tracking-widest">
+                                    ...................................................................................................................................................
+                                  </p>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Penutup Baku Sesuai Gambar 4 */}
+                            <p className="pt-2">
+                              {kalimatPenutup || 'Surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isSuratPengantar ? (
+                        /* ========================================================================= */
+                        /* FORMAT SURAT PENGANTAR (SESUAI CONTOH 17 / GAMBAR 5 SPESIMEN RESMI)       */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul & Nomor Surat Pengantar (Nomor Tanpa Titik Dua) */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              SURAT PENGANTAR
+                            </h2>
+                            <p className="font-serif text-xs text-black mt-0.5">
+                              Nomor {previewNomorSurat || '........./...../...../.........'}
+                            </p>
+                          </div>
+
+                          {/* Tujuan Surat */}
+                          <div className="text-xs font-serif text-black mb-4 space-y-0.5">
+                            <p>
+                              Yth. {tujuan || <span className="text-slate-400 select-none">...................................................</span>}
+                            </p>
+                            <p className="text-black">
+                              {alamatTujuan || (tujuan ? '' : <span className="text-slate-400 select-none">...................................................</span>)}
+                            </p>
+                          </div>
+
+                          {/* Pembuka */}
+                          <p className="text-xs font-serif text-black mb-2">
+                            {kalimatPembuka || 'Bersama ini kami sampaikan:'}
                           </p>
 
-                          <div className="mt-4 text-left border-y border-black py-2 space-y-1 text-xs">
-                            <div className="grid grid-cols-6 gap-1">
-                              <span className="font-bold col-span-1">Yth.</span>
-                              <span className="col-span-5">: {tujuan}</span>
+                          {/* Tabel 4 Kolom: No. | Jenis Dokumen/Barang | Jumlah | Keterangan */}
+                          <div className="mb-4 overflow-x-auto">
+                            <table className="w-full border-collapse border border-black text-xs font-serif">
+                              <thead>
+                                <tr className="border-b border-black text-center font-normal text-black">
+                                  <th className="border-r border-black p-2 w-10 text-center font-normal">No.</th>
+                                  <th className="border-r border-black p-2 text-center font-normal">Jenis Dokumen/Barang</th>
+                                  <th className="border-r border-black p-2 w-28 text-center font-normal">Jumlah</th>
+                                  <th className="p-2 w-44 text-center font-normal">Keterangan</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-black text-black">
+                                {spengParsed?.items && spengParsed.items.length > 0 ? (
+                                  spengParsed.items.map((item, idx) => (
+                                    <tr key={idx} className="align-top">
+                                      <td className="border-r border-black p-2 text-center">{idx + 1}.</td>
+                                      <td className="border-r border-black p-2 leading-relaxed">{item.jenis}</td>
+                                      <td className="border-r border-black p-2 text-center leading-relaxed">{item.jumlah}</td>
+                                      <td className="p-2 leading-relaxed">{item.keterangan}</td>
+                                    </tr>
+                                  ))
+                                ) : (
+                                  <>
+                                    <tr className="h-16">
+                                      <td className="border-r border-black p-2 text-center text-slate-400"></td>
+                                      <td className="border-r border-black p-2"></td>
+                                      <td className="border-r border-black p-2"></td>
+                                      <td className="p-2"></td>
+                                    </tr>
+                                    <tr className="h-16">
+                                      <td className="border-r border-black p-2 text-center text-slate-400"></td>
+                                      <td className="border-r border-black p-2"></td>
+                                      <td className="border-r border-black p-2"></td>
+                                      <td className="p-2"></td>
+                                    </tr>
+                                  </>
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+
+                          {/* Kalimat Penutup */}
+                          <div className="text-xs font-serif text-black mb-4 text-justify leading-relaxed">
+                            {kalimatPenutup ? (
+                              <p>{kalimatPenutup}</p>
+                            ) : (
+                              <p className="text-slate-400 select-none">
+                                Kalimat penutup <span className="tracking-widest">........................................................................................................................</span>
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ) : isNotula ? (
+                        /* ========================================================================= */
+                        /* FORMAT NOTULA (SESUAI CONTOH 19 / GAMBAR 1 SPESIMEN RESMI)                */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul Notula (Kapital Bold Tanpa Garis Bawah, Tanpa Nomor) */}
+                          <div className="naskah-judul-block text-center my-4 font-serif text-black">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              NOTULA
+                            </h2>
+                          </div>
+
+                          {/* Metadata Rapat (Titik Dua Sejajar Tanpa Garis Pembatas Sesuai Gambar 1) */}
+                          <div className="text-xs font-serif text-black space-y-1.5 mb-4">
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Nama rapat</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.namaRapat || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
                             </div>
-                            <div className="grid grid-cols-6 gap-1">
-                              <span className="font-bold col-span-1">Dari</span>
-                              <span className="col-span-5">: {pengirim}</span>
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Hari, tanggal</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.hariTanggal || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
                             </div>
-                            <div className="grid grid-cols-6 gap-1">
-                              <span className="font-bold col-span-1">Hal</span>
-                              <span className="col-span-5 font-bold">: {perihal}</span>
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Pukul</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.pukul || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
                             </div>
-                            <div className="grid grid-cols-6 gap-1">
-                              <span className="font-bold col-span-1">Tanggal</span>
-                              <span className="col-span-5">: {formattedDateA4}</span>
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Tempat</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.tempat || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
+                            </div>
+
+                            {/* Susunan Acara */}
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Susunan acara</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <div className="flex-1 font-serif text-black space-y-0.5">
+                                {notulaParsed?.susunanAcara && notulaParsed.susunanAcara.length > 0 ? (
+                                  notulaParsed.susunanAcara.map((acara, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                      <span className="w-4">{idx + 1}.</span>
+                                      <span>{acara}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-slate-400 select-none space-y-0.5">
+                                    <p>1. .....................................................................................</p>
+                                    <p className="pl-4">2. dan seterusnya.</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Pemimpin, Notulis, Peserta Rapat */}
+                          <div className="text-xs font-serif text-black space-y-1.5 my-4">
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Pemimpin rapat</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.pemimpinRapat || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Pencatat/notulis</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {notulaParsed?.notulis || <span className="text-slate-400 select-none">...........................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-36 sm:w-40 shrink-0 font-normal">Peserta rapat</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <div className="flex-1 font-serif text-black space-y-0.5">
+                                {notulaParsed?.pesertaRapat && notulaParsed.pesertaRapat.length > 0 ? (
+                                  notulaParsed.pesertaRapat.map((peserta, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                      <span className="w-4">{idx + 1}.</span>
+                                      <span>{peserta}</span>
+                                    </div>
+                                  ))
+                                ) : (
+                                  <div className="text-slate-400 select-none space-y-0.5">
+                                    <p>1. .....................................................................................</p>
+                                    <p className="pl-4">2. dan seterusnya.</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Substansi Rapat: Persoalan, Tanggapan, Simpulan */}
+                          <div className="text-xs font-serif text-black space-y-2.5 my-4 text-justify leading-relaxed">
+                            <div className="flex items-start">
+                              <span className="w-48 sm:w-52 shrink-0 font-normal">1. Persoalan yang dibahas</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <div className="flex-1 font-serif text-black">
+                                {notulaParsed?.persoalanDibahas || (
+                                  <span className="text-slate-400 select-none">...................................................................................................................</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-48 sm:w-52 shrink-0 font-normal">2. Tanggapan peserta rapat</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <div className="flex-1 font-serif text-black">
+                                {notulaParsed?.tanggapanPeserta || (
+                                  <span className="text-slate-400 select-none">...................................................................................................................</span>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-start">
+                              <span className="w-48 sm:w-52 shrink-0 font-normal">3. Simpulan</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <div className="flex-1 font-serif text-black">
+                                {notulaParsed?.simpulan || (
+                                  <span className="text-slate-400 select-none">...................................................................................................................</span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isLaporan ? (
+                        /* ========================================================================= */
+                        /* FORMAT LAPORAN (SESUAI CONTOH 20 / GAMBAR 2 SPESIMEN RESMI)               */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Judul Laporan (LAPORAN / TENTANG / Titik-titik judul, Tanpa Nomor) */}
+                          <div className="naskah-judul-block text-center font-serif text-black my-4 space-y-0.5">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              LAPORAN
+                            </h2>
+                            <h3 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-black">
+                              TENTANG
+                            </h3>
+                            <div className="pt-1 max-w-xl mx-auto">
+                              {lapParsed?.tentang ? (
+                                <p className="text-xs sm:text-sm font-normal uppercase tracking-wide leading-relaxed">
+                                  {lapParsed.tentang}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-slate-400 select-none tracking-widest">
+                                  ........................................................................................................
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Sistematika Laporan A-D Sesuai Gambar 2 */}
+                          <div className="text-xs font-serif text-black space-y-3.5 text-justify leading-relaxed my-5">
+                            {/* A. Pendahuluan */}
+                            <div className="space-y-1.5">
+                              <p className="font-normal text-black">A. Pendahuluan</p>
+                              <div className="pl-6 space-y-1.5">
+                                <div>
+                                  <p className="font-normal text-black">1. Latar Belakang</p>
+                                  {lapParsed?.latarBelakang ? (
+                                    <p className="pl-4 mt-0.5 whitespace-pre-line">{lapParsed.latarBelakang}</p>
+                                  ) : (
+                                    <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-normal text-black">2. Dasar</p>
+                                  {lapParsed?.dasar ? (
+                                    <p className="pl-4 mt-0.5 whitespace-pre-line">{lapParsed.dasar}</p>
+                                  ) : (
+                                    <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+                                  )}
+                                </div>
+                                <div>
+                                  <p className="font-normal text-black">3. Ruang Lingkup</p>
+                                  {lapParsed?.ruangLingkup ? (
+                                    <p className="pl-4 mt-0.5 whitespace-pre-line">{lapParsed.ruangLingkup}</p>
+                                  ) : (
+                                    <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* B. Kegiatan yang Dilaksanakan */}
+                            <div className="space-y-1">
+                              <p className="font-normal text-black">B. Kegiatan yang Dilaksanakan</p>
+                              <div className="pl-6">
+                                {lapParsed?.kegiatanDilaksanakan ? (
+                                  <p className="whitespace-pre-line">{lapParsed.kegiatanDilaksanakan}</p>
+                                ) : (
+                                  <div className="space-y-1 text-slate-400 select-none tracking-widest">
+                                    <p>....................................................................................................................................</p>
+                                    <p>....................................................................................................................................</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* C. Hasil yang Dicapai */}
+                            <div className="space-y-1">
+                              <p className="font-normal text-black">C. Hasil yang Dicapai</p>
+                              <div className="pl-6">
+                                {lapParsed?.hasilDicapai ? (
+                                  <p className="whitespace-pre-line">{lapParsed.hasilDicapai}</p>
+                                ) : (
+                                  <div className="space-y-1 text-slate-400 select-none tracking-widest">
+                                    <p>....................................................................................................................................</p>
+                                    <p>....................................................................................................................................</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* D. Penutup Sesuai Gambar 2 */}
+                            <div className="space-y-1">
+                              <p className="font-normal text-black">D. Penutup</p>
+                              <div className="pl-6">
+                                {lapParsed?.penutup ? (
+                                  <p className="whitespace-pre-line">{lapParsed.penutup}</p>
+                                ) : (
+                                  <p className="text-slate-400 select-none tracking-widest">....................................................................................................................................</p>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isTelaahStaf ? (
+                        /* ========================================================================= */
+                        /* FORMAT TELAAH STAF (SESUAI CONTOH 21 / GAMBAR 3 SPESIMEN RESMI)           */
+                        /* ========================================================================= */
+                        <div className="font-serif text-black">
+                          {/* Header Judul (TELAAH STAF / TENTANG / Titik-titik) */}
+                          <div className="naskah-judul-block text-center font-serif text-black my-4 space-y-0.5">
+                            <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
+                              TELAAH STAF
+                            </h2>
+                            <h3 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-black">
+                              TENTANG
+                            </h3>
+                            <div className="pt-1 max-w-xl mx-auto">
+                              {tsParsed?.tentang ? (
+                                <p className="text-xs sm:text-sm font-normal uppercase tracking-wide leading-relaxed">
+                                  {tsParsed.tentang}
+                                </p>
+                              ) : (
+                                <p className="text-xs text-slate-400 select-none tracking-widest">
+                                  ........................................................................................................
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Metadata Memo: Kepada, Dari, Tanggal, Nomor, Lampiran, Hal (Titik Dua Sejajar) */}
+                          <div className="text-xs font-serif text-black my-5 space-y-1.5 max-w-xl">
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Kepada</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.kepada || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Dari</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.dari || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Tanggal</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.tanggal || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Nomor</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.nomor || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Lampiran</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.lampiran || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                            <div className="flex items-baseline">
+                              <span className="w-24 sm:w-28 shrink-0 font-normal">Hal</span>
+                              <span className="w-4 shrink-0 text-center">:</span>
+                              <span className="flex-1 font-serif text-black">
+                                {tsParsed?.hal || <span className="text-slate-400 select-none">................................................................</span>}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Sistematika I s.d. VI */}
+                          <div className="text-xs font-serif text-black space-y-3.5 text-justify leading-relaxed mb-6">
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">I.</span>
+                                <span>Persoalan</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.persoalan || (
+                                  <p className="text-slate-400 select-none">
+                                    Bagian persoalan memuat pernyataan singkat dan jelas tentang persoalan yang akan dipecahkan.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">II.</span>
+                                <span>Pranggapan</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.pranggapan || (
+                                  <p className="text-slate-400 select-none">
+                                    Pranggapan memuat dugaan yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi dan merupakan kemungkinan kejadian di masa mendatang.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">III.</span>
+                                <span>Fakta-fakta yang mempengaruhi</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.faktaMempengaruhi || (
+                                  <p className="text-slate-400 select-none">
+                                    Bagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">IV.</span>
+                                <span>Analisis</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.analisis || (
+                                  <p className="text-slate-400 select-none">
+                                    Bagian ini memuat analisis pengaruh pranggapan dan fakta terhadap persoalan serta akibatnya, hambatan serta keuntungan dan kerugiannya, serta pemecahan atau cara bertindak yang mungkin atau dapat dilakukan.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">V.</span>
+                                <span>Simpulan</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.simpulan || (
+                                  <p className="text-slate-400 select-none">
+                                    Bagian simpulan memuat intisari hasil analisis dan pilihan satu cara bertindak atau jalan keluar sebagai pemecahan persoalan yang dihadapi.
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="space-y-1">
+                              <div className="flex gap-2.5 font-normal text-black">
+                                <span className="w-6 shrink-0">VI.</span>
+                                <span>Saran</span>
+                              </div>
+                              <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+                                {tsParsed?.saran || (
+                                  <p className="text-slate-400 select-none">
+                                    Bagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang dihadapi.
+                                  </p>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className="grid grid-cols-2 gap-4 mb-4 text-xs">
-                          <div className="space-y-1">
-                            <div className="flex gap-2">
-                              <span className="w-16 font-semibold">Nomor</span>
-                              <span className="font-mono font-bold">: {previewNomorSurat}</span>
+                        /* FORMAT SURAT DINAS RESMI (SESUAI GAMBAR SPESIMEN PERATURAN REKTOR UNSIL NO. 3/2023) */
+                        <div className="my-3 font-serif text-[11px] text-black">
+                          {/* Baris Nomor, Lampiran, Hal di Kiri dan Tanggal di Kanan (Sejajar Baris Nomor) */}
+                          <div className="flex items-start justify-between">
+                            <div className="space-y-0.5">
+                              <div className="flex items-baseline">
+                                <span className="w-20 font-normal shrink-0">Nomor</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="font-serif text-black">{previewNomorSurat}</span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-20 font-normal shrink-0">Lampiran</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="font-serif text-black">{lampiran}</span>
+                              </div>
+                              <div className="flex items-baseline">
+                                <span className="w-20 font-normal shrink-0">Hal</span>
+                                <span className="w-4 shrink-0 text-center">:</span>
+                                <span className="font-serif text-black">
+                                  {perihal || (
+                                    <span className="text-slate-400 font-serif tracking-widest select-none">
+                                      ...................................................
+                                    </span>
+                                  )}
+                                </span>
+                              </div>
                             </div>
-                            <div className="flex gap-2">
-                              <span className="w-16 font-semibold">Sifat</span>
-                              <span>: {sifatSurat} ({tingkatKeamanan === 'B' ? 'Biasa' : tingkatKeamanan === 'R' ? 'Rahasia' : 'Sangat Rahasia'})</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="w-16 font-semibold">Lampiran</span>
-                              <span>: {lampiran}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <span className="w-16 font-semibold">Hal</span>
-                              <span className="font-bold leading-tight">: {perihal}</span>
+
+                            <div className="text-right font-serif text-[11px] text-black pt-0.5 shrink-0 pl-4">
+                              <p>{formattedDateA4}</p>
                             </div>
                           </div>
 
-                          <div className="text-right space-y-1">
-                            <p>{kopConfig.kotaText}, {formattedDateA4}</p>
-                            <div className="mt-4 text-left inline-block">
-                              <p className="font-semibold">Yth. {tujuan}</p>
-                              <p>{alamatTujuan}</p>
-                            </div>
+                          {/* Tujuan Surat (Yth.) Terletak di Sisi Kiri di Bawah Hal Sesuai Spesimen Resmi */}
+                          <div className="mt-5 text-left font-serif text-[11.5px] leading-snug text-black">
+                            <p className="font-normal text-black">
+                              Yth. {tujuan || (
+                                <span className="text-slate-400 font-serif tracking-widest select-none">
+                                  ...................................................
+                                </span>
+                              )}
+                            </p>
+                            {alamatTujuan ? (
+                              <p className="text-black">{alamatTujuan}</p>
+                            ) : !tujuan ? (
+                              <p className="text-slate-400 font-serif tracking-widest select-none">
+                                ...................................................
+                              </p>
+                            ) : null}
                           </div>
                         </div>
                       )}
 
-                      {/* Batang Tubuh Isi Naskah Dinas */}
-                      <div className="mt-4 space-y-3 text-justify text-[11.5px] leading-relaxed">
-                        <p>{kalimatPembuka}</p>
-                        <div className="whitespace-pre-line pl-2">{isiPokok}</div>
-                        <p>{kalimatPenutup}</p>
-                      </div>
-                    </div>
-
-                    {/* BAGIAN BAWAH DOKUMEN: PENANDATANGAN & TEMBUSAN */}
-                    <div className="mt-6 pt-4">
-                      <div className="flex justify-between items-end">
-                        {/* Tembusan */}
-                        <div className="text-[10px] space-y-0.5 text-slate-700 max-w-xs">
-                          {tembusanList.length > 0 && (
-                            <>
-                              <p className="font-bold underline text-black">Tembusan Yth:</p>
-                              {tembusanList.map((t, idx) => (
-                                <p key={idx}>{t}</p>
-                              ))}
-                            </>
-                          )}
-                        </div>
-
-                        {/* Pejabat Penandatangan Resmi */}
-                        <div className="text-center min-w-[220mm] max-w-xs ml-auto">
-                          <p className="font-bold text-black">{namaJabatanSigner || `Pimpinan ${activeUnitObj.nama_unit}`}</p>
-                          {tteVerified ? (
-                            <div className="my-2 p-2 rounded border border-emerald-500/80 bg-emerald-50/50 flex items-center justify-center gap-2">
-                              <QrCode className="w-10 h-10 text-emerald-800" />
-                              <div className="text-left text-[9px] text-emerald-950 font-sans leading-tight">
-                                <p className="font-bold">Ditandatangani secara elektronik oleh:</p>
-                                <p className="font-semibold">{namaPejabatSigner || 'Pejabat Struktural'}</p>
-                                <p className="text-[8px] text-emerald-800">Balai Sertifikasi Elektronik (BSrE BSSN)</p>
+                      {/* Batang Tubuh Isi Naskah Dinas (Hanya untuk Surat Dinas / Naskah Standar Non-Khusus) */}
+                      {!isSuratTugas && !isNotaDinas && !isSuratPernyataan && !isBeritaAcara && !isSuratKeterangan && !isSuratPengantar && !isNotula && !isLaporan && !isTelaahStaf && (
+                        <div className="mt-5 space-y-3.5 text-justify text-[11.5px] leading-relaxed font-serif text-black">
+                          {!kalimatPembuka && !isiPokok && !kalimatPenutup ? (
+                            /* Tampilan Spesimen Blangko Resmi (Peraturan Rektor No. 3/2023 Gambar 5) Saat Form Masih Kosong */
+                            <div className="space-y-3 text-slate-400 font-serif select-none">
+                              <div className="space-y-1">
+                                <p className="leading-relaxed">
+                                  Kalimat pembuka <span className="tracking-widest">...........................................................................................................</span>
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ................................................................................................................................
+                                </p>
+                              </div>
+                              <div className="space-y-1 my-2">
+                                <p className="leading-relaxed">
+                                  Isi surat <span className="tracking-widest">...................................................................................................................</span>
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ................................................................................................................................
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ................................................................................................................................
+                                </p>
+                              </div>
+                              <div className="space-y-1">
+                                <p className="leading-relaxed">
+                                  Kalimat penutup <span className="tracking-widest">...........................................................................................................</span>
+                                </p>
+                                <p className="leading-relaxed tracking-widest">
+                                  ................................................................................................................................
+                                </p>
                               </div>
                             </div>
                           ) : (
-                            <div className="h-16 flex items-center justify-center text-[10px] text-slate-400 italic">
-                              [Menunggu Pembubuhan TTE]
-                            </div>
-                          )}
-                          <p className="font-bold text-black underline">
-                            {namaPejabatSigner ? `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}` : '(Nama Pejabat Penandatangan)'}
-                          </p>
-                          <p className="font-mono text-[10.5px] text-slate-800">
-                            {nipSigner ? `NIP ${nipSigner}` : 'NIP. ....................'}
-                          </p>
-                        </div>
-                      </div>
+                            <>
+                              {kalimatPembuka && (
+                                <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPembuka}</p>
+                              )}
+                              {isiPokok && (
+                                <div className="font-serif text-[11.5px] leading-relaxed text-justify space-y-1">
+                                  {isiPokok.split('\n').map((line, idx) => {
+                                    const trimmed = line.trim();
+                                    if (!trimmed) {
+                                      return <div key={idx} className="h-1.5" />;
+                                    }
 
-                      {/* Footer Catatan Kaki */}
-                      <div className="mt-3 pt-2 border-t border-slate-100 flex items-center justify-between text-[8px] text-slate-400">
-                        <span>SILOKA UNSIL - Sistem Informasi Layanan Otomasi Kearsipan & Persuratan</span>
-                        <span>Sesuai Standar Tata Naskah Dinas Perpres & Perka ANRI</span>
-                      </div>
+                                    // Deteksi apakah baris rincian memiliki titik dua (contoh: "1. Hari/Tanggal : Senin...")
+                                    const colonMatch = line.match(/^(\s*(?:\d+[\.\)]|[a-zA-Z][\.\)]|[-•*])?\s*[^:\n]{2,35})\s*:\s*(.+)$/);
+                                    if (colonMatch) {
+                                      const [, label, val] = colonMatch;
+                                      return (
+                                        <div key={idx} className="ml-8 sm:ml-10 flex items-baseline">
+                                          <span className="w-28 sm:w-32 shrink-0">{label.trim()}</span>
+                                          <span className="w-4 shrink-0 text-center">:</span>
+                                          <span className="flex-1">{val.trim()}</span>
+                                        </div>
+                                      );
+                                    }
+
+                                    // Deteksi apakah baris berbutir / berangka tanpa titik dua (contoh: "1. Melakukan koordinasi...")
+                                    const isListItem = /^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-•*])\s+/.test(line);
+                                    if (isListItem) {
+                                      return (
+                                        <div key={idx} className="ml-8 sm:ml-10">
+                                          <p className="leading-relaxed">{line.trim()}</p>
+                                        </div>
+                                      );
+                                    }
+
+                                    // Paragraf naratif biasa dengan indentasi awal alinea
+                                    return (
+                                      <p key={idx} className="indent-8 sm:indent-10 leading-relaxed">
+                                        {line}
+                                      </p>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                              {kalimatPenutup && (
+                                <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPenutup}</p>
+                              )}
+                            </>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* BAGIAN BAWAH DOKUMEN: PENANDATANGAN & TEMBUSAN SESUAI SPESIMEN RESMI */}
+                    <div className="mt-8 font-serif text-black">
+                      {isSuratTugas ? (
+                        /* Surat Tugas: Tanpa Tembusan, Tanda Tangan Resmi di Kanan Bawah Sesuai Image 1 & 2 */
+                        <div className="flex justify-end">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs font-normal text-black leading-tight">
+                              {formattedDateA4 || 'Tanggal'}
+                            </p>
+                            <p className="text-xs font-normal text-black leading-tight mt-0.5">
+                              {(() => {
+                                const raw = namaJabatanSigner || 'Rektor';
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[52px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Pejabat Struktural'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI' ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Dosen Pembuat Naskah'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Tanda Tangan Mandiri Dosen</p>
+                                </div>
+                              ) : (
+                                <div className="h-12 flex items-center justify-center text-black/80 italic text-[11px] font-serif">
+                                  tanda tangan dan cap dinas
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="text-xs font-normal text-black">
+                              {namaPejabatSigner ? `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}` : 'Nama Pejabat'}
+                            </p>
+                            <p className="font-serif text-[11px] text-black mt-0.5">
+                              {nipSigner ? `NIP ${nipSigner}` : 'NIP'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isNotaDinas ? (
+                        /* Nota Dinas: Sesuai Gambar 1 (Kanan: Tanggal, Jabatan, Tanda Tangan, Nama, NIP; Kiri: Tembusan) */
+                        <div className="font-serif text-black">
+                          <div className="flex justify-end">
+                            <div className="w-64 sm:w-72 text-left">
+                              <p className="text-xs mb-0.5 font-normal">{formattedDateA4 || 'tanggal'}</p>
+                              <p className="text-xs font-normal">
+                                {(() => {
+                                  const raw = namaJabatanSigner || `Pimpinan ${activeUnitObj?.nama_unit || 'Unit Kerja'}`;
+                                  return raw.endsWith(',') ? raw : `${raw},`;
+                                })()}
+                              </p>
+
+                              <div className="my-2 min-h-[48px] flex flex-col justify-center">
+                                {tteVerified ? (
+                                  <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                    <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                    <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Pejabat Struktural'}</p>
+                                    <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                  </div>
+                                ) : (
+                                  <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                                    Tanda tangan dan cap dinas
+                                  </div>
+                                )}
+                              </div>
+
+                              <p className="font-normal text-xs text-black">
+                                {namaPejabatSigner ? `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}` : 'Nama Pejabat'}
+                              </p>
+                              <p className="text-[10.5px] text-black mt-0.5 font-serif">{nipSigner ? `NIP ${nipSigner}` : 'NIP'}</p>
+                            </div>
+                          </div>
+
+                          {/* Tembusan di Sisi Kiri Bawah Sesuai Gambar 1 */}
+                          <div className="text-left text-[11px] mt-2">
+                            <p className="font-normal text-black">Tembusan:</p>
+                            {tembusanList.length > 0 ? (
+                              <div className="text-left text-[10.5px] text-black max-w-md mt-0.5 font-serif space-y-0.5">
+                                {tembusanList.map((t, idx) => (
+                                  <p key={idx}>{tembusanList.length > 1 ? `${idx + 1}. ${t}` : t}</p>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="text-slate-400 select-none tracking-widest mt-0.5">...............................</p>
+                            )}
+                          </div>
+                        </div>
+                      ) : isSuratPernyataan ? (
+                        /* Surat Pernyataan: Sesuai Image 2 (Kanan: Tanggal, Nama Jabatan, Materai & TTD, Nama Pejabat, NIP) */
+                        <div className="flex justify-end font-serif text-black">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs mb-0.5 font-normal">{formattedDateA4 || 'Tanggal'}</p>
+                            <p className="text-xs mb-1 font-normal">{namaJabatanSigner || 'Yang Menyatakan,'}</p>
+
+                            <div className="my-2 min-h-[52px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{sperParsed?.nama || namaPejabatSigner || 'Nama Pejabat'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                                  <span>Materai, tanda tangan dan</span>
+                                  <span>Cap dinas/jabatan</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">{sperParsed?.nama || namaPejabatSigner || 'Nama Pejabat'}</p>
+                            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                              {sperParsed?.nip || nipSigner ? `NIP ${sperParsed?.nip || nipSigner}` : 'NIP'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isBeritaAcara ? (
+                        /* Berita Acara: Sesuai Contoh 12 (Dibuat di... Pihak Kedua kiri, Pihak Pertama kanan, Mengetahui/Mengesahkan tengah bawah) */
+                        <div className="font-serif text-black">
+                          <div className="flex justify-end mb-2">
+                            <p className="text-xs">Dibuat di {alamatTujuan || 'Tasikmalaya'}</p>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-8 text-center">
+                            {/* Pihak Kedua (Sisi Kiri Sesuai Contoh 12) */}
+                            <div className="flex flex-col justify-between min-h-[130px]">
+                              <p className="font-normal">Pihak Kedua,</p>
+                              <div className="my-2 min-h-[44px] flex items-center justify-center">
+                                <span className="text-[10px] text-black/60 italic font-serif">Tanda tangan</span>
+                              </div>
+                              <div>
+                                <p className="font-normal text-xs text-black">
+                                  {tujuan || 'Nama Pejabat'}
+                                </p>
+                                <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                                  NIP ....................
+                                </p>
+                              </div>
+                            </div>
+
+                            {/* Pihak Pertama (Sisi Kanan Sesuai Contoh 12) */}
+                            <div className="flex flex-col justify-between min-h-[130px]">
+                              <p className="font-normal">Pihak Pertama,</p>
+                              <div className="my-2 min-h-[44px] flex items-center justify-center">
+                                <span className="text-[10px] text-black/60 italic font-serif">Tanda tangan</span>
+                              </div>
+                              <div>
+                                <p className="font-normal text-xs text-black">
+                                  {pengirim || currentUser?.nama_lengkap || 'Nama Pejabat'}
+                                </p>
+                                <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                                  {currentUser?.nip ? `NIP ${currentUser.nip}` : 'NIP ....................'}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Mengetahui / Mengesahkan (Tengah Bawah Sesuai Contoh 12) */}
+                          <div className="mt-7 text-center flex flex-col items-center justify-center">
+                            <p className="font-normal text-xs">Mengetahui/Mengesahkan</p>
+                            <p className="text-xs text-black">{namaJabatanSigner || 'Rektor Universitas Siliwangi'}</p>
+
+                            <div className="my-2 min-h-[48px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight max-w-[200px]">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                                  Tanda tangan dan cap dinas
+                                </div>
+                              )}
+                            </div>
+
+                            <div>
+                              <p className="font-normal text-xs text-black">
+                                {namaPejabatSigner || 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.'}
+                              </p>
+                              <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                                {nipSigner ? `NIP ${nipSigner}` : 'NIP 196708161996031001'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ) : isSuratKeterangan ? (
+                        /* Surat Keterangan: Sesuai Gambar 4 (Kanan Bawah: Tanggal, Nama Pejabat, Tanda Tangan & Cap, Nama, NIP) */
+                        <div className="flex justify-end font-serif text-black">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs mb-0.5 font-normal">{formattedDateA4 || 'Tanggal'}</p>
+                            <p className="text-xs mb-1 font-normal">
+                              {(() => {
+                                const raw = sketParsed?.pejabatJabatan || namaJabatanSigner || 'Rektor Universitas Siliwangi';
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[52px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{sketParsed?.pejabatNama || namaPejabatSigner || 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                                  <span>tanda tangan dan</span>
+                                  <span>cap dinas</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">{sketParsed?.pejabatNama || namaPejabatSigner || 'Nama Pejabat'}</p>
+                            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                              {sketParsed?.pejabatNip || nipSigner ? `NIP ${sketParsed?.pejabatNip || nipSigner}` : 'NIP'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isSuratPengantar ? (
+                        /* Surat Pengantar: Sesuai Gambar 5 (Kiri: Penerima Naskah; Kanan: Pengirim Naskah) */
+                        <div className="flex justify-between items-start gap-8 pt-1 text-black font-serif text-xs">
+                          {/* Kolom Kiri Bawah: Penerima Naskah Sesuai Gambar 5 */}
+                          <div className="w-64 text-left space-y-1">
+                            <p className="text-xs">
+                              Diterima tanggal <span className="text-slate-400 select-none">.........................</span>
+                            </p>
+                            <p className="text-xs">
+                              Jabatan <span className="text-slate-400 select-none">.........................</span>
+                            </p>
+
+                            <div className="my-2 min-h-[48px] flex items-center text-[10px] text-black/60 italic font-serif">
+                              tanda tangan dan cap dinas
+                            </div>
+
+                            <div>
+                              <p className="text-xs text-black">
+                                Nama <span className="text-slate-400 select-none">.........................</span>
+                              </p>
+                              <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                                NIP <span className="text-slate-400 select-none">.........................</span>
+                              </p>
+                            </div>
+                          </div>
+
+                          {/* Kolom Kanan Bawah: Pengirim Naskah Dinas Sesuai Gambar 5 */}
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs mb-0.5 font-normal">{formattedDateA4 || 'Tanggal'}</p>
+                            <p className="text-xs mb-1 font-normal">
+                              {(() => {
+                                const raw = namaJabatanSigner || 'Kepala Biro Umum dan Keuangan';
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[48px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Dr. Nana Sujana, Drs., M.Si.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                                  tanda tangan dan cap dinas
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">{namaPejabatSigner || 'Dr. Nana Sujana, Drs., M.Si.'}</p>
+                            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                              {nipSigner ? `NIP ${nipSigner}` : 'NIP 196808301989031004'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isNotula ? (
+                        /* Notula: Sesuai Gambar 1 (Kanan Bawah: Nama Jabatan, Tanda Tangan, Nama Pejabat, NIP) */
+                        <div className="flex justify-end font-serif text-black">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs mb-1 font-normal">
+                              {(() => {
+                                const raw = notulaParsed?.pemimpinRapat ? 'Pemimpin Rapat' : (namaJabatanSigner || 'Pemimpin Rapat');
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[48px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{notulaParsed?.pemimpinRapat || namaPejabatSigner || 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                                  tanda tangan
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">
+                              {notulaParsed?.pemimpinRapat || namaPejabatSigner || 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.'}
+                            </p>
+                            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                              {nipSigner ? `NIP ${nipSigner}` : 'NIP 196708161996031001'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isLaporan ? (
+                        /* Laporan: Sesuai Gambar 2 (Kanan Bawah: Dibuat di, pada tanggal, Nama jabatan, Tanda Tangan & Cap, Nama, NIP) */
+                        <div className="flex justify-end font-serif text-black">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs">
+                              Dibuat di {alamatTujuan || 'Tasikmalaya'}
+                            </p>
+                            <p className="text-xs mb-1">
+                              pada tanggal {formattedDateA4 || '08 September 2026'}
+                            </p>
+                            <p className="text-xs mb-1 font-normal">
+                              {(() => {
+                                const raw = namaJabatanSigner || 'Nama Jabatan Pembuat Laporan';
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[52px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Dr. Ade Rustiana, Drs., M.Si.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                                  <span>Tanda tangan, cap jabatan atau</span>
+                                  <span>cap dinas</span>
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">{namaPejabatSigner || 'Dr. Ade Rustiana, Drs., M.Si.'}</p>
+                            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                              {nipSigner ? `NIP ${nipSigner}` : 'NIP 196801021992031002'}
+                            </p>
+                          </div>
+                        </div>
+                      ) : isTelaahStaf ? (
+                        /* Telaah Staf: Sesuai Gambar 3 (Kanan Bawah: Nama Jabatan, Tanda Tangan, Nama Lengkap) */
+                        <div className="flex justify-end font-serif text-black">
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs mb-1 font-normal">
+                              {(() => {
+                                const raw = namaJabatanSigner || tsParsed?.dari || 'Kepala Biro Umum dan Keuangan';
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[48px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || tsParsed?.dari || 'Dr. Nana Sujana, Drs., M.Si.'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : (
+                                <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                                  tanda tangan
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="font-normal text-xs text-black">
+                              {namaPejabatSigner || tsParsed?.dari || 'Dr. Nana Sujana, Drs., M.Si.'}
+                            </p>
+                            {nipSigner ? (
+                              <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                                NIP {nipSigner}
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                      ) : (
+                        /* Format Surat Dinas: Tembusan di Sisi Kiri Bawah dan Tanda Tangan di Kanan Bawah */
+                        <div className="flex justify-between items-end gap-6">
+                          {/* Tembusan di Sisi Kiri Bawah (Sejajar Bagian Bawah Tanda Tangan Sesuai Spesimen Resmi) */}
+                          <div className="text-left text-[11px] space-y-0.5 text-black max-w-xs">
+                            {tembusanList.length > 0 ? (
+                              <>
+                                <p className="font-normal text-black">Tembusan:</p>
+                                <div className="space-y-0.5">
+                                  {tembusanList.map((t, idx) => (
+                                    <p key={idx}>
+                                      {tembusanList.length > 1 ? `${idx + 1}. ${t}` : t}
+                                    </p>
+                                  ))}
+                                </div>
+                              </>
+                            ) : (
+                              <p className="text-black font-normal">Tembusan:</p>
+                            )}
+                          </div>
+
+                          {/* Pejabat Penandatangan Resmi di Sisi Kanan Bawah */}
+                          <div className="w-64 sm:w-72 text-left">
+                            <p className="text-xs font-normal text-black leading-tight">
+                              {(() => {
+                                const raw = namaJabatanSigner || `Pimpinan ${activeUnitObj?.nama_unit || 'Unit Kerja'}`;
+                                return raw.endsWith(',') ? raw : `${raw},`;
+                              })()}
+                            </p>
+
+                            <div className="my-2 min-h-[52px] flex items-center justify-center">
+                              {tteVerified ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Pejabat Struktural'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+                                </div>
+                              ) : isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI' ? (
+                                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabatSigner || 'Dosen Pembuat Naskah'}</p>
+                                  <p className="text-[9px] italic text-stone-700 mt-0.5">Tanda Tangan Mandiri Dosen</p>
+                                </div>
+                              ) : (
+                                <div className="h-12 flex items-center justify-center text-black/80 italic text-[11px] font-serif">
+                                  tanda tangan dan cap jabatan
+                                </div>
+                              )}
+                            </div>
+
+                            <p className="text-xs font-normal text-black">
+                              {namaPejabatSigner ? `${namaPejabatSigner}${gelarSigner ? `, ${gelarSigner}` : ''}` : 'Nama Pejabat'}
+                            </p>
+                            <p className="font-serif text-[11px] text-black mt-0.5">
+                              {nipSigner ? `NIP ${nipSigner}` : 'NIP ....................'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </>
@@ -3276,19 +5750,47 @@ export const CreateLetterModal = ({
                 </button>
                 <button
                   type="button"
-                  onClick={(e) => handleSubmit(e, 'DRAFT_MENUNGGU_PARAF')}
-                  disabled={isSaving}
-                  className="flex-2 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2 rounded-lg text-xs font-bold bg-unsil-green-900 hover:bg-unsil-green-950 text-white shadow-md shadow-unsil-green-950/20 transition-all disabled:opacity-75 cursor-pointer"
+                  onClick={(e) =>
+                    handleSubmit(
+                      e,
+                      isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+                        ? 'Disetujui'
+                        : 'DRAFT_MENUNGGU_PARAF'
+                    )
+                  }
+                  disabled={
+                    isSaving ||
+                    (!isMandiriDoc &&
+                      (!currentTypeMeta?.available_signatories ||
+                        currentTypeMeta.available_signatories.length === 0))
+                  }
+                  className="flex-2 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 sm:px-5 py-2 rounded-lg text-xs font-bold bg-unsil-green-900 hover:bg-unsil-green-950 text-white shadow-md shadow-unsil-green-950/20 transition-all disabled:opacity-50 cursor-pointer"
+                  title={
+                    !isMandiriDoc &&
+                    (!currentTypeMeta?.available_signatories ||
+                      currentTypeMeta.available_signatories.length === 0)
+                      ? 'Belum ada pejabat struktural yang terdaftar di sistem untuk naskah ini'
+                      : undefined
+                  }
                 >
                   {isSaving ? (
                     <>
                       <Loader2 className="w-4 h-4 text-unsil-gold-400 animate-spin" />
-                      <span>Mendaftarkan Naskah...</span>
+                      <span>
+                        {isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI'
+                          ? 'Menerbitkan Naskah...'
+                          : 'Mengajukan Draf...'}
+                      </span>
+                    </>
+                  ) : isMandiriDoc && selectedSignatoryRole === 'DOSEN_MANDIRI' ? (
+                    <>
+                      <PenTool className="w-4 h-4 text-unsil-gold-400" />
+                      <span>Terbitkan Naskah (TTD Mandiri)</span>
                     </>
                   ) : (
                     <>
-                      <Plus className="w-4 h-4 text-unsil-gold-400" />
-                      <span>Ajukan Paraf & TTE (Pasal 59)</span>
+                      <SendHorizontal className="w-4 h-4 text-unsil-gold-400" />
+                      <span>Ajukan Paraf & TTE Pimpinan</span>
                     </>
                   )}
                 </button>

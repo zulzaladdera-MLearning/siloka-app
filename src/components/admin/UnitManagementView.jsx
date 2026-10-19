@@ -13,7 +13,11 @@ import {
   X,
   AlertCircle,
   Network,
-  Check
+  Check,
+  UserCheck,
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react';
 import defaultUnitKerjaList from '../../data/unitKerja.json';
 import { OTK_UNSIL_GROUPED_UNITS } from './UnitMutationManager';
@@ -23,7 +27,8 @@ import {
   getDefaultStrukturOrganisasi,
   getStrukturOrganisasiByUnit,
   resolveJabatanScope,
-  getJurusanByUnitCode
+  getJurusanByUnitCode,
+  findPositionOccupant
 } from '../../utils/unitJabatanOptions';
 import {
   getRolesCatalog,
@@ -77,6 +82,7 @@ export const UnitManagementView = ({
   // State Modal Kelola Jurusan / Program Studi
   const [isJurusanModalOpen, setIsJurusanModalOpen] = useState(false);
   const [selectedJurusanUnit, setSelectedJurusanUnit] = useState(null);
+  const [editingJurusanId, setEditingJurusanId] = useState(null);
   const [newJurusanName, setNewJurusanName] = useState('');
   const [newJurusanCode, setNewJurusanCode] = useState('');
   const [jurusanError, setJurusanError] = useState('');
@@ -86,6 +92,7 @@ export const UnitManagementView = ({
   const [selectedStrukturUnit, setSelectedStrukturUnit] = useState(null);
   const [strukturFilterRole, setStrukturFilterRole] = useState('ALL');
   const [strukturFilterScope, setStrukturFilterScope] = useState('ALL');
+  const [strukturFilterOccupancy, setStrukturFilterOccupancy] = useState('ALL'); // 'ALL' | 'FILLED' | 'VACANT'
   const [editingStrukturId, setEditingStrukturId] = useState(null);
   const [strukturForm, setStrukturForm] = useState({
     nama_jabatan: '',
@@ -226,6 +233,66 @@ export const UnitManagementView = ({
     });
   }, [selectedStrukturUnit, selectedUnitJurusanList, strukturFilterScope]);
 
+  // Helper: Mendapatkan akun pejabat aktif yang menduduki posisi jabatan tertentu di unit yang sedang dibuka
+  const getPositionOccupants = useMemo(() => {
+    return (namaJabatan) => {
+      if (!selectedStrukturUnit || !namaJabatan || !Array.isArray(allUsers)) return [];
+      const cleanTarget = String(namaJabatan).trim().toLowerCase();
+      const unitCode = String(selectedStrukturUnit.kode_unit || '').trim().toUpperCase();
+
+      return allUsers.filter((u) => {
+        if (!u || u.is_active === false || u.is_aktif === false || u.status_aktif === false) return false;
+        const uJab = String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase();
+        const uUnit = String(u.unit_kerja_id || u.kode_unit || u.id_unit || '').trim().toUpperCase();
+
+        if (uJab === cleanTarget) {
+          const isInstitutional = /\b(rektor|wakil rektor|ketua senat|ketua spi|ketua dewan penyantun)\b/i.test(cleanTarget);
+          if (isInstitutional) return true;
+          if (unitCode && uUnit) return uUnit === unitCode;
+          return true;
+        }
+
+        // Fleksibilitas padanan gelar Rektor
+        if (
+          (cleanTarget === 'rektor' && uJab.includes('rektor') && !uJab.includes('wakil')) ||
+          (cleanTarget.includes('rektor') && !cleanTarget.includes('wakil') && uJab === 'rektor')
+        ) {
+          return true;
+        }
+
+        return false;
+      });
+    };
+  }, [selectedStrukturUnit, allUsers]);
+
+  // Penghitungan ringkasan okupansi (Terisi vs Lowong) pada lingkup terpilih
+  const occupancyCounts = useMemo(() => {
+    const list = scopeFilteredStrukturList;
+    const filled = list.filter((item) => getPositionOccupants(item.nama_jabatan).length > 0).length;
+    return {
+      total: list.length,
+      filled,
+      vacant: list.length - filled
+    };
+  }, [scopeFilteredStrukturList, getPositionOccupants]);
+
+  // Daftar jabatan final setelah difilter kategori peran dan status okupansi
+  const finalFilteredStrukturList = useMemo(() => {
+    return scopeFilteredStrukturList.filter((item) => {
+      // 1. Filter Kategori Peran
+      const matchRole =
+        strukturFilterRole === 'ALL' || item.kategori_peran === strukturFilterRole;
+      if (!matchRole) return false;
+
+      // 2. Filter Status Okupansi
+      if (strukturFilterOccupancy === 'ALL') return true;
+      const occupants = getPositionOccupants(item.nama_jabatan);
+      if (strukturFilterOccupancy === 'FILLED') return occupants.length > 0;
+      if (strukturFilterOccupancy === 'VACANT') return occupants.length === 0;
+      return true;
+    });
+  }, [scopeFilteredStrukturList, strukturFilterRole, strukturFilterOccupancy, getPositionOccupants]);
+
   // Form State yang sederhana
   const [formData, setFormData] = useState({
     nama_unit: '',
@@ -272,23 +339,68 @@ export const UnitManagementView = ({
     }
   };
 
-  // Data unit kerja diperkaya dengan jumlah pegawai terdaftar
+  // Data unit kerja diperkaya dengan jumlah pegawai terdaftar & struktur organisasi reaktif
   const enrichedUnits = useMemo(() => {
     return units.map((unit) => {
-      const memberCount = allUsers.filter(
-        (u) =>
-          u.unit === unit.nama_unit ||
-          u.kode_unit === unit.kode_unit ||
-          u.unitKerja === unit.nama_unit ||
-          u.unit_kerja_id === unit.kode_unit
-      ).length;
+      const unitCode = String(unit.kode_unit || '').trim().toUpperCase();
+
+      // Pengguna aktif yang bertugas pada unit kerja ini
+      const unitUsers = (allUsers || []).filter((u) => {
+        if (!u || u.is_active === false || u.is_aktif === false || u.status_aktif === false) return false;
+        const uKode = String(u.unit_kerja_id || u.kode_unit || u.id_unit || '').trim().toUpperCase();
+        const uNama = String(u.unit || u.unitKerja || '').trim().toLowerCase();
+        if (uKode && uKode === unitCode) return true;
+        if (unit.nama_unit && uNama === unit.nama_unit.toLowerCase()) return true;
+        if (unit.singkatan && uNama.includes(unit.singkatan.toLowerCase())) return true;
+        return false;
+      });
+      const memberCount = unitUsers.length;
+
+      // Ambil struktur organisasi aktif (kustom tersimpan atau fallback formasi SOTK resmi)
+      const baseStruktur =
+        Array.isArray(unit.struktur_organisasi) && unit.struktur_organisasi.length > 0
+          ? unit.struktur_organisasi
+          : getDefaultStrukturOrganisasi(unit.kode_unit, units);
+
+      // Sinkronisasi otomatis jabatan aktif hasil CRUD Manajemen Pengguna
+      const existingJabatanNames = new Set(
+        baseStruktur.map((item) => String(item.nama_jabatan || '').trim().toLowerCase())
+      );
+      const syncedStruktur = [...baseStruktur];
+      unitUsers.forEach((u) => {
+        const userJab = String(u.jabatan || u.roleLabel || u.role_label || '').trim();
+        if (userJab && !existingJabatanNames.has(userJab.toLowerCase())) {
+          existingJabatanNames.add(userJab.toLowerCase());
+          const isPimpinan =
+            (u.role_slug || u.role || '').toLowerCase().includes('pimpinan') || u.is_pejabat === true;
+          syncedStruktur.push({
+            id: `sotk-auto-${u.id || Math.random().toString(36).slice(2, 6)}`,
+            nama_jabatan: userJab,
+            kategori_peran: isPimpinan ? 'pimpinan' : 'drafter',
+            level_hirarki: isPimpinan ? 1 : 4,
+            jurusan: u.jurusan || 'FAKULTAS'
+          });
+        }
+      });
+
+      // Hitung jumlah formasi jabatan yang terisi oleh pejabat petahana aktif
+      const occupiedStrukturCount = syncedStruktur.filter((item) => {
+        const cleanTarget = String(item.nama_jabatan || '').trim().toLowerCase();
+        return (
+          findPositionOccupant(item.nama_jabatan, allUsers, null, unit.kode_unit) !== null ||
+          unitUsers.some((u) => String(u.jabatan || u.roleLabel || u.role_label || '').trim().toLowerCase() === cleanTarget)
+        );
+      }).length;
 
       const parentObj = units.find((p) => p.kode_unit === unit.parent_kode);
 
       return {
         ...unit,
         parent_name: parentObj ? parentObj.nama_unit : unit.parent_kode || 'Universitas Siliwangi',
-        memberCount
+        memberCount,
+        struktur_organisasi: syncedStruktur,
+        strukturCount: syncedStruktur.length,
+        occupiedStrukturCount
       };
     });
   }, [units, allUsers]);
@@ -452,14 +564,31 @@ export const UnitManagementView = ({
   // Buka Modal Kelola Jurusan
   const handleOpenJurusanModal = (unit) => {
     setSelectedJurusanUnit(unit);
+    setEditingJurusanId(null);
     setNewJurusanName('');
     setNewJurusanCode('');
     setJurusanError('');
     setIsJurusanModalOpen(true);
   };
 
-  // Tambah Jurusan Baru ke Unit Kerja Terpilih
-  const handleAddJurusan = async (e) => {
+  // Mulai Ubah Jurusan Terpilih
+  const handleStartEditJurusan = (jurusan) => {
+    setEditingJurusanId(jurusan.id || jurusan.kode || jurusan.nama);
+    setNewJurusanName(jurusan.nama);
+    setNewJurusanCode(jurusan.kode || '');
+    setJurusanError('');
+  };
+
+  // Batal Ubah Jurusan
+  const handleCancelEditJurusan = () => {
+    setEditingJurusanId(null);
+    setNewJurusanName('');
+    setNewJurusanCode('');
+    setJurusanError('');
+  };
+
+  // Simpan Jurusan (Tambah Baru atau Ubah yang Sedang Diedit)
+  const handleSaveJurusan = async (e) => {
     e.preventDefault();
     setJurusanError('');
     if (!selectedJurusanUnit) return;
@@ -471,10 +600,15 @@ export const UnitManagementView = ({
     }
 
     const currentJurusan = selectedJurusanUnit.jurusan || [];
-    const exists = currentJurusan.some(
-      (j) => j.nama.toLowerCase() === cleanNama.toLowerCase()
-    );
-    if (exists) {
+    const isEditMode = Boolean(editingJurusanId);
+
+    const duplicate = currentJurusan.some((j) => {
+      const isSelf = isEditMode && (j.id === editingJurusanId || j.kode === editingJurusanId || j.nama === editingJurusanId);
+      if (isSelf) return false;
+      return j.nama.toLowerCase() === cleanNama.toLowerCase();
+    });
+
+    if (duplicate) {
       setJurusanError(`Jurusan "${cleanNama}" sudah terdaftar pada ${selectedJurusanUnit.nama_unit}.`);
       return;
     }
@@ -490,16 +624,47 @@ export const UnitManagementView = ({
           .slice(0, 6) || cleanNama.slice(0, 4).toUpperCase();
     }
 
-    const newJurusanItem = {
-      id: `jur-${Date.now()}`,
-      kode: cleanKode,
-      nama: cleanNama
-    };
+    let updatedJurusanList = [];
+    let oldJurusanName = '';
 
-    const updatedJurusanList = [...currentJurusan, newJurusanItem];
+    if (isEditMode) {
+      // Mode Ubah (Update)
+      updatedJurusanList = currentJurusan.map((j) => {
+        if (j.id === editingJurusanId || j.kode === editingJurusanId || j.nama === editingJurusanId) {
+          oldJurusanName = j.nama;
+          return {
+            ...j,
+            nama: cleanNama,
+            kode: cleanKode
+          };
+        }
+        return j;
+      });
+    } else {
+      // Mode Tambah Baru (Create)
+      const newJurusanItem = {
+        id: `jur-${Date.now()}`,
+        kode: cleanKode,
+        nama: cleanNama
+      };
+      updatedJurusanList = [...currentJurusan, newJurusanItem];
+    }
+
+    // Jika sedang mengubah nama jurusan, sinkronkan juga nama jurusan pada jabatan struktur yang terhubung
+    let updatedStruktur = selectedJurusanUnit.struktur_organisasi;
+    if (isEditMode && oldJurusanName && oldJurusanName !== cleanNama && Array.isArray(updatedStruktur)) {
+      updatedStruktur = updatedStruktur.map((item) => {
+        if (item.jurusan === oldJurusanName) {
+          return { ...item, jurusan: cleanNama };
+        }
+        return item;
+      });
+    }
+
     const updatedUnit = {
       ...selectedJurusanUnit,
-      jurusan: updatedJurusanList
+      jurusan: updatedJurusanList,
+      ...(updatedStruktur ? { struktur_organisasi: updatedStruktur } : {})
     };
 
     const updatedUnits = units.map((u) => {
@@ -518,16 +683,25 @@ export const UnitManagementView = ({
     try {
       await updateUnitKerja(
         selectedJurusanUnit.id || selectedJurusanUnit.kode_unit,
-        { jurusan: updatedJurusanList },
+        {
+          jurusan: updatedJurusanList,
+          ...(updatedStruktur ? { struktur_organisasi: updatedStruktur } : {})
+        },
         currentUser
       );
     } catch (err) {
       // Abaikan jika offline, penyimpanan lokal sudah diperbarui
     }
 
+    setEditingJurusanId(null);
     setNewJurusanName('');
     setNewJurusanCode('');
-    showToast?.(`Jurusan "${cleanNama}" berhasil ditambahkan ke ${selectedJurusanUnit.nama_unit}.`, 'success');
+
+    if (isEditMode) {
+      showToast?.(`Jurusan "${cleanNama}" berhasil diperbarui.`, 'success');
+    } else {
+      showToast?.(`Jurusan "${cleanNama}" berhasil ditambahkan ke ${selectedJurusanUnit.nama_unit}.`, 'success');
+    }
   };
 
   // Hapus Jurusan dari Unit Kerja Terpilih
@@ -535,6 +709,10 @@ export const UnitManagementView = ({
     if (!selectedJurusanUnit) return;
     if (!window.confirm(`Hapus jurusan "${jurusanNama}" dari ${selectedJurusanUnit.nama_unit}?`)) {
       return;
+    }
+
+    if (editingJurusanId && (editingJurusanId === jurusanId || editingJurusanId === jurusanNama)) {
+      handleCancelEditJurusan();
     }
 
     const updatedJurusanList = (selectedJurusanUnit.jurusan || []).filter(
@@ -572,14 +750,17 @@ export const UnitManagementView = ({
     showToast?.(`Jurusan "${jurusanNama}" berhasil dihapus.`, 'info');
   };
 
-  // Buka Modal Kelola Struktur Organisasi (Mendukung filter awal berdasarkan Jurusan)
+  // Buka Modal Kelola Struktur Organisasi (Mendukung filter awal berdasarkan Jurusan & Status Okupansi)
   const handleOpenStrukturModal = (unit, initialScope = null) => {
-    // Jika unit sudah memiliki struktur_organisasi (termasuk jika kosong [] karena telah dihapus),
-    // pertahankan apa adanya dan jangan pernah mengembalikan posisi yang sudah dihapus.
+    // Ambil struktur organisasi aktif yang telah disinkronkan dengan data akun Manajemen Pengguna
+    const enriched = enrichedUnits.find(
+      (eu) => String(eu.kode_unit || '').toUpperCase() === String(unit.kode_unit || '').toUpperCase()
+    );
     const initialStruktur =
-      Array.isArray(unit.struktur_organisasi)
+      enriched?.struktur_organisasi ||
+      (Array.isArray(unit.struktur_organisasi) && unit.struktur_organisasi.length > 0
         ? unit.struktur_organisasi
-        : getDefaultStrukturOrganisasi(unit.kode_unit, units);
+        : getDefaultStrukturOrganisasi(unit.kode_unit, units));
 
     setSelectedStrukturUnit({
       ...unit,
@@ -589,6 +770,8 @@ export const UnitManagementView = ({
 
     const targetScope = initialScope || 'ALL';
     setStrukturFilterScope(targetScope);
+    setStrukturFilterOccupancy('ALL');
+    setStrukturFilterRole('ALL');
 
     setStrukturForm({
       nama_jabatan: '',
@@ -596,7 +779,6 @@ export const UnitManagementView = ({
       level_hirarki: 1,
       jurusan: targetScope !== 'ALL' ? targetScope : 'FAKULTAS'
     });
-    setStrukturFilterRole('ALL');
     setStrukturError('');
     setIsStrukturModalOpen(true);
   };
@@ -923,11 +1105,7 @@ export const UnitManagementView = ({
                           title="Kelola Struktur Organisasi & Jabatan Resmi Unit"
                         >
                           <Network className="w-3.5 h-3.5 text-blue-700" />
-                          <span>
-                            {Array.isArray(u.struktur_organisasi) && u.struktur_organisasi.length > 0
-                              ? `${u.struktur_organisasi.length} Jabatan SOTK`
-                              : 'Struktur Organisasi'}
-                          </span>
+                          <span>Struktur Organisasi</span>
                         </button>
                         {(u.tipe_unit === 'FAKULTAS' || u.tipe_unit === 'PASCASARJANA' || (u.jurusan && u.jurusan.length > 0)) && (
                           <button
@@ -1271,83 +1449,161 @@ export const UnitManagementView = ({
                       Belum ada jurusan terdaftar. Silakan tambahkan jurusan pertama di bawah.
                     </div>
                   ) : (
-                    selectedJurusanUnit.jurusan.map((j) => (
-                      <div
-                        key={j.id || j.kode || j.nama}
-                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 border border-slate-200 hover:bg-slate-100/70 transition"
-                      >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <BookOpen className="w-4 h-4 text-unsil-green-800 shrink-0" />
-                          <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-900 block truncate">
-                              {j.nama}
-                            </span>
-                            {j.kode && (
-                              <span className="text-[10px] font-mono font-semibold text-slate-500">
-                                Kode: {j.kode}
+                    selectedJurusanUnit.jurusan.map((j) => {
+                      const isItemEditing =
+                        editingJurusanId &&
+                        (editingJurusanId === j.id ||
+                          editingJurusanId === j.kode ||
+                          editingJurusanId === j.nama);
+
+                      return (
+                        <div
+                          key={j.id || j.kode || j.nama}
+                          className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
+                            isItemEditing
+                              ? 'bg-emerald-50/90 border-emerald-300 ring-2 ring-emerald-600/20'
+                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <BookOpen className="w-4 h-4 text-unsil-green-800 shrink-0" />
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {j.nama}
                               </span>
-                            )}
+                              {j.kode && (
+                                <span className="text-[10px] font-mono font-semibold text-slate-500">
+                                  Kode: {j.kode}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setIsJurusanModalOpen(false);
+                                handleOpenStrukturModal(selectedJurusanUnit, j.nama);
+                              }}
+                              className="px-2 py-1 rounded-lg text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition flex items-center gap-1 cursor-pointer"
+                              title={`Kelola Struktur Jabatan Jurusan ${j.nama}`}
+                            >
+                              <Network className="w-3.5 h-3.5" />
+                              <span className="hidden sm:inline">Struktur Jabatan</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditJurusan(j)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-900 hover:bg-emerald-100 transition cursor-pointer"
+                              title={`Ubah Nama & Kode ${j.nama}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteJurusan(j.id, j.nama)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                              title={`Hapus ${j.nama}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setIsJurusanModalOpen(false);
-                              handleOpenStrukturModal(selectedJurusanUnit, j.nama);
-                            }}
-                            className="px-2 py-1 rounded-lg text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition flex items-center gap-1 cursor-pointer"
-                            title={`Kelola Struktur Jabatan Jurusan ${j.nama}`}
-                          >
-                            <Network className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">Struktur Jabatan</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteJurusan(j.id, j.nama)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Hapus Jurusan"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
 
-              {/* Form Tambah Jurusan Baru */}
-              <form onSubmit={handleAddJurusan} className="pt-3 border-t border-slate-100 space-y-2.5">
-                <div className="text-xs font-bold text-slate-700">Tambah Jurusan Baru</div>
+              {/* Form Tambah / Ubah Jurusan (Sederhana & Mudah Dipahami Orang Awam) */}
+              <form
+                onSubmit={handleSaveJurusan}
+                className={`pt-3.5 pb-2 px-3 rounded-xl border space-y-3 transition ${
+                  editingJurusanId
+                    ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-600/10'
+                    : 'bg-slate-50/80 border-slate-200'
+                }`}
+              >
+                <div className="flex items-center justify-between">
+                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                    {editingJurusanId ? (
+                      <>
+                        <Pencil className="w-3.5 h-3.5 text-unsil-green-800" />
+                        <span>Ubah Data Jurusan / Program Studi</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5 text-unsil-green-800" />
+                        <span>Tambah Jurusan / Program Studi Baru</span>
+                      </>
+                    )}
+                  </div>
+                  {editingJurusanId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditJurusan}
+                      className="text-[11px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
+                    >
+                      Batal Ubah
+                    </button>
+                  )}
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="sm:col-span-2">
+                  <div className="sm:col-span-2 space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 block">
+                      Nama Jurusan / Program Studi <span className="text-rose-500">*</span>
+                    </label>
                     <input
                       type="text"
                       value={newJurusanName}
                       onChange={(e) => setNewJurusanName(e.target.value)}
-                      placeholder="Nama Jurusan (contoh: Informatika)"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                      placeholder="Contoh: Pendidikan Matematika"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
                       required
                     />
                   </div>
-                  <div>
+                  <div className="space-y-1">
+                    <label className="text-[11px] font-semibold text-slate-700 block">
+                      Kode Singkatan <span className="text-slate-400 font-normal">(Opsional)</span>
+                    </label>
                     <input
                       type="text"
                       value={newJurusanCode}
                       onChange={(e) => setNewJurusanCode(e.target.value.toUpperCase())}
-                      placeholder="Kode (opsional)"
-                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-900 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                      placeholder="Contoh: PMTK"
+                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
                     />
                   </div>
                 </div>
-                <button
-                  type="submit"
-                  className="w-full py-2 px-3 rounded-lg bg-unsil-green-900 hover:bg-unsil-green-950 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Tambahkan Jurusan</span>
-                </button>
+
+                <div className="flex items-center gap-2 pt-1">
+                  <button
+                    type="submit"
+                    className="flex-1 py-2 px-3 rounded-lg bg-unsil-green-900 hover:bg-unsil-green-950 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {editingJurusanId ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Simpan Perubahan Jurusan</span>
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Tambahkan Jurusan</span>
+                      </>
+                    )}
+                  </button>
+                  {editingJurusanId && (
+                    <button
+                      type="button"
+                      onClick={handleCancelEditJurusan}
+                      className="py-2 px-3 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition cursor-pointer"
+                    >
+                      Batal
+                    </button>
+                  )}
+                </div>
               </form>
             </div>
 
@@ -1461,7 +1717,7 @@ export const UnitManagementView = ({
                           : 'bg-white text-slate-700 border border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      <span>🏛️ Dekanat / Fakultas</span>
+                      <span>Dekanat / Fakultas</span>
                       <span
                         className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
                           strukturFilterScope === 'FAKULTAS'
@@ -1494,7 +1750,7 @@ export const UnitManagementView = ({
                             : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
                         }`}
                       >
-                        <option value="">🎓 Pilih Jurusan / Prodi...</option>
+                        <option value="">Pilih Jurusan / Prodi...</option>
                         {selectedUnitJurusanList.map((j) => (
                           <option key={j.id || j.kode || j.nama} value={j.nama}>
                             Jurusan {j.nama} ({scopeCounts[j.nama] || 0} Jabatan)
@@ -1544,117 +1800,214 @@ export const UnitManagementView = ({
                 </div>
               )}
 
-              {/* Bar Filter Kategori Peran Dinamis (Terhubung ke Manajemen Peran) */}
-              <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setStrukturFilterRole('ALL')}
-                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                    strukturFilterRole === 'ALL'
-                      ? 'bg-blue-900 text-white shadow-2xs'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                  }`}
-                >
-                  Semua ({scopeFilteredStrukturList.length})
-                </button>
-                {operationalRoles.map((role) => {
-                  const count = scopeFilteredStrukturList.filter(
-                    (s) => s.kategori_peran === role.slug
-                  ).length;
-                  return (
+              {/* Bar Status Keterisian Formasi (Okupansi Real-Time Sinkron Manajemen Pengguna) */}
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/90 space-y-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Status Okupansi Formasi SOTK:</span>
+                  </div>
+                  <div className="flex items-center gap-1">
                     <button
-                      key={role.slug}
                       type="button"
-                      onClick={() => setStrukturFilterRole(role.slug)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
-                        strukturFilterRole === role.slug
+                      onClick={() => setStrukturFilterOccupancy('ALL')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer ${
+                        strukturFilterOccupancy === 'ALL'
                           ? 'bg-blue-900 text-white shadow-2xs'
-                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                          : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      {role.shortLabel} ({count})
+                      Semua Formasi ({occupancyCounts.total})
                     </button>
-                  );
-                })}
+                    <button
+                      type="button"
+                      onClick={() => setStrukturFilterOccupancy('FILLED')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        strukturFilterOccupancy === 'FILLED'
+                          ? 'bg-emerald-700 text-white shadow-2xs'
+                          : 'bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3.5 h-3.5" />
+                      <span>Terisi ({occupancyCounts.filled})</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setStrukturFilterOccupancy('VACANT')}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition cursor-pointer flex items-center gap-1 ${
+                        strukturFilterOccupancy === 'VACANT'
+                          ? 'bg-amber-600 text-white shadow-2xs'
+                          : 'bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100'
+                      }`}
+                    >
+                      <span className="w-2 h-2 rounded-full bg-amber-500 inline-block"></span>
+                      <span>Lowong ({occupancyCounts.vacant})</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Filter Kategori Peran */}
+                <div className="flex items-center gap-1 overflow-x-auto pt-1 border-t border-slate-200/70">
+                  <button
+                    type="button"
+                    onClick={() => setStrukturFilterRole('ALL')}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                      strukturFilterRole === 'ALL'
+                        ? 'bg-blue-900 text-white shadow-2xs'
+                        : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Semua Peran ({scopeFilteredStrukturList.length})
+                  </button>
+                  {operationalRoles.map((role) => {
+                    const count = scopeFilteredStrukturList.filter(
+                      (s) => s.kategori_peran === role.slug
+                    ).length;
+                    return (
+                      <button
+                        key={role.slug}
+                        type="button"
+                        onClick={() => setStrukturFilterRole(role.slug)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition cursor-pointer ${
+                          strukturFilterRole === role.slug
+                            ? 'bg-blue-900 text-white shadow-2xs'
+                            : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {role.shortLabel} ({count})
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              {/* Daftar Posisi Jabatan Aktif */}
-              <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+              {/* Daftar Posisi Jabatan Aktif & Pejabat Petahana */}
+              <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                 {(() => {
-                  const filteredList = scopeFilteredStrukturList.filter(
-                    (item) => strukturFilterRole === 'ALL' || item.kategori_peran === strukturFilterRole
-                  );
-
-                  if (filteredList.length === 0) {
+                  if (finalFilteredStrukturList.length === 0) {
                     return (
-                      <div className="py-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
-                        Tidak ada posisi jabatan pada kategori ini di lingkup terpilih. Silakan tambahkan jabatan baru di formulir bawah.
+                      <div className="py-8 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl space-y-1">
+                        <AlertCircle className="w-5 h-5 mx-auto text-slate-300 mb-1" />
+                        <p className="font-semibold text-slate-600">Tidak ada posisi jabatan pada filter ini.</p>
+                        <p className="text-[11px] text-slate-400">
+                          {strukturFilterOccupancy === 'FILLED'
+                            ? 'Belum ada jabatan yang diisi oleh pejabat aktif di lingkup ini.'
+                            : strukturFilterOccupancy === 'VACANT'
+                            ? 'Seluruh formasi jabatan pada filter ini telah terisi.'
+                            : 'Silakan sesuaikan pilihan filter atau tambahkan jabatan baru.'}
+                        </p>
                       </div>
                     );
                   }
 
-                  return filteredList.map((item) => {
+                  return finalFilteredStrukturList.map((item) => {
                     const itemScope = resolveJabatanScope(item, selectedUnitJurusanList);
+                    const occupants = getPositionOccupants(item.nama_jabatan);
+                    const isFilled = occupants.length > 0;
+
                     return (
                       <div
                         key={item.id}
-                        className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
+                        className={`p-3 rounded-xl border transition ${
                           editingStrukturId === item.id
                             ? 'bg-blue-50/70 border-blue-300 ring-2 ring-blue-500/20'
-                            : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
+                            : isFilled
+                            ? 'bg-white border-slate-200 hover:border-emerald-300 hover:shadow-2xs'
+                            : 'bg-slate-50/70 border-slate-200 hover:border-slate-300'
                         }`}
                       >
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <Briefcase className="w-4 h-4 text-blue-700 shrink-0" />
-                          <div className="min-w-0">
-                            <span className="text-xs font-bold text-slate-900 block truncate">
-                              {item.nama_jabatan}
-                            </span>
-                            <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
-                              <span
-                                className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${getRoleBadgeStyle(
-                                  item.kategori_peran
-                                )}`}
-                              >
-                                {getRoleLabel(item.kategori_peran)}
-                              </span>
-                              {selectedUnitJurusanList.length > 0 && (
-                                <span
-                                  className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${
-                                    itemScope !== 'FAKULTAS'
-                                      ? 'bg-emerald-50 text-unsil-green-900 border-emerald-200'
-                                      : 'bg-blue-50 text-blue-800 border-blue-200'
-                                  }`}
-                                >
-                                  {itemScope !== 'FAKULTAS' ? `🎓 ${itemScope}` : '🏛️ Dekanat'}
-                                </span>
-                              )}
-                              {item.level_hirarki && (
-                                <span className="text-[9.5px] font-medium text-slate-500">
-                                  Level {item.level_hirarki}
-                                </span>
-                              )}
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-start gap-2.5 min-w-0">
+                            <div
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 mt-0.5 ${
+                                isFilled ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-500'
+                              }`}
+                            >
+                              <Briefcase className="w-3.5 h-3.5" />
                             </div>
+                            <div className="min-w-0">
+                              <span className="text-xs font-bold text-slate-900 block truncate">
+                                {item.nama_jabatan}
+                              </span>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <span
+                                  className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${getRoleBadgeStyle(
+                                    item.kategori_peran
+                                  )}`}
+                                >
+                                  {getRoleLabel(item.kategori_peran)}
+                                </span>
+                                {selectedUnitJurusanList.length > 0 && (
+                                  <span
+                                    className={`text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${
+                                      itemScope !== 'FAKULTAS'
+                                        ? 'bg-emerald-50 text-unsil-green-900 border-emerald-200'
+                                        : 'bg-blue-50 text-blue-800 border-blue-200'
+                                    }`}
+                                  >
+                                    {itemScope !== 'FAKULTAS' ? itemScope : 'Dekanat'}
+                                  </span>
+                                )}
+                                {item.level_hirarki && (
+                                  <span className="text-[9.5px] font-medium text-slate-500">
+                                    Level {item.level_hirarki}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-1 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleStartEditStruktur(item)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
+                              title="Ubah Jabatan"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteStrukturItem(item.id, item.nama_jabatan)}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                              title="Hapus Jabatan"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
                           </div>
                         </div>
 
-                        <div className="flex items-center gap-1 shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => handleStartEditStruktur(item)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-blue-700 hover:bg-blue-50 transition cursor-pointer"
-                            title="Ubah Jabatan"
-                          >
-                            <Pencil className="w-3.5 h-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteStrukturItem(item.id, item.nama_jabatan)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                            title="Hapus Jabatan"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                        {/* Indikator Pejabat Petahana Aktif (Hasil CRUD Super Admin di Manajemen Pengguna) */}
+                        <div className="mt-2.5 pt-2 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 text-xs">
+                          {isFilled ? (
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 shrink-0">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                Terisi ({occupants.length})
+                              </span>
+                              <div className="text-[11px] text-slate-800 truncate">
+                                {occupants.map((occ, oIdx) => (
+                                  <span key={occ.id || oIdx} className="mr-2">
+                                    <strong className="font-bold text-slate-950">{occ.name || occ.nama_lengkap}</strong>
+                                    {occ.nip ? (
+                                      <span className="text-slate-500 text-[10px] font-normal"> (NIP: {occ.nip})</span>
+                                    ) : null}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-slate-400">
+                              <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0"></span>
+                              <span className="text-[10.5px] font-medium text-amber-800">
+                                Formasi Lowong / Belum Ada Pejabat Aktif
+                              </span>
+                            </div>
+                          )}
+
+                          <span className="text-[9.5px] text-slate-400 font-medium shrink-0">
+                            {isFilled ? 'Sinkron Manajemen Pengguna' : 'Tersedia di Pendaftaran'}
+                          </span>
                         </div>
                       </div>
                     );
@@ -1708,10 +2061,10 @@ export const UnitManagementView = ({
                         onChange={(e) => setStrukturForm({ ...strukturForm, jurusan: e.target.value })}
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-700/20 focus:border-blue-700 transition cursor-pointer"
                       >
-                        <option value="FAKULTAS">🏛️ Tingkat Dekanat / Fakultas</option>
+                        <option value="FAKULTAS">Tingkat Dekanat / Fakultas</option>
                         {selectedUnitJurusanList.map((j) => (
                           <option key={j.id || j.kode || j.nama} value={j.nama}>
-                            🎓 Jurusan {j.nama}
+                            Jurusan {j.nama}
                           </option>
                         ))}
                       </select>

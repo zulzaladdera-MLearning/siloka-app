@@ -44,7 +44,20 @@ const loadDeletedUsers = () => {
     if (fs.existsSync(deletedUsersFilePath)) {
       const arr = JSON.parse(fs.readFileSync(deletedUsersFilePath, 'utf-8'));
       if (Array.isArray(arr)) {
-        arr.forEach((id) => deletedUserIdentifiers.add(String(id).toLowerCase().trim()));
+        const officialIdentSet = new Set(
+          masterUsersList.flatMap((u) => [
+            String(u.id || '').toLowerCase().trim(),
+            String(u.nip || u.nip_nik || '').toLowerCase().trim(),
+            String(u.email || '').toLowerCase().trim(),
+            String(u.username || '').toLowerCase().trim()
+          ]).filter(Boolean)
+        );
+        arr.forEach((id) => {
+          const clean = String(id).toLowerCase().trim();
+          if (!officialIdentSet.has(clean) && clean !== 'usr-admin-01' && clean !== 'usr-00') {
+            deletedUserIdentifiers.add(clean);
+          }
+        });
       }
     }
   } catch (e) {
@@ -1184,6 +1197,7 @@ export const getAllUsersFromDatabase = async () => {
       (u) =>
         u.id !== 'usr-admin-01' &&
         u.id !== 'usr-00' &&
+        u.id !== 'usr-muw7evv4-1003' &&
         !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA') &&
         !isUserDeleted(u.id) &&
         !isUserDeleted(u.nip) &&

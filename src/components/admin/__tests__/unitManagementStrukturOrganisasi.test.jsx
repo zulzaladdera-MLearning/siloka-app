@@ -230,4 +230,141 @@ describe('UnitManagement - Fitur Edit & Kelola Struktur Organisasi Dinamis', () 
     expect(ifPimpinan[0]).toBe('Ketua Jurusan Informatika');
     expect(ifPimpinan).toContain('Dekan Fakultas Teknik');
   });
+
+  describe('Sinkronisasi Reaktif Struktur Organisasi & Akun Manajemen Pengguna', () => {
+    it('harus mendeteksi pejabat petahana aktif pada formasi SOTK Senat Universitas', async () => {
+      const { findPositionOccupant } = await import('../../../utils/unitJabatanOptions');
+      const senatStruktur = getDefaultStrukturOrganisasi('UN58.SENAT');
+
+      const mockUsers = [
+        {
+          id: 'usr-03',
+          nip: '196901011994031002',
+          name: 'Prof. Dr. Dedi Kusmayadi, S.E., M.Si., Ak., CA.',
+          jabatan: 'Ketua Senat Universitas Siliwangi',
+          unit_kerja_id: 'UN58.SENAT',
+          is_active: true
+        },
+        {
+          id: 'usr-07',
+          nip: '197102021996031003',
+          name: 'Sekretaris Senat UNSIL',
+          jabatan: 'Sekretaris Senat Universitas Siliwangi',
+          unit_kerja_id: 'UN58.SENAT',
+          is_active: true
+        }
+      ];
+
+      // Formasi Ketua Senat harus terisi oleh Prof. Dr. Dedi Kusmayadi
+      const ketuaOccupant = findPositionOccupant('Ketua Senat Universitas Siliwangi', mockUsers, null, 'UN58.SENAT');
+      expect(ketuaOccupant).toBeDefined();
+      expect(ketuaOccupant.id).toBe('usr-03');
+      expect(ketuaOccupant.name).toContain('Dedi Kusmayadi');
+
+      // Formasi Sekretaris Senat harus terisi
+      const sekretarisOccupant = findPositionOccupant('Sekretaris Senat Universitas Siliwangi', mockUsers, null, 'UN58.SENAT');
+      expect(sekretarisOccupant).toBeDefined();
+      expect(sekretarisOccupant.id).toBe('usr-07');
+
+      // Formasi Ketua Komisi I Senat belum ada pejabatnya (lowong)
+      const komisi1Occupant = findPositionOccupant('Ketua Komisi I (Akademik) Senat', mockUsers, null, 'UN58.SENAT');
+      expect(komisi1Occupant).toBeNull();
+    });
+
+    it('harus otomatis menginkorporasikan jabatan kustom baru hasil CRUD Super Admin ke formasi unit', () => {
+      const baseStruktur = getDefaultStrukturOrganisasi('UN58.SENAT');
+      const existingNames = new Set(baseStruktur.map((item) => item.nama_jabatan.toLowerCase()));
+
+      const newUserFromAdmin = {
+        id: 'usr-custom-senat-99',
+        name: 'Dr. Anggota Senat Komisi Etik',
+        jabatan: 'Koordinator Advokasi dan Etik Senat',
+        unit_kerja_id: 'UN58.SENAT',
+        role_slug: 'pimpinan',
+        is_active: true
+      };
+
+      // Pastikan jabatan ini awalnya belum ada di SOTK bawaan
+      expect(existingNames.has(newUserFromAdmin.jabatan.toLowerCase())).toBe(false);
+
+      // Simulasi sinkronisasi reaktif di enrichedUnits
+      const syncedStruktur = [...baseStruktur];
+      if (!existingNames.has(newUserFromAdmin.jabatan.toLowerCase())) {
+        syncedStruktur.push({
+          id: `sotk-auto-${newUserFromAdmin.id}`,
+          nama_jabatan: newUserFromAdmin.jabatan,
+          kategori_peran: 'pimpinan',
+          level_hirarki: 1,
+          jurusan: 'FAKULTAS'
+        });
+      }
+
+      // Jabatan baru harus otomatis hadir di struktur unit
+      expect(syncedStruktur.some((s) => s.nama_jabatan === 'Koordinator Advokasi dan Etik Senat')).toBe(true);
+      expect(syncedStruktur.length).toBe(baseStruktur.length + 1);
+    });
+  });
+
+  describe('CRUD Jurusan / Program Studi Ramah Pengguna', () => {
+    it('dapat mengubah (edit/update) nama dan kode jurusan pada unit kerja', () => {
+      const initialJurusan = [
+        { id: 'jur-1', kode: 'PENMAS', nama: 'Pendidikan Masyarakat' },
+        { id: 'jur-2', kode: 'PBSI', nama: 'Pendidikan Bahasa Indonesia' }
+      ];
+
+      // Simulasi update PBSI -> Pendidikan Bahasa dan Sastra Indonesia
+      const editingId = 'jur-2';
+      const updatedNama = 'Pendidikan Bahasa dan Sastra Indonesia';
+      const updatedKode = 'PBSI';
+
+      const updatedList = initialJurusan.map((j) => {
+        if (j.id === editingId) {
+          return { ...j, nama: updatedNama, kode: updatedKode };
+        }
+        return j;
+      });
+
+      expect(updatedList.find((j) => j.id === 'jur-2').nama).toBe('Pendidikan Bahasa dan Sastra Indonesia');
+      expect(updatedList.length).toBe(2);
+    });
+
+    it('otomatis menyinkronkan nama jurusan pada struktur jabatan saat jurusan diubah', () => {
+      let struktur = [
+        { nama_jabatan: 'Ketua Jurusan Pendidikan Bahasa Indonesia', jurusan: 'Pendidikan Bahasa Indonesia' },
+        { nama_jabatan: 'Sekretaris Jurusan Pendidikan Bahasa Indonesia', jurusan: 'Pendidikan Bahasa Indonesia' },
+        { nama_jabatan: 'Dekan Fakultas', jurusan: 'FAKULTAS' }
+      ];
+
+      const oldName = 'Pendidikan Bahasa Indonesia';
+      const newName = 'Pendidikan Bahasa dan Sastra Indonesia';
+
+      const updatedStruktur = struktur.map((item) => {
+        if (item.jurusan === oldName) {
+          return { ...item, jurusan: newName };
+        }
+        return item;
+      });
+
+      expect(updatedStruktur[0].jurusan).toBe('Pendidikan Bahasa dan Sastra Indonesia');
+      expect(updatedStruktur[1].jurusan).toBe('Pendidikan Bahasa dan Sastra Indonesia');
+      expect(updatedStruktur[2].jurusan).toBe('FAKULTAS'); // Lingkup Dekanat tidak terganggu
+    });
+
+    it('dapat menghapus jurusan dan mencegah duplikasi nama jurusan baru', () => {
+      const jurusanList = [
+        { id: 'jur-1', kode: 'PENMAS', nama: 'Pendidikan Masyarakat' },
+        { id: 'jur-2', kode: 'PBSI', nama: 'Pendidikan Bahasa Indonesia' }
+      ];
+
+      // Cek duplikasi
+      const duplicateAttempt = 'pendidikan masyarakat';
+      const isDuplicate = jurusanList.some((j) => j.nama.toLowerCase() === duplicateAttempt.toLowerCase());
+      expect(isDuplicate).toBe(true);
+
+      // Hapus jur-1
+      const filtered = jurusanList.filter((j) => j.id !== 'jur-1');
+      expect(filtered.length).toBe(1);
+      expect(filtered[0].id).toBe('jur-2');
+    });
+  });
 });

@@ -19,22 +19,16 @@ describe('Otorisasi RBAC Menu & Modul Brankas Digital (Secure Vault)', () => {
   });
 
   it('menyembunyikan (false) Brankas Digital untuk akun role Staf Pelaksana Biasa & Operator Fakultas/Lembaga/UPA', () => {
-    const stafPelaksanaIds = [
-      'usr-02', // Staf Tata Usaha & Protokoler Rektorat
-      'usr-04', // Staf Sekretariat Senat
-      'usr-06', // Staf Administrasi & Audit SPI
-      'usr-08', // Staf Sekretariat Dewan Penyantun
-      'usr-14', // Operator Tata Usaha FKIP
-      'usr-16', // Operator Tata Usaha FEB
-      'usr-20', // Operator Tata Usaha Fakultas Teknik
-      'usr-30', // Staf Administrasi Penelitian LPPM
-      'usr-32', // Staf Administrasi Mutu LPMPP
-      'usr-34', // Operator Pengelola Perpustakaan
-      'usr-36'  // Staf Admin Jaringan & Server TIK
-    ];
+    const stafPelaksanaUsers = [
+      usersData.find((u) => u.id === 'usr-02'),
+      usersData.find((u) => u.id === 'usr-06'),
+      { role: 'OPERATOR_UNIT', roleLabel: 'Operator Tata Usaha FKIP', unit: 'FKIP' },
+      { role: 'OPERATOR_UNIT', roleLabel: 'Operator Tata Usaha Fakultas Teknik', unit: 'FT' },
+      { role: 'OPERATOR_UNIT', roleLabel: 'Operator Pengelola Perpustakaan', unit: 'UPA Perpustakaan' },
+      { role: 'OPERATOR_UNIT', roleLabel: 'Staf Admin Jaringan & Server TIK', unit: 'UPA TIK' }
+    ].filter(Boolean);
 
-    for (const id of stafPelaksanaIds) {
-      const user = usersData.find((u) => u.id === id);
+    for (const user of stafPelaksanaUsers) {
       expect(canAccessBrankasDigital(user)).toBe(false);
     }
 
@@ -50,8 +44,18 @@ describe('Otorisasi RBAC Menu & Modul Brankas Digital (Secure Vault)', () => {
   });
 
   it('menampilkan (true) Brankas Digital untuk Staf Khusus (Arsiparis Pusat/Biro & Pengendali Surat BKU/BAKPK)', () => {
-    const arsiparisBku = usersData.find((u) => u.id === 'usr-12'); // Staf Persuratan & Kearsipan BKU
-    const arsiparisBakpk = usersData.find((u) => u.id === 'usr-10'); // Staf Persuratan & Tata Usaha BAKPK
+    const arsiparisBku = {
+      role: 'STAF_PERSURATAN',
+      roleLabel: 'Staf Persuratan & Kearsipan BKU',
+      jabatan: 'Arsiparis',
+      unit_kerja_id: 'UN58.6'
+    };
+    const arsiparisBakpk = {
+      role: 'STAF_PERSURATAN',
+      roleLabel: 'Staf Persuratan & Tata Usaha BAKPK',
+      jabatan: 'Arsiparis',
+      unit_kerja_id: 'UN58.5'
+    };
     expect(canAccessBrankasDigital(arsiparisBku)).toBe(true);
     expect(canAccessBrankasDigital(arsiparisBakpk)).toBe(true);
 
@@ -66,24 +70,20 @@ describe('Otorisasi RBAC Menu & Modul Brankas Digital (Secure Vault)', () => {
   });
 
   it('menampilkan (true) Brankas Digital untuk Dosen dengan Tugas Tambahan / Pejabat Struktural (Rektor, Warek, Dekan, Kepala LPPM/LPMPP, Ketua SPI)', () => {
-    const pejabatIds = [
-      'usr-dg-01',    // Super Admin (Dede Gunawan, S.Kom., M.Kom.)
-      'usr-01',       // Rektor Universitas Siliwangi
-      'usr-warek-01', // Wakil Rektor Bidang Akademik
-      'usr-warek-02', // Wakil Rektor Bidang Keuangan dan Umum
-      'usr-warek-03', // Wakil Rektor Bidang Kemahasiswaan dan Alumni
-      'usr-05',       // Ketua Satuan Pengawas Internal (SPI)
-      'usr-09',       // Kepala Biro BAKPK
-      'usr-11',       // Kepala Biro Keuangan dan Umum (BKU)
-      'usr-13',       // Dekan FKIP
-      'usr-19',       // Dekan Fakultas Teknik
-      'usr-27',       // Direktur Program Pascasarjana
-      'usr-29',       // Ketua LPPM Universitas Siliwangi
-      'usr-31'        // Ketua LPMPP Universitas Siliwangi
-    ];
+    const pejabatOfficial = [
+      usersData.find((u) => u.id === 'usr-dg-01'),
+      usersData.find((u) => u.id === 'usr-01'),
+      usersData.find((u) => u.id === 'usr-warek-01'),
+      usersData.find((u) => u.id === 'usr-warek-02'),
+      usersData.find((u) => u.id === 'usr-warek-03'),
+      usersData.find((u) => u.id === 'usr-mv6dqseh-1001'),
+      { role: 'PEJABAT', is_pejabat: true, jabatan: 'Ketua Satuan Pengawas Internal (SPI)', unit: 'Satuan Pengawas Internal' },
+      { role: 'PEJABAT', is_pejabat: true, jabatan: 'Kepala Biro Keuangan dan Umum (BKU)', unit: 'Biro Keuangan dan Umum' },
+      { role: 'PEJABAT', is_pejabat: true, jabatan: 'Dekan Fakultas Teknik', unit: 'Fakultas Teknik' },
+      { role: 'PEJABAT', is_pejabat: true, jabatan: 'Ketua LPPM Universitas Siliwangi', unit: 'LPPM' }
+    ].filter(Boolean);
 
-    for (const id of pejabatIds) {
-      const user = usersData.find((u) => u.id === id);
+    for (const user of pejabatOfficial) {
       expect(canAccessBrankasDigital(user)).toBe(true);
     }
   });

@@ -21,6 +21,7 @@ describe('routeNavigation - Pemetaan URL & Sinkronisasi Rute Menu SILOKA', () =>
     expect(getPathFromTab('settings')).toBe('/manajemen-pengguna');
     expect(getPathFromTab('manajemen-role')).toBe('/manajemen-peran');
     expect(getPathFromTab('manajemen-permission')).toBe('/hak-akses');
+    expect(getPathFromTab('manajemen-disposisi')).toBe('/alur-disposisi');
   });
 
   it('harus mengenali tab berdasarkan path URL saat ini', () => {
@@ -35,6 +36,7 @@ describe('routeNavigation - Pemetaan URL & Sinkronisasi Rute Menu SILOKA', () =>
     expect(getTabFromPathname('/manajemen-pengguna')).toBe('manajemen-user');
     expect(getTabFromPathname('/manajemen-peran')).toBe('manajemen-role');
     expect(getTabFromPathname('/hak-akses')).toBe('manajemen-permission');
+    expect(getTabFromPathname('/alur-disposisi')).toBe('manajemen-disposisi');
   });
 
   it('harus menangani alias path lama secara aman', () => {
@@ -42,6 +44,7 @@ describe('routeNavigation - Pemetaan URL & Sinkronisasi Rute Menu SILOKA', () =>
     expect(getTabFromPathname('/settings')).toBe('manajemen-user');
     expect(getTabFromPathname('/manajemen-role')).toBe('manajemen-role');
     expect(getTabFromPathname('/manajemen-permission')).toBe('manajemen-permission');
+    expect(getTabFromPathname('/manajemen-disposisi')).toBe('manajemen-disposisi');
   });
 
   it('harus menormalisasi path dengan trailing slash atau query param', () => {

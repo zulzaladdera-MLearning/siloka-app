@@ -1,4 +1,5 @@
 import React from 'react';
+import { QrCode } from 'lucide-react';
 import { determineKopSurat } from '../../utils/kopSuratHelper';
 
 /**
@@ -7,24 +8,34 @@ import { determineKopSurat } from '../../utils/kopSuratHelper';
  * - Format Tingkat Unit Kerja [Pasal 31 (1, 2, 6)]: Dekan / Dosen / Operator Fakultas / Lembaga / UPA
  *   (nama Fakultas/Lembaga/UPA dimunculkan di baris ketiga dengan tulisan paling tebal)
  * 
- * Format sesuai contoh dokumen:
- * - RATA KANAN (text-right)
- * - Baris Kementerian: Times New Roman 16pt, 2 baris (baris 2 indent)
- * - Baris Universitas/Unit: Times New Roman 14pt Bold
+ * Format persis 1:1 spesimen resmi:
+ * - Logo bulat resmi UNSIL di sisi kiri
+ * - Teks kop terpusat (text-center simetris)
+ * - Baris Kementerian: Times New Roman 16pt Kapital
+ * - Baris Universitas/Unit: Times New Roman 14pt Bold Kapital
  * - Baris Alamat: Times New Roman 12pt
+ * - Garis tebal penutup tunggal 2,5pt melintang penuh
  */
 export const KopSuratUnsil = ({
   compact = false,
   unit = null,
   kodeUnit = null,
-  currentUser = null
+  currentUser = null,
+  hideUnit = false,
+  forceUniversityHeader = false
 }) => {
-  const kopConfig = determineKopSurat(unit || kodeUnit || currentUser);
+  const effectiveUnit = forceUniversityHeader ? 'UN58' : (unit || kodeUnit || currentUser);
+  const kopConfig = determineKopSurat(effectiveUnit);
 
-  // Pecah teks kementerian menjadi 2 baris sesuai format dokumen
-  const kementerianParts = kopConfig.kementerianText.split(', ');
-  const baris1 = kementerianParts[0] ? `${kementerianParts[0]},` : '';
-  const baris2 = kementerianParts.slice(1).join(', ') || 'RISET, DAN TEKNOLOGI';
+  // Pecah teks kementerian secara baku tepat 2 baris sesuai Gambar Spesimen Resmi UNSIL
+  let baris1 = 'KEMENTERIAN PENDIDIKAN, KEBUDAYAAN,';
+  let baris2 = 'RISET, DAN TEKNOLOGI';
+  if (kopConfig.kementerianText && !kopConfig.kementerianText.toUpperCase().includes('RISET')) {
+    baris1 = kopConfig.kementerianText;
+    baris2 = '';
+  }
+
+  const shouldShowUnit = !hideUnit && !forceUniversityHeader && kopConfig.isTingkatUnitKerja && kopConfig.namaUnitBarisTiga;
 
   return (
     <div
@@ -32,60 +43,110 @@ export const KopSuratUnsil = ({
       data-kop-border-distance="4.5cm"
       className={`kop-surat-unsil mb-[1.25em] pb-0 text-black ${compact ? 'scale-95 origin-top' : ''}`}
     >
-      <div className="flex items-start gap-3 sm:gap-4">
-        {/* Logo UNSIL Resmi - di kiri */}
-        <div className="w-20 h-20 sm:w-[94px] sm:h-[94px] shrink-0 flex items-center justify-center select-none protected-asset">
+      <div className="relative flex items-center justify-between min-h-[85px] sm:min-h-[96px]">
+        {/* Logo UNSIL Resmi - di sisi kiri */}
+        <div className="w-20 shrink-0 flex items-center justify-start select-none protected-asset">
           <img
             src="/unsil-logo.png"
             alt="Logo Resmi Universitas Siliwangi"
-            className="w-full h-full object-contain select-none pointer-events-none protected-asset"
+            className="w-16 h-16 sm:w-20 sm:h-20 max-w-[80px] max-h-[80px] object-contain select-none pointer-events-none protected-asset"
             draggable="false"
             onContextMenu={(e) => e.preventDefault()}
           />
         </div>
 
-        {/* Header Teks RATA KANAN Sesuai Peraturan Rektor UNSIL No. 3/2023 (Pasal 30, 31, 43-48 & Bab II):
-            - Baris Kementerian: Times New Roman 16pt (Kapital), 2 baris, baris ke-2 indent
-            - Baris Universitas/Unit: Times New Roman 14pt Bold (Kapital)
-            - Baris Alamat: Times New Roman 12pt */}
-        <div className="flex-1 text-right pr-2 sm:pr-4">
-          {/* Baris 1: Kementerian - 2 baris */}
-          <p className="kop-baris-kementerian uppercase">
+        {/* Header Teks TERPUSAT (Simetris) Sesuai Gambar Spesimen & Peraturan Rektor UNSIL No. 3/2023 */}
+        <div className="flex-1 text-center font-serif px-2">
+          {/* Baris 1: Kementerian - 2 baris seimbang */}
+          <p className="kop-baris-kementerian uppercase whitespace-nowrap">
             {baris1}
-            <br />
-            <span className="indent-8">{baris2}</span>
+            {baris2 && (
+              <>
+                <br />
+                <span className="whitespace-nowrap">{baris2}</span>
+              </>
+            )}
           </p>
           
           {/* Baris 2: Universitas / Unit Kerja - Times New Roman 14pt Bold */}
-          <h2 className="kop-baris-universitas uppercase">
+          <h2 className="kop-baris-universitas uppercase whitespace-nowrap">
             {kopConfig.universitasText}
           </h2>
 
           {/* Baris 3: Nama Unit Kerja (untuk tingkat unit kerja) - Times New Roman 14pt Bold */}
-          {kopConfig.isTingkatUnitKerja && kopConfig.namaUnitBarisTiga && (
-            <h1 className="kop-baris-unit uppercase">
+          {shouldShowUnit && (
+            <h1 className="kop-baris-unit uppercase whitespace-nowrap">
               {kopConfig.namaUnitBarisTiga}
             </h1>
           )}
 
           {/* Baris Alamat & Kontak: Times New Roman 12pt */}
-          <p className="kop-baris-alamat">
+          <p className="kop-baris-alamat whitespace-nowrap">
             {kopConfig.alamatText}
           </p>
-          <p className="kop-baris-alamat">
+          <p className="kop-baris-alamat whitespace-nowrap">
             {kopConfig.kontakText}
           </p>
-          <p className="kop-baris-alamat">
+          <p className="kop-baris-laman whitespace-nowrap">
             {kopConfig.webText}
           </p>
         </div>
+
+        {/* Spacer kanan selebar logo agar teks berada 100% tepat di tengah kertas (simetris sempurna) */}
+        <div className="w-20 shrink-0 pointer-events-none" aria-hidden="true" />
       </div>
 
-      {/* Garis Pembatas Ganda Kop Resmi (Berjarak 4,5 cm dari tepi atas kertas) */}
+      {/* Garis Pembatas Tebal Tunggal Kop Resmi (Pasal 30 ayat 7 & Pasal 31 ayat 8, Berjarak 4,5 cm dari tepi atas kertas) */}
       <div className="mt-2">
         <div className="border-b-[2.5px] border-black w-full" />
-        <div className="mt-0.5 border-b-[0.8px] border-black w-full" />
       </div>
+    </div>
+  );
+};
+
+/**
+ * Komponen Blok Tanda Tangan Kedinasan Resmi Sesuai Format Spesimen UNSIL
+ * Menggantikan badge modern SaaS dengan format cetak kedinasan yang otentik.
+ */
+export const OfficialSignatureBlock = ({
+  tempatTanggal = null,
+  namaJabatan = 'REKTOR,',
+  namaPejabat = '',
+  nip = '',
+  tteVerified = false,
+  keterangan = 'tanda tangan dan cap dinas',
+  showUnderline = false,
+  align = 'right',
+  widthClass = 'w-72 sm:w-80'
+}) => {
+  return (
+    <div
+      className={`font-serif text-black text-xs leading-normal ${widthClass} ${
+        align === 'center' ? 'text-center mx-auto' : align === 'left' ? 'text-left' : 'text-left ml-auto'
+      }`}
+    >
+      {tempatTanggal && <p className="text-[11px] mb-0.5">{tempatTanggal}</p>}
+      <p className="font-bold uppercase tracking-wider text-black">{namaJabatan}</p>
+
+      {/* Ruang tanda tangan / cap dinas / TTE */}
+      <div className="my-2 min-h-[48px] flex flex-col justify-center">
+        {tteVerified ? (
+          <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+            <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+            <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+            <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
+          </div>
+        ) : (
+          <div className="h-12 flex items-center justify-center text-black/60 italic text-[11px] font-serif">
+            {keterangan}
+          </div>
+        )}
+      </div>
+
+      <p className={`font-bold uppercase tracking-wide text-black ${showUnderline ? 'underline' : ''}`}>
+        {namaPejabat}
+      </p>
+      {nip && <p className="text-[10.5px] font-mono text-black mt-0.5">NIP {nip}</p>}
     </div>
   );
 };
@@ -190,7 +251,7 @@ export const PosTemplateView = ({ data }) => {
       data-pasal47="true"
       data-has-kop="false"
       data-naskah-category="ARAHAN"
-      className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop bg-white text-black font-serif p-6 sm:p-8 max-w-4xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop bg-white text-black font-serif p-6 sm:p-8 max-w-4xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <div className="naskah-judul-block mb-6">
         <h2 className="text-center font-bold text-sm sm:text-base uppercase tracking-wider text-black mb-1">
@@ -200,7 +261,7 @@ export const PosTemplateView = ({ data }) => {
 
       {/* Bagian a. Bagian Identitas (Sesuai Gambar 1) */}
       <div className="mb-6">
-        <p className="font-bold text-xs uppercase mb-1.5 text-slate-800">a. Bagian Identitas</p>
+        <p className="font-bold text-xs uppercase mb-1.5 text-black">a. Bagian Identitas</p>
         
         <table className="w-full border-collapse border-2 border-black text-[11px] leading-tight">
           <tbody>
@@ -218,10 +279,10 @@ export const PosTemplateView = ({ data }) => {
                       onContextMenu={(e) => e.preventDefault()}
                     />
                   </div>
-                  <span className="font-serif font-bold text-xs tracking-wider uppercase block text-slate-900">
+                  <span className="font-serif font-bold text-xs tracking-wider uppercase block text-black">
                     UNIVERSITAS SILIWANGI
                   </span>
-                  <span className="font-sans font-semibold text-[11px] tracking-wide uppercase block text-slate-800 mt-0.5">
+                  <span className="font-serif font-semibold text-[11px] tracking-wide uppercase block text-black mt-0.5">
                     {unitKerja}
                   </span>
                 </div>
@@ -233,7 +294,7 @@ export const PosTemplateView = ({ data }) => {
                   <tbody>
                     <tr className="border-b border-black">
                       <td className="p-1.5 w-32 font-semibold border-r border-black">Nomor POS</td>
-                      <td className="p-1.5 font-mono font-bold text-slate-900">: {nomorPos}</td>
+                      <td className="p-1.5 font-mono font-bold text-black">: {nomorPos}</td>
                     </tr>
                     <tr className="border-b border-black">
                       <td className="p-1.5 font-semibold border-r border-black">Tgl Pembuatan</td>
@@ -251,16 +312,16 @@ export const PosTemplateView = ({ data }) => {
                       <td className="p-1.5 font-semibold border-r border-black align-top">Disahkan oleh</td>
                       <td className="p-1.5">
                         <p className="font-semibold">{disahkanOlehJabatan}</p>
-                        <div className="my-2 py-1 px-2 border border-dashed border-emerald-600 bg-emerald-50/60 rounded text-[10px] text-emerald-900 inline-flex items-center gap-1">
-                          <ShieldCheck className="w-3.5 h-3.5 text-emerald-700" /> Tervalidasi TTE BSrE BSSN
+                        <div className="my-1.5 h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                          (tanda tangan)
                         </div>
-                        <p className="font-bold underline text-slate-950 mt-1">{disahkanOlehNama}</p>
-                        <p className="text-[10px] text-slate-800 font-serif">NIP. {disahkanOlehNip}</p>
+                        <p className="font-bold underline text-black mt-0.5">{disahkanOlehNama}</p>
+                        <p className="text-[10px] text-black font-serif">NIP. {disahkanOlehNip}</p>
                       </td>
                     </tr>
                     <tr>
                       <td className="p-1.5 font-semibold border-r border-black">Nama POS</td>
-                      <td className="p-1.5 font-bold uppercase text-slate-900">: {namaPos}</td>
+                      <td className="p-1.5 font-bold uppercase text-black">: {namaPos}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -271,7 +332,7 @@ export const PosTemplateView = ({ data }) => {
             <tr className="border-b border-black">
               <td className="p-3 border-r-2 border-black align-top">
                 <p className="font-bold underline mb-1">Dasar Hukum:</p>
-                <ol className="list-decimal list-inside space-y-1 text-slate-800">
+                <ol className="list-decimal list-inside space-y-1 text-black">
                   {Array.isArray(dasarHukum) ? dasarHukum.map((d, i) => (
                     <li key={i} className="pl-1">{d}</li>
                   )) : <li>{dasarHukum}</li>}
@@ -279,7 +340,7 @@ export const PosTemplateView = ({ data }) => {
               </td>
               <td className="p-3 align-top">
                 <p className="font-bold underline mb-1">Kualifikasi Pelaksana:</p>
-                <ol className="list-decimal list-inside space-y-1 text-slate-800">
+                <ol className="list-decimal list-inside space-y-1 text-black">
                   {Array.isArray(kualifikasiPelaksana) ? kualifikasiPelaksana.map((k, i) => (
                     <li key={i} className="pl-1">{k}</li>
                   )) : <li>{kualifikasiPelaksana}</li>}
@@ -291,7 +352,7 @@ export const PosTemplateView = ({ data }) => {
             <tr className="border-b border-black">
               <td className="p-3 border-r-2 border-black align-top">
                 <p className="font-bold underline mb-1">Keterkaitan:</p>
-                <ul className="list-disc list-inside space-y-1 text-slate-800">
+                <ul className="list-disc list-inside space-y-1 text-black">
                   {Array.isArray(keterkaitan) ? keterkaitan.map((k, i) => (
                     <li key={i} className="pl-1">{k}</li>
                   )) : <li>{keterkaitan}</li>}
@@ -299,7 +360,7 @@ export const PosTemplateView = ({ data }) => {
               </td>
               <td className="p-3 align-top">
                 <p className="font-bold underline mb-1">Peralatan/Perlengkapan:</p>
-                <ol className="list-decimal list-inside space-y-1 text-slate-800">
+                <ol className="list-decimal list-inside space-y-1 text-black">
                   {Array.isArray(peralatan) ? peralatan.map((p, i) => (
                     <li key={i} className="pl-1">{p}</li>
                   )) : <li>{peralatan}</li>}
@@ -310,8 +371,8 @@ export const PosTemplateView = ({ data }) => {
             {/* Baris Peringatan vs Pencatatan */}
             <tr>
               <td className="p-3 border-r-2 border-black align-top">
-                <p className="font-bold underline mb-1 text-rose-950">Peringatan:</p>
-                <ol className="list-decimal list-inside space-y-1 text-slate-800">
+                <p className="font-bold underline mb-1">Peringatan:</p>
+                <ol className="list-decimal list-inside space-y-1 text-black">
                   {Array.isArray(peringatan) ? peringatan.map((pr, i) => (
                     <li key={i} className="pl-1">{pr}</li>
                   )) : <li>{peringatan}</li>}
@@ -319,7 +380,7 @@ export const PosTemplateView = ({ data }) => {
               </td>
               <td className="p-3 align-top">
                 <p className="font-bold underline mb-1">Pencatatan dan Pendaftaran:</p>
-                <p className="text-slate-800 leading-normal">{pencatatan}</p>
+                <p className="text-black leading-normal">{pencatatan}</p>
               </td>
             </tr>
           </tbody>
@@ -328,19 +389,19 @@ export const PosTemplateView = ({ data }) => {
 
       {/* Bagian b. Bagian Diagram Alir (Flowchart) (Sesuai Gambar 2) */}
       <div className="mt-8">
-        <p className="font-bold text-xs uppercase mb-1.5 text-slate-800">b. Bagian Diagram Alir (flowchart)</p>
+        <p className="font-bold text-xs uppercase mb-1.5 text-black">b. Bagian Diagram Alir (flowchart)</p>
 
         <div className="overflow-x-auto">
           <table className="w-full border-collapse border-2 border-black text-[11px] text-center">
             <thead>
-              <tr className="bg-slate-100 border-b-2 border-black font-bold text-slate-900">
+              <tr className="bg-gray-100 border-b-2 border-black font-bold text-black">
                 <th rowSpan="2" className="border-r border-black p-2 w-10">No</th>
                 <th rowSpan="2" className="border-r border-black p-2 w-64 text-left">Langkah Kegiatan</th>
                 <th colSpan="3" className="border-r border-black p-1.5">Pelaksana</th>
                 <th colSpan="3" className="border-r border-black p-1.5">Mutu Baku</th>
                 <th rowSpan="2" className="p-2 w-20">Ket.</th>
               </tr>
-              <tr className="bg-slate-50 border-b border-black font-semibold text-[10px] text-slate-800">
+              <tr className="bg-gray-50 border-b border-black font-semibold text-[10px] text-black">
                 <th className="border-r border-black p-1 w-14">Staf TU</th>
                 <th className="border-r border-black p-1 w-14">Kasubbag</th>
                 <th className="border-r border-black p-1 w-14">Kabiro</th>
@@ -349,18 +410,18 @@ export const PosTemplateView = ({ data }) => {
                 <th className="border-r border-black p-1 w-24">Output</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-black text-slate-800">
+            <tbody className="divide-y divide-black text-black">
               {flowchartSteps.map((step, idx) => (
-                <tr key={idx} className="hover:bg-slate-50/50">
+                <tr key={idx} className="hover:bg-gray-50/50">
                   <td className="border-r border-black p-2 font-bold">{step.no || idx + 1}</td>
                   <td className="border-r border-black p-2 text-left font-medium leading-tight">{step.kegiatan}</td>
-                  <td className="border-r border-black p-1 text-emerald-800 font-bold text-sm">{step.pelaksana?.[0] || '-'}</td>
-                  <td className="border-r border-black p-1 text-emerald-800 font-bold text-sm">{step.pelaksana?.[1] || '-'}</td>
-                  <td className="border-r border-black p-1 text-emerald-800 font-bold text-sm">{step.pelaksana?.[2] || '-'}</td>
+                  <td className="border-r border-black p-1 font-bold text-sm">{step.pelaksana?.[0] || '-'}</td>
+                  <td className="border-r border-black p-1 font-bold text-sm">{step.pelaksana?.[1] || '-'}</td>
+                  <td className="border-r border-black p-1 font-bold text-sm">{step.pelaksana?.[2] || '-'}</td>
                   <td className="border-r border-black p-2 text-left text-[10px]">{step.kelengkapan}</td>
                   <td className="border-r border-black p-1 font-mono text-[10px]">{step.waktu}</td>
-                  <td className="border-r border-black p-2 text-left text-[10px] font-semibold text-slate-900">{step.output}</td>
-                  <td className="p-1 text-[10px] text-slate-600">{step.ket || '-'}</td>
+                  <td className="border-r border-black p-2 text-left text-[10px] font-semibold text-black">{step.output}</td>
+                  <td className="p-1 text-[10px] text-black/70">{step.ket || '-'}</td>
                 </tr>
               ))}
             </tbody>
@@ -405,7 +466,7 @@ export const SuratEdaranTemplateView = ({ data }) => {
       data-pasal47="true"
       data-has-kop="true"
       data-naskah-category="ARAHAN"
-      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Kop Surat Resmi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
@@ -427,9 +488,9 @@ export const SuratEdaranTemplateView = ({ data }) => {
       </div>
 
       {/* Yth. (Tujuan) */}
-      <div className="mb-6 font-sans text-xs">
-        <p className="font-semibold text-slate-900 mb-1">Yth.</p>
-        <ol className="list-decimal list-inside space-y-0.5 text-slate-800 pl-1">
+      <div className="mb-6 font-serif text-xs">
+        <p className="font-semibold text-black mb-1">Yth.</p>
+        <ol className="list-decimal list-inside space-y-0.5 text-black pl-1">
           {tujuanList.map((t, idx) => (
             <li key={idx}>{t};</li>
           ))}
@@ -449,33 +510,15 @@ export const SuratEdaranTemplateView = ({ data }) => {
       </div>
 
       {/* Penutup & Tanda Tangan */}
-      <div className="flex justify-end mt-5 font-sans">
-        <div className="w-72 text-left">
-          <p className="text-xs text-slate-800 mb-1">{tempatTanggal}</p>
-          <p className="font-bold text-xs text-slate-900">{namaJabatan}</p>
-
-          {/* Area TTE atau Cap Dinas */}
-          <div className="my-3 min-h-[70px] flex flex-col justify-center">
-            {tteVerified ? (
-              <div className="p-2.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[11px] text-emerald-950 flex items-center gap-2.5 shadow-xs">
-                <div className="w-8 h-8 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-5 h-5 text-amber-300" />
-                </div>
-                <div>
-                  <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                  <p className="text-[10px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                </div>
-              </div>
-            ) : (
-              <div className="h-16 flex items-center text-slate-400 italic text-[11px]">
-                (Tanda tangan & cap dinas resmi)
-              </div>
-            )}
-          </div>
-
-          <p className="font-bold text-xs underline text-slate-950">{namaPejabat}</p>
-          <p className="text-[11px] text-slate-800 font-serif">NIP. {nip}</p>
-        </div>
+      <div className="flex justify-end mt-5 font-serif">
+        <OfficialSignatureBlock
+          tempatTanggal={tempatTanggal}
+          namaJabatan={namaJabatan}
+          namaPejabat={namaPejabat}
+          nip={nip}
+          tteVerified={tteVerified}
+          keterangan="tanda tangan dan cap dinas"
+        />
       </div>
     </div>
   );
@@ -530,12 +573,12 @@ export const KeputusanTemplateView = ({ data }) => {
         data-pasal47="true"
         data-has-kop="true"
         data-naskah-category="ARAHAN"
-        className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+        className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
       >
-        {/* Visual Badge for Screen Preview */}
-        <div className="print:hidden mb-4 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500">
-          <span className="font-semibold text-slate-700">Lembar 1: Naskah Utama Keputusan Rektor</span>
-          <span className="bg-emerald-50 text-emerald-800 font-mono px-2 py-0.5 rounded border border-emerald-200 text-[10px]">Halaman 1 {hasLampiran ? '/ 2 (Tanpa Nomor Halaman karena Berkop)' : ''}</span>
+        {/* Visual Divider for Screen Preview */}
+        <div className="print:hidden mb-4 pb-1 border-b border-black/20 flex items-center justify-between text-[11px] text-black font-sans">
+          <span className="font-semibold text-black">Lembar 1: Naskah Utama Keputusan Rektor</span>
+          <span className="font-mono text-[10px] text-black">Halaman 1 {hasLampiran ? '/ 2 (Tanpa Nomor Halaman karena Berkop)' : ''}</span>
         </div>
 
         {/* Kop Surat */}
@@ -561,7 +604,7 @@ export const KeputusanTemplateView = ({ data }) => {
         </div>
 
         {/* Konsideran Menimbang & Mengingat */}
-        <div className="space-y-2 font-serif text-[11px] leading-snug text-justify mb-3">
+        <div className="space-y-2 font-serif text-[11px] leading-snug text-justify mb-3 text-black">
           <div className="flex items-start gap-3">
             <span className="w-20 shrink-0 font-bold">Menimbang :</span>
             <div className="flex-1 space-y-1">
@@ -597,7 +640,7 @@ export const KeputusanTemplateView = ({ data }) => {
           </p>
         </div>
 
-        <div className="space-y-1.5 font-serif text-[11px] leading-snug text-justify mb-4">
+        <div className="space-y-1.5 font-serif text-[11px] leading-snug text-justify mb-4 text-black">
           <div className="flex items-start gap-3">
             <span className="w-20 shrink-0 font-bold">Menetapkan :</span>
             <p className="flex-1 font-bold uppercase text-black">{menetapkan}</p>
@@ -613,32 +656,14 @@ export const KeputusanTemplateView = ({ data }) => {
 
         {/* Pengesahan Rektor */}
         <div className="flex justify-end mt-4 font-serif">
-          <div className="w-64 text-left">
-            <p className="text-[11px] text-black mb-0.5">{tempatTanggal}</p>
-            <p className="font-bold text-xs text-black">{namaJabatan}</p>
-
-            {/* Area TTE */}
-            <div className="my-1.5 min-h-[48px] flex flex-col justify-center">
-              {tteVerified ? (
-                <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                  <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                    <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                  (Tanda tangan dan cap dinas)
-                </div>
-              )}
-            </div>
-
-            <p className="font-bold text-xs text-black">{namaRektor}</p>
-            <p className="text-[10.5px] text-black font-serif">NIP. {nipRektor}</p>
-          </div>
+          <OfficialSignatureBlock
+            tempatTanggal={tempatTanggal}
+            namaJabatan={namaJabatan}
+            namaPejabat={namaRektor}
+            nip={nipRektor}
+            tteVerified={tteVerified}
+            keterangan="tanda tangan"
+          />
         </div>
 
         {/* Kata Penyambung ke Halaman Berikutnya (Sudut Kanan Bawah diikuti 3 titik) */}
@@ -651,56 +676,56 @@ export const KeputusanTemplateView = ({ data }) => {
           data-pasal47="true"
           data-has-kop="false"
           data-naskah-category="ARAHAN"
-          className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop page-break break-before-page bg-white text-black font-serif p-8 sm:p-12 shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none print:mt-0"
+          className="a4-sheet f4-sheet naskah-arahan pasal47-without-kop page-break break-before-page bg-white text-black font-serif p-8 sm:p-12 border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none print:mt-0"
         >
           {/* Nomor Halaman Simetris di Tengah Atas Kertas (- 2 -) */}
           <NomorHalamanNaskahDinas pageNumber={2} />
 
-          {/* Visual Divider & Badge for Screen Preview */}
-          <div className="print:hidden mb-4 pb-2 border-b border-slate-200 flex items-center justify-between text-[11px] text-slate-500 font-sans">
-            <span className="font-semibold text-slate-700">Lembar 2: Lampiran Keputusan Rektor</span>
-            <span className="bg-emerald-50 text-emerald-800 font-mono px-2 py-0.5 rounded border border-emerald-200 text-[10px]">Halaman 2 / 2</span>
+          {/* Visual Divider for Screen Preview */}
+          <div className="print:hidden mb-4 pb-1 border-b border-black/20 flex items-center justify-between text-[11px] text-black font-sans">
+            <span className="font-semibold text-black">Lembar 2: Lampiran Keputusan Rektor</span>
+            <span className="font-mono text-[10px] text-black">Halaman 2 / 2</span>
           </div>
 
           {/* Header Lampiran Kanan Atas */}
-          <div className="flex justify-end mb-4 font-sans">
+          <div className="flex justify-end mb-4 font-serif text-black">
             <div className="w-72 text-left leading-tight text-[10.5px]">
-              <p className="font-bold uppercase tracking-wider text-slate-900">LAMPIRAN</p>
-              <p className="font-bold uppercase tracking-wider text-slate-900">KEPUTUSAN REKTOR UNIVERSITAS SILIWANGI</p>
-              <p className="font-mono text-slate-800 mt-0.5">NOMOR : {nomorSk}</p>
-              <p className="text-slate-800">TANGGAL : 8 September 2026</p>
-              <p className="font-bold text-slate-900 uppercase mt-0.5">TENTANG :</p>
-              <p className="text-slate-800 uppercase font-medium">{tentang}</p>
+              <p className="font-bold uppercase tracking-wider text-black">LAMPIRAN</p>
+              <p className="font-bold uppercase tracking-wider text-black">KEPUTUSAN REKTOR UNIVERSITAS SILIWANGI</p>
+              <p className="font-mono text-black mt-0.5">NOMOR : {nomorSk}</p>
+              <p className="text-black">TANGGAL : 8 September 2026</p>
+              <p className="font-bold text-black uppercase mt-0.5">TENTANG :</p>
+              <p className="text-black uppercase font-medium">{tentang}</p>
             </div>
           </div>
 
           <div className="text-center mb-3">
-            <h3 className="font-bold uppercase text-xs tracking-wider text-slate-900">
+            <h3 className="font-bold uppercase text-xs tracking-wider text-black">
               SUSUNAN TIM KERJA DAN DISTRIBUSI PERAN
             </h3>
           </div>
 
           {/* Tabel Lampiran Resmi Bergaris Tegas */}
-          <div className="overflow-x-auto mb-5 font-sans">
+          <div className="overflow-x-auto mb-5 font-serif text-black">
             <table className="w-full border-collapse border-2 border-black text-[10.5px]">
               <thead>
-                <tr className="bg-slate-100 border-b-2 border-black font-bold text-slate-900 text-center">
+                <tr className="bg-gray-100 border-b-2 border-black font-bold text-black text-center">
                   <th className="border-r border-black p-2 w-10">No</th>
                   <th className="border-r border-black p-2 text-left">Nama & NIP Pegawai</th>
                   <th className="border-r border-black p-2 text-left">Jabatan Kedinasan</th>
                   <th className="p-2 text-left">Peran dalam Tim</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black text-slate-800">
+              <tbody className="divide-y divide-black text-black">
                 {lampiranRows.map((row, idx) => (
-                  <tr key={idx} className="hover:bg-slate-50/50">
+                  <tr key={idx} className="hover:bg-gray-50/50">
                     <td className="border-r border-black p-1.5 text-center font-bold">{row.no || idx + 1}</td>
                     <td className="border-r border-black p-1.5">
-                      <p className="font-bold text-slate-950">{row.nama}</p>
-                      <p className="text-[9.5px] text-slate-700 font-serif">NIP. {row.nip}</p>
+                      <p className="font-bold text-black">{row.nama}</p>
+                      <p className="text-[9.5px] text-black font-serif">NIP. {row.nip}</p>
                     </td>
                     <td className="border-r border-black p-1.5">{row.jabatan}</td>
-                    <td className="p-1.5 font-semibold text-unsil-green-900">{row.peranTim}</td>
+                    <td className="p-1.5 font-semibold text-black">{row.peranTim}</td>
                   </tr>
                 ))}
               </tbody>
@@ -709,27 +734,14 @@ export const KeputusanTemplateView = ({ data }) => {
 
           {/* Pengesahan Lampiran oleh Rektor */}
           <div className="flex justify-end mt-8 font-serif">
-            <div className="w-64 text-left">
-              <p className="text-[11px] text-slate-800 mb-0.5">Ditetapkan di Tasikmalaya</p>
-              <p className="font-bold text-xs text-slate-900">REKTOR,</p>
-
-              {/* Area TTE */}
-              <div className="my-1.5 min-h-[48px] flex flex-col justify-center">
-                {tteVerified ? (
-                  <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2">
-                    <ShieldCheck className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                    <span>TTE BSrE Lembaga Terotentikasi</span>
-                  </div>
-                ) : (
-                  <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                    (Tanda tangan Rektor)
-                  </div>
-                )}
-              </div>
-
-              <p className="font-bold text-xs text-slate-950">{namaRektor}</p>
-              <p className="text-[10.5px] text-slate-800 font-serif">NIP. {nipRektor}</p>
-            </div>
+            <OfficialSignatureBlock
+              tempatTanggal="Ditetapkan di Tasikmalaya"
+              namaJabatan="REKTOR,"
+              namaPejabat={namaRektor}
+              nip={nipRektor}
+              tteVerified={tteVerified}
+              keterangan="tanda tangan"
+            />
           </div>
         </div>
       )}
@@ -773,26 +785,27 @@ export const SuratPerintahTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      data-naskah-category="ARAHAN"
+      className="a4-sheet f4-sheet naskah-arahan pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Kop Surat Resmi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Judul Surat Perintah (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
       <div className="naskah-judul-block text-center my-3">
-        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-black">
           SURAT PERINTAH
         </h2>
-        <p className="font-mono text-xs font-bold tracking-wider text-slate-900 mt-0.5">
+        <p className="font-mono text-xs font-bold tracking-wider text-black mt-0.5">
           NOMOR {nomorSurat}
         </p>
-        <p className="font-bold text-xs uppercase tracking-wider text-slate-950 mt-3">
+        <p className="font-bold text-xs uppercase tracking-wider text-black mt-3">
           {pejabatPemberi}
         </p>
       </div>
 
       {/* Menimbang & Dasar */}
-      <div className="space-y-2.5 font-serif text-[11px] leading-snug text-justify mb-4">
+      <div className="space-y-2.5 font-serif text-[11px] leading-snug text-justify mb-4 text-black">
         <div className="flex items-start gap-3">
           <span className="w-24 shrink-0 font-bold">Menimbang :</span>
           <div className="flex-1 space-y-1">
@@ -823,18 +836,18 @@ export const SuratPerintahTemplateView = ({ data }) => {
 
       {/* Center Header: MEMBERI PERINTAH */}
       <div className="text-center my-3">
-        <p className="font-bold text-xs uppercase tracking-widest text-slate-950">
+        <p className="font-bold text-xs uppercase tracking-widest text-black">
           MEMBERI PERINTAH
         </p>
       </div>
 
       {/* Kepada & Untuk */}
-      <div className="space-y-2.5 font-serif text-[11px] leading-snug text-justify mb-6">
+      <div className="space-y-2.5 font-serif text-[11px] leading-snug text-justify mb-6 text-black">
         <div className="flex items-start gap-3">
           <span className="w-24 shrink-0 font-bold">Kepada :</span>
           <div className="flex-1 space-y-1">
             {kepada.map((k, idx) => (
-              <p key={idx} className="font-medium text-slate-950">{k}</p>
+              <p key={idx} className="font-medium text-black">{k}</p>
             ))}
           </div>
         </div>
@@ -854,32 +867,14 @@ export const SuratPerintahTemplateView = ({ data }) => {
 
       {/* Blok Pengesahan Kanan Bawah */}
       <div className="flex justify-end mt-5 sm:mt-6 font-serif">
-        <div className="w-72 sm:w-80 text-left">
-          <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
-          <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
-
-          {/* Area TTE */}
-          <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
-            {tteVerified ? (
-              <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                </div>
-                <div>
-                  <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                  <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                </div>
-              </div>
-            ) : (
-              <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                (Tanda tangan dan cap jabatan)
-              </div>
-            )}
-          </div>
-
-          <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
-          <p className="text-[10.5px] text-slate-800 font-serif">NIP {nip}</p>
-        </div>
+        <OfficialSignatureBlock
+          tempatTanggal={tempatTanggal}
+          namaJabatan={namaJabatan}
+          namaPejabat={namaPejabat}
+          nip={nip}
+          tteVerified={tteVerified}
+          keterangan="tanda tangan dan cap dinas"
+        />
       </div>
     </div>
   );
@@ -912,88 +907,127 @@ export const SuratTugasLembaranTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
-      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
+      <KopSuratUnsil
+        unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id}
+        hideUnit={true}
+        forceUniversityHeader={true}
+      />
 
-      {/* Judul Surat Tugas (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center my-4">
-        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+      {/* Judul Surat Tugas (Sesuai Spesimen Resmi Gambar 2 / Image 1) */}
+      <div className="naskah-judul-block text-center my-4 font-serif text-black">
+        <h2 className="text-sm sm:text-base font-normal tracking-wider uppercase text-black">
           SURAT TUGAS
         </h2>
-        <p className="font-mono text-xs font-bold tracking-wider text-slate-900 mt-0.5">
-          Nomor {nomorSurat}
+        <p className="font-serif text-[11px] text-black mt-0.5">
+          Nomor {nomorSurat || '......./......../......../.......'}
         </p>
       </div>
 
       {/* Kalimat Pembuka */}
-      <div className="my-4 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPembuka}</p>
+      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        <p>
+          {kalimatPembuka ? (
+            kalimatPembuka.endsWith(',') ? kalimatPembuka : `${kalimatPembuka},`
+          ) : (
+            <span className="text-slate-400 select-none">
+              (Kalimat pembuka) <span className="tracking-widest">.........................................................................................................................</span>
+              <br />
+              <span className="tracking-widest">....................................................................................................................,</span>
+            </span>
+          )}
+        </p>
       </div>
 
-      {/* Identitas Personal Bentuk Lembaran */}
-      <div className="my-5 ml-4 sm:ml-8 font-serif text-[11.5px] space-y-2">
+      {/* Identitas Personal Bentuk Lembaran (Sesuai Image 1) */}
+      <div className="my-5 font-serif text-[11.5px] space-y-1.5 text-black">
         <div className="flex items-baseline">
-          <span className="w-48 shrink-0">Nama</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="font-bold text-slate-950 flex-1">{nama}</span>
+          <span className="w-44 sm:w-48 shrink-0">Nama</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="text-black flex-1 font-serif">
+            {nama || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+          </span>
         </div>
         <div className="flex items-baseline">
-          <span className="w-48 shrink-0">NIP</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="font-serif text-slate-900 flex-1">{nip}</span>
+          <span className="w-44 sm:w-48 shrink-0">NIP</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="text-black flex-1 font-serif">
+            {nip || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+          </span>
         </div>
         <div className="flex items-baseline">
-          <span className="w-48 shrink-0">Pangkat dan golongan</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="text-slate-800 flex-1">{pangkatGolongan}</span>
+          <span className="w-44 sm:w-48 shrink-0">Pangkat dan golongan</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="text-black flex-1 font-serif">
+            {pangkatGolongan || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+          </span>
         </div>
         <div className="flex items-baseline">
-          <span className="w-48 shrink-0">Jabatan</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="text-slate-800 flex-1">{jabatan}</span>
+          <span className="w-44 sm:w-48 shrink-0">Jabatan</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="text-black flex-1 font-serif">
+            {jabatan || <span className="text-slate-400 tracking-widest select-none">...................................................</span>}
+          </span>
         </div>
       </div>
 
       {/* Uraian Tugas, Tanggal, dan Tempat */}
-      <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed">
-        <p>
-          <span className="font-bold">Untuk : </span>
-          {untukTugas} pada tanggal <span className="font-semibold">{tanggalKegiatan}</span> bertempat di <span className="font-semibold">{tempatKegiatan}</span>.
-        </p>
+      <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        {untukTugas ? (
+          <p>
+            Untuk {untukTugas} {tanggalKegiatan ? `pada tanggal ${tanggalKegiatan}` : ''} {tempatKegiatan ? `bertempat di ${tempatKegiatan}` : ''}.
+          </p>
+        ) : (
+          <div className="space-y-1 text-slate-400 select-none">
+            <p className="leading-relaxed">
+              Untuk <span className="tracking-widest">.........................................................................</span> tanggal <span className="tracking-widest">..........................</span> di
+            </p>
+            <p className="leading-relaxed tracking-widest">
+              ...............................................................................................................................
+            </p>
+            <p className="leading-relaxed tracking-widest">
+              ...............................................................................................................................
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Kalimat Penutup Baku Sesuai Template */}
-      <div className="my-5 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPenutup}</p>
+      <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        <p>{kalimatPenutup || 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.'}</p>
       </div>
 
-      {/* Pengesahan Kanan Bawah */}
-      <div className="flex justify-end mt-5 sm:mt-6 font-serif">
-        <div className="w-72 sm:w-80 text-left">
-          <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
-          <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
+      {/* Pengesahan Kanan Bawah Sesuai Spesimen Resmi Image 1 */}
+      <div className="flex justify-end mt-8 font-serif text-black">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs font-normal text-black leading-tight">
+            {tempatTanggal || 'Tanggal'}
+          </p>
+          <p className="text-xs font-normal text-black leading-tight mt-0.5">
+            {namaJabatan?.endsWith(',') ? namaJabatan : `${namaJabatan || 'Rektor'},`}
+          </p>
 
-          <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
+          <div className="my-2 min-h-[52px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                </div>
-                <div>
-                  <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                  <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                </div>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                (tanda tangan dan cap dinas)
+              <div className="h-12 flex items-center justify-center text-black/80 italic text-[11px] font-serif">
+                tanda tangan dan cap dinas
               </div>
             )}
           </div>
 
-          <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
-          <p className="text-[10.5px] text-slate-800 font-serif">NIP {nipPejabat}</p>
+          <p className="text-xs font-normal text-black">
+            {namaPejabat || 'Nama Pejabat'}
+          </p>
+          <p className="font-serif text-[11px] text-black mt-0.5">
+            {nipPejabat || nip ? `NIP ${nipPejabat || nip}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -1046,90 +1080,126 @@ export const SuratTugasKolomTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
-      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
+      <KopSuratUnsil
+        unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id}
+        hideUnit={true}
+        forceUniversityHeader={true}
+      />
 
-      {/* Judul Surat Tugas Kolom (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center my-3">
-        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+      {/* Judul Surat Tugas Kolom (Sesuai Spesimen Resmi Gambar 3 / Image 2) */}
+      <div className="naskah-judul-block text-center my-4 font-serif text-black">
+        <h2 className="text-sm sm:text-base font-normal tracking-wider uppercase text-black">
           SURAT TUGAS
         </h2>
-        <p className="font-mono text-xs font-bold tracking-wider text-slate-900 mt-0.5">
-          Nomor: {nomorSurat}
+        <p className="font-serif text-[11px] text-black mt-0.5">
+          Nomor: {nomorSurat || '......./......../......../.......'}
         </p>
       </div>
 
       {/* Kalimat Pembuka */}
-      <div className="my-3 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPembuka}</p>
+      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        <p>
+          {kalimatPembuka ? (
+            kalimatPembuka.endsWith(',') ? kalimatPembuka : `${kalimatPembuka},`
+          ) : (
+            <span className="text-slate-400 select-none">
+              (Kalimat pembuka) <span className="tracking-widest">.........................................................................................................................</span>
+              <br />
+              <span className="tracking-widest">....................................................................................................................,</span>
+            </span>
+          )}
+        </p>
       </div>
 
-      {/* Tabel Kolom Bergaris Tegas (Sesuai Gambar 3) */}
-      <div className="my-4 overflow-x-auto font-sans">
-        <table className="w-full border-collapse border-2 border-black text-[11px]">
+      {/* Tabel Kolom Bergaris Tegas (Sesuai Image 2) */}
+      <div className="my-4 overflow-x-auto font-serif text-black">
+        <table className="w-full border-collapse border border-black text-[11px]">
           <thead>
-            <tr className="bg-slate-100 border-b-2 border-black font-bold text-slate-900 text-center">
-              <th className="border-r border-black p-2 w-12">No.</th>
-              <th className="border-r border-black p-2 text-left">Nama, NIP, Pangkat dan Golongan</th>
-              <th className="p-2 text-left">Jabatan</th>
+            <tr className="border-b border-black font-normal text-black text-center">
+              <th className="border-r border-black p-2 w-12 text-center font-normal">No.</th>
+              <th className="border-r border-black p-2 text-center font-normal">Nama, NIP, Pangkat dan Golongan</th>
+              <th className="p-2 text-center font-normal">Jabatan</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-black text-slate-800 font-serif">
-            {pesertaList.map((p, idx) => (
-              <tr key={idx} className="hover:bg-slate-50/50">
-                <td className="border-r border-black p-2 text-center font-bold font-sans align-top">{p.no || idx + 1}.</td>
-                <td className="border-r border-black p-2 align-top">
-                  <p className="font-bold text-slate-950">{p.nama}</p>
-                  <p className="text-[10px] text-slate-800 font-serif mt-0.5">NIP {p.nip}</p>
-                  <p className="text-[10px] text-slate-600 mt-0.5">{p.pangkatGolongan}</p>
-                </td>
-                <td className="p-2 align-top text-slate-900">{p.jabatan}</td>
+          <tbody className="divide-y divide-black text-black">
+            {pesertaList && pesertaList.length > 0 ? (
+              pesertaList.map((p, idx) => (
+                <tr key={idx}>
+                  <td className="border-r border-black p-2 text-center align-top">{p.no || idx + 1}.</td>
+                  <td className="border-r border-black p-2 align-top space-y-0.5">
+                    <p className="font-normal text-black">{p.nama}</p>
+                    {p.nip && <p className="text-[10.5px] text-black">NIP {p.nip}</p>}
+                    {p.pangkatGolongan && <p className="text-[10.5px] text-black">{p.pangkatGolongan}</p>}
+                  </td>
+                  <td className="p-2 align-top text-black">{p.jabatan}</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td className="border-r border-black p-4 h-28 text-center align-top">&nbsp;</td>
+                <td className="border-r border-black p-4 h-28 align-top">&nbsp;</td>
+                <td className="p-4 h-28 align-top">&nbsp;</td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
 
       {/* Uraian Tugas, Tanggal, dan Tempat */}
-      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed">
-        <p>
-          <span className="font-bold">Untuk : </span>
-          {untukTugas} pada tanggal <span className="font-semibold">{tanggalKegiatan}</span> bertempat di <span className="font-semibold">{tempatKegiatan}</span>.
-        </p>
+      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        {untukTugas ? (
+          <p>
+            Untuk {untukTugas} {tanggalKegiatan ? `pada tanggal ${tanggalKegiatan}` : ''} {tempatKegiatan ? `bertempat di ${tempatKegiatan}` : ''}.
+          </p>
+        ) : (
+          <div className="space-y-1 text-slate-400 select-none">
+            <p className="leading-relaxed">
+              Untuk <span className="tracking-widest">.........................................................................</span> tanggal <span className="tracking-widest">..........................</span> di
+            </p>
+            <p className="leading-relaxed tracking-widest">
+              ...............................................................................................................................
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Kalimat Penutup Baku */}
-      <div className="my-4 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPenutup}</p>
+      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        <p>{kalimatPenutup || 'Surat tugas ini dibuat untuk dilaksanakan dengan penuh tanggung jawab dan membuat laporan.'}</p>
       </div>
 
-      {/* Pengesahan Kanan Bawah */}
-      <div className="flex justify-end mt-5 sm:mt-6 font-serif">
-        <div className="w-72 sm:w-80 text-left">
-          <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
-          <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
+      {/* Pengesahan Kanan Bawah Sesuai Spesimen Resmi Image 2 */}
+      <div className="flex justify-end mt-8 font-serif text-black">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs font-normal text-black leading-tight">
+            {tempatTanggal || 'Tanggal'}
+          </p>
+          <p className="text-xs font-normal text-black leading-tight mt-0.5">
+            {namaJabatan?.endsWith(',') ? namaJabatan : `${namaJabatan || 'Rektor'},`}
+          </p>
 
-          <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
+          <div className="my-2 min-h-[52px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                  <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                </div>
-                <div>
-                  <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                  <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                </div>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                (tanda tangan dan cap dinas)
+              <div className="h-12 flex items-center justify-center text-black/80 italic text-[11px] font-serif">
+                tanda tangan dan cap dinas
               </div>
             )}
           </div>
 
-          <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
-          <p className="text-[10.5px] text-slate-800 font-serif">NIP {nipPejabat}</p>
+          <p className="text-xs font-normal text-black">
+            {namaPejabat || 'Nama Pejabat'}
+          </p>
+          <p className="font-serif text-[11px] text-black mt-0.5">
+            {nipPejabat || nip ? `NIP ${nipPejabat || nip}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -1138,7 +1208,7 @@ export const SuratTugasKolomTemplateView = ({ data }) => {
 
 /**
  * 7. FORMAT NOTA DINAS (ND)
- * Sesuai Gambar 4: Nota Dinas Internal Universitas Siliwangi
+ * Sesuai Gambar 1 Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 6)
  */
 export const NotaDinasTemplateView = ({ data }) => {
   const {
@@ -1153,7 +1223,7 @@ export const NotaDinasTemplateView = ({ data }) => {
       '3. Seluruh berkas pertanggungjawaban (SPJ) telah terdigitalisasi penuh melalui modul kearsipan SILOKA sesuai standar Perka ANRI.'
     ],
     kalimatPenutup = 'Demikian nota dinas ini kami sampaikan, atas perhatian dan arahan Bapak diucapkan terima kasih.',
-    tempatTanggal = 'Tasikmalaya, 8 September 2026',
+    tempatTanggal = '8 September 2026',
     namaJabatan = 'Koordinator Keuangan & BMN,',
     namaPejabat = 'Budi Santoso, S.E., M.Ak.',
     nip = '198203202008121002',
@@ -1168,114 +1238,144 @@ export const NotaDinasTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Nota Dinas (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center my-3">
-        <h2 className="text-sm sm:text-base font-bold tracking-widest uppercase text-slate-950">
+      {/* Judul Nota Dinas (Sesuai Gambar 1 / Contoh 06: Huruf Kapital Bold Tanpa Garis Bawah) */}
+      <div className="naskah-judul-block text-center my-4 font-serif text-black">
+        <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           NOTA DINAS
         </h2>
-        <p className="font-mono text-xs font-bold tracking-wider text-slate-900 mt-0.5">
-          Nomor {nomorSurat}
+        <p className="font-serif text-xs text-black mt-0.5">
+          Nomor {nomorSurat || '............/............/............/............'}
         </p>
       </div>
 
-      {/* Header Memo Yth / Dari / Hal (Sesuai Gambar 4) */}
-      <div className="my-4 font-serif text-[11.5px] border-b border-slate-300 pb-3 space-y-1.5">
+      {/* Header Memo Yth / Dari / Hal (Sesuai Gambar 1: Tanpa Kotak Border Garis) */}
+      <div className="my-4 font-serif text-[11.5px] space-y-1 text-black">
         <div className="flex items-start">
-          <span className="w-16 font-bold shrink-0">Yth.</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="flex-1 font-medium text-slate-900">{yth}</span>
+          <span className="w-16 shrink-0 font-normal">Yth.</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {yth || <span className="text-slate-400 select-none">........................................................</span>}
+          </span>
         </div>
         <div className="flex items-start">
-          <span className="w-16 font-bold shrink-0">Dari</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="flex-1 font-medium text-slate-900">{dari}</span>
+          <span className="w-16 shrink-0 font-normal">Dari</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {dari || <span className="text-slate-400 select-none">........................................................</span>}
+          </span>
         </div>
         <div className="flex items-start">
-          <span className="w-16 font-bold shrink-0">Hal</span>
-          <span className="w-4 shrink-0">:</span>
-          <span className="flex-1 font-bold text-slate-950">{hal}</span>
+          <span className="w-16 shrink-0 font-normal">Hal</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {hal || <span className="text-slate-400 select-none">........................................................</span>}
+          </span>
         </div>
       </div>
 
-      {/* Kalimat Pembuka */}
-      <div className="my-3 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPembuka}</p>
-      </div>
-
-      {/* Isi Pokok */}
-      <div className="my-3 space-y-1.5 font-serif text-[11.5px] leading-relaxed text-justify pl-1">
-        {Array.isArray(isiPokok) ? (
-          isiPokok.map((item, idx) => (
-            <p key={idx}>{item}</p>
-          ))
+      {/* Batang Tubuh Isi Nota Dinas */}
+      <div className="my-5 text-justify font-serif text-[11.5px] leading-relaxed text-black space-y-3.5">
+        {!kalimatPembuka && (!isiPokok || (Array.isArray(isiPokok) && isiPokok.length === 0)) && !kalimatPenutup ? (
+          /* Tampilan Spesimen Blangko Resmi Saat Form Masih Kosong Sesuai Gambar 1 */
+          <div className="space-y-3 text-slate-400 font-serif select-none">
+            <div className="space-y-1">
+              <p className="leading-relaxed">
+                Kalimat pembuka <span className="tracking-widest">...........................................................................................................</span>
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ................................................................................................................................
+              </p>
+            </div>
+            <div className="space-y-1 my-2">
+              <p className="leading-relaxed">
+                Isi Pokok <span className="tracking-widest">...................................................................................................................</span>
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ................................................................................................................................
+              </p>
+            </div>
+            <div className="space-y-1">
+              <p className="leading-relaxed">
+                Kalimat penutup <span className="tracking-widest">...........................................................................................................</span>
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ................................................................................................................................
+              </p>
+            </div>
+          </div>
         ) : (
-          <p>{isiPokok}</p>
+          <>
+            {kalimatPembuka && (
+              <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPembuka}</p>
+            )}
+            {isiPokok && (
+              <div className="space-y-1 leading-relaxed">
+                {Array.isArray(isiPokok) ? (
+                  isiPokok.map((item, idx) => (
+                    <p key={idx} className="indent-8 sm:indent-10 leading-relaxed">{item}</p>
+                  ))
+                ) : (
+                  <p className="indent-8 sm:indent-10 leading-relaxed">{isiPokok}</p>
+                )}
+              </div>
+            )}
+            {kalimatPenutup && (
+              <p className="indent-8 sm:indent-10 leading-relaxed">{kalimatPenutup}</p>
+            )}
+          </>
         )}
       </div>
 
-      {/* Kalimat Penutup */}
-      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed">
-        <p>{kalimatPenutup}</p>
-      </div>
-
-      {/* Blok Tanda Tangan & Tembusan */}
-      <div className="mt-5 sm:mt-6 font-serif">
-        {/* Baris Kanan: Tanggal, Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
+      {/* Blok Tanda Tangan & Tembusan Sesuai Gambar 1 */}
+      <div className="mt-8 font-serif text-black">
+        {/* Sisi Kanan: tanggal, Nama Jabatan, Tanda tangan dan cap dinas, Nama Pejabat, NIP */}
         <div className="flex justify-end">
-          <div className="w-72 sm:w-80 text-left">
-            <p className="text-[11px] text-slate-800 mb-0.5">{tempatTanggal}</p>
-            <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
+          <div className="w-64 sm:w-72 text-left">
+            <p className="text-xs mb-0.5">{tempatTanggal || 'tanggal'}</p>
+            <p className="text-xs font-normal">{namaJabatan || 'Nama Jabatan'}</p>
 
-            <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
+            <div className="my-2 min-h-[48px] flex flex-col justify-center">
               {tteVerified ? (
-                <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                  <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                    <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                  </div>
+                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                  (Tanda tangan dan cap dinas)
+                <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                  Tanda tangan dan cap dinas
                 </div>
               )}
             </div>
 
-            <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
+            <p className="font-normal text-xs text-black">{namaPejabat || 'Nama Pejabat'}</p>
+            <p className="text-[10.5px] text-black mt-0.5 font-serif">{nip ? `NIP ${nip}` : 'NIP'}</p>
           </div>
         </div>
 
-        {/* Baris Sejajar: Tembusan di Kiri sejajar dengan NIP di Kanan */}
-        <div className="flex items-baseline justify-between mt-1">
-          <div className="text-left text-[11px]">
-            {tembusan && tembusan.length > 0 ? (
-              <p className="font-serif text-slate-950">Tembusan:</p>
-            ) : (
-              <span />
-            )}
-          </div>
-          <div className="w-72 sm:w-80 shrink-0 text-left text-[10.5px] text-slate-800 font-serif">
-            <p>NIP {nip}</p>
-          </div>
-        </div>
-
-        {/* Butir-butir Tembusan di Bawah Tulisan Tembusan */}
-        {tembusan && tembusan.length > 0 && (
-          <div className="text-left text-[10.5px] text-slate-800 max-w-md mt-0.5 font-serif">
-            <ol className="list-decimal list-inside space-y-0.5 pl-0.5">
+        {/* Tembusan di Sisi Kiri Bawah Sesuai Gambar 1 */}
+        <div className="text-left text-[11px] mt-2">
+          <p className="font-normal text-black">Tembusan:</p>
+          {tembusan && tembusan.length > 0 ? (
+            <div className="text-left text-[10.5px] text-black max-w-md mt-0.5 font-serif space-y-0.5">
               {tembusan.map((t, idx) => (
-                <li key={idx}>{t}</li>
+                <p key={idx}>{tembusan.length > 1 ? `${idx + 1}. ${t}` : t}</p>
               ))}
-            </ol>
-          </div>
-        )}
+            </div>
+          ) : (
+            <p className="text-slate-400 select-none tracking-widest mt-0.5">...............................</p>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -1315,118 +1415,143 @@ export const SuratDinasTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
-      <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
+      <KopSuratUnsil
+        unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id}
+        hideUnit={true}
+        forceUniversityHeader={true}
+      />
 
       {/* Baris Nomor, Lampiran, Hal di kiri dan Tempat & Tanggal di kanan (Sesuai Gambar 5) */}
-      <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight">
-        <div className="space-y-1">
+      <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight text-black">
+        <div className="space-y-0.5">
           <div className="flex items-baseline">
-            <span className="w-20 font-bold shrink-0">Nomor</span>
-            <span className="w-4 shrink-0">:</span>
-            <span className="font-mono text-slate-900 font-bold">{nomorSurat}</span>
+            <span className="w-20 font-normal shrink-0">Nomor</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="font-serif text-black">{nomorSurat}</span>
           </div>
           <div className="flex items-baseline">
-            <span className="w-20 font-bold shrink-0">Lampiran</span>
-            <span className="w-4 shrink-0">:</span>
-            <span className="text-slate-800">{lampiran}</span>
+            <span className="w-20 font-normal shrink-0">Lampiran</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="font-serif text-black">{lampiran}</span>
           </div>
           <div className="flex items-baseline">
-            <span className="w-20 font-bold shrink-0">Hal</span>
-            <span className="w-4 shrink-0">:</span>
-            <span className="font-bold text-slate-950">{hal}</span>
+            <span className="w-20 font-normal shrink-0">Hal</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="font-serif text-black">{hal}</span>
           </div>
         </div>
 
-        <div className="text-right font-sans text-[11px] text-slate-800 pt-0.5">
+        <div className="text-right font-serif text-[11px] text-black pt-0.5">
           <p>{tempatTanggal}</p>
         </div>
       </div>
 
       {/* Tujuan Surat (Yth.) */}
-      <div className="my-4 font-serif text-[11.5px] leading-snug">
-        <p className="font-bold text-slate-900">Yth. {yth}</p>
-        <p className="text-slate-800">{alamatTujuan}</p>
+      <div className="my-4 font-serif text-[11.5px] leading-snug text-black">
+        <p className="font-normal text-black">Yth. {yth}</p>
+        <p className="text-black">{alamatTujuan}</p>
       </div>
 
       {/* Kalimat Pembuka */}
-      <div className="my-3 text-justify font-serif text-[11.5px] leading-normal">
-        <p>{kalimatPembuka}</p>
+      <div className="my-3 text-justify font-serif text-[11.5px] leading-normal text-black">
+        <p className="indent-8 sm:indent-10">{kalimatPembuka}</p>
       </div>
 
       {/* Isi Surat */}
-      <div className="my-3 ml-4 sm:ml-6 font-serif text-[11px] space-y-1 text-slate-900">
-        {Array.isArray(isiSurat) ? (
-          isiSurat.map((line, idx) => (
-            <p key={idx} className="font-mono">{line}</p>
-          ))
-        ) : (
-          <p>{isiSurat}</p>
-        )}
+      <div className="my-3 ml-4 sm:ml-8 font-serif text-[11px] space-y-1 text-black">
+        {(() => {
+          const lines = Array.isArray(isiSurat)
+            ? isiSurat
+            : typeof isiSurat === 'string'
+            ? isiSurat.split('\n')
+            : [];
+
+          if (lines.length === 0 && typeof isiSurat === 'string') {
+            return <p className="indent-8 sm:indent-10 text-justify">{isiSurat}</p>;
+          }
+
+          return lines.map((line, idx) => {
+            const trimmed = String(line).trim();
+            if (!trimmed) return <div key={idx} className="h-1.5" />;
+
+            const colonMatch = String(line).match(/^(\s*(?:\d+[\.\)]|[a-zA-Z][\.\)]|[-•*])?\s*[^:\n]{2,35})\s*:\s*(.+)$/);
+            if (colonMatch) {
+              const [, label, val] = colonMatch;
+              return (
+                <div key={idx} className="flex items-baseline">
+                  <span className="w-28 sm:w-32 shrink-0">{label.trim()}</span>
+                  <span className="w-4 shrink-0 text-center">:</span>
+                  <span className="flex-1">{val.trim()}</span>
+                </div>
+              );
+            }
+
+            const isListItem = /^\s*(\d+[\.\)]|[a-zA-Z][\.\)]|[-•*])\s+/.test(String(line));
+            if (isListItem) {
+              return <p key={idx} className="leading-relaxed">{trimmed}</p>;
+            }
+
+            return (
+              <p key={idx} className="indent-8 sm:indent-10 text-justify">
+                {line}
+              </p>
+            );
+          });
+        })()}
       </div>
 
       {/* Kalimat Penutup */}
-      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed">
-        <p>{kalimatPenutup}</p>
+      <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
+        <p className="indent-8 sm:indent-10">{kalimatPenutup}</p>
       </div>
 
-      {/* Blok Tanda Tangan & Tembusan (Sesuai Standar Resmi Gambar 2 & 5) */}
-      <div className="mt-5 sm:mt-6 font-serif">
-        {/* Baris Kanan: Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
-        <div className="flex justify-end">
-          <div className="w-72 sm:w-80 text-left">
-            <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
+      {/* Blok Tanda Tangan & Tembusan (Sesuai Gambar 5 Spesimen Resmi) */}
+      <div className="mt-8 font-serif text-black">
+        <div className="flex justify-between items-end gap-6">
+          {/* Tembusan di Sisi Kiri Bawah (Sejajar Bagian Bawah Tanda Tangan) */}
+          <div className="text-left text-[11px] space-y-0.5 text-black max-w-xs">
+            {tembusan && tembusan.length > 0 ? (
+              <>
+                <p className="font-normal text-black">Tembusan:</p>
+                <div className="space-y-0.5">
+                  {tembusan.map((t, idx) => (
+                    <p key={idx}>
+                      {tembusan.length > 1 ? `${idx + 1}. ${t}` : t}
+                    </p>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <p className="text-black font-normal">Tembusan:</p>
+            )}
+          </div>
 
-            <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
+          {/* Pejabat Penandatangan Resmi di Sisi Kanan Bawah */}
+          <div className="w-64 sm:w-72 text-left">
+            <p className="text-xs font-normal text-black leading-tight">
+              {namaJabatan?.endsWith(',') ? namaJabatan : `${namaJabatan},`}
+            </p>
+
+            <div className="my-2 min-h-[52px] flex items-center justify-center">
               {tteVerified ? (
-                <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                  <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                    <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                  </div>
+                <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                  <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
-                  (tanda tangan dan cap jabatan)
+                <div className="h-12 flex items-center justify-center text-black/80 italic text-[11px] font-serif">
+                  tanda tangan dan cap jabatan
                 </div>
               )}
             </div>
 
-            <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
+            <p className="text-xs font-normal text-black">{namaPejabat}</p>
+            <p className="font-serif text-[11px] text-black mt-0.5">NIP {nip}</p>
           </div>
         </div>
-
-        {/* Baris Sejajar: Tembusan di Kiri sejajar dengan NIP di Kanan */}
-        <div className="flex items-baseline justify-between mt-1">
-          {/* Tulisan Tembusan di Kiri */}
-          <div className="text-left text-[11px]">
-            {tembusan && tembusan.length > 0 ? (
-              <p className="font-serif text-slate-950">Tembusan:</p>
-            ) : (
-              <span />
-            )}
-          </div>
-
-          {/* NIP di Kanan (Sejajar dengan Tembusan) */}
-          <div className="w-72 sm:w-80 shrink-0 text-left text-[10.5px] text-slate-800 font-serif">
-            <p>NIP {nip}</p>
-          </div>
-        </div>
-
-        {/* Butir-butir Tembusan di Bawah Tulisan Tembusan */}
-        {tembusan && tembusan.length > 0 && (
-          <div className="text-left text-[10.5px] text-slate-800 max-w-md mt-0.5 font-serif">
-            <ol className="list-decimal list-inside space-y-0.5 pl-0.5">
-              {tembusan.map((t, idx) => (
-                <li key={idx}>{t}</li>
-              ))}
-            </ol>
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1475,50 +1600,50 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
   return (
     <div className="space-y-0">
       <div
-      data-pasal47="true"
-      data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
-    >
+        data-pasal47="true"
+        data-has-kop="true"
+        className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
+      >
         <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
         {/* Baris Nomor, Lampiran, Hal di kiri dan Tempat & Tanggal di kanan (Sesuai Gambar 1) */}
-        <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight">
+        <div className="flex items-start justify-between my-3 font-serif text-[11px] leading-tight text-black">
           <div className="space-y-1">
             <div className="flex items-baseline">
               <span className="w-20 font-bold shrink-0">Nomor</span>
               <span className="w-4 shrink-0">:</span>
-              <span className="font-serif text-slate-900 font-bold">{nomorSurat}</span>
+              <span className="font-mono text-black font-bold">{nomorSurat}</span>
             </div>
             <div className="flex items-baseline">
               <span className="w-20 font-bold shrink-0">Lampiran</span>
               <span className="w-4 shrink-0">:</span>
-              <span className="text-slate-800">{lampiran}</span>
+              <span className="text-black">{lampiran}</span>
             </div>
             <div className="flex items-baseline">
               <span className="w-20 font-bold shrink-0">Hal</span>
               <span className="w-4 shrink-0">:</span>
-              <span className="font-bold text-slate-950">{hal}</span>
+              <span className="font-bold text-black">{hal}</span>
             </div>
           </div>
 
-          <div className="text-right font-serif text-[11px] text-slate-800 pt-0.5">
+          <div className="text-right font-serif text-[11px] text-black pt-0.5">
             <p>{tempatTanggal}</p>
           </div>
         </div>
 
         {/* Tujuan Surat (Yth.) */}
-        <div className="my-4 font-serif text-[11.5px] leading-snug">
-          <p className="font-bold text-slate-900">Yth. {yth}</p>
-          <p className="text-slate-800">{alamatTujuan}</p>
+        <div className="my-4 font-serif text-[11.5px] leading-snug text-black">
+          <p className="font-bold text-black">Yth. {yth}</p>
+          <p className="text-black">{alamatTujuan}</p>
         </div>
 
         {/* Kalimat Pembuka diakhiri dengan kata "pada," */}
-        <div className="my-3 text-justify font-serif text-[11.5px] leading-normal">
+        <div className="my-3 text-justify font-serif text-[11.5px] leading-normal text-black">
           <p>{kalimatPembuka}</p>
         </div>
 
         {/* Rincian Hari/Tanggal, Pukul, Tempat, Acara (Sesuai Gambar 1) */}
-        <div className="my-4 ml-6 sm:ml-10 font-serif text-[11px] space-y-1.5 text-slate-900">
+        <div className="my-4 ml-6 sm:ml-10 font-serif text-[11px] space-y-1.5 text-black">
           <div className="flex items-baseline">
             <span className="w-28 shrink-0">hari, tanggal</span>
             <span className="w-4 shrink-0">:</span>
@@ -1542,36 +1667,32 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
         </div>
 
         {/* Kalimat Penutup */}
-        <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed">
+        <div className="my-4 text-justify font-serif text-[11.5px] leading-relaxed text-black">
           <p>{kalimatPenutup}</p>
         </div>
 
         {/* Blok Tanda Tangan & Tembusan */}
-        <div className="mt-5 sm:mt-6 font-serif">
+        <div className="mt-5 sm:mt-6 font-serif text-black">
           {/* Baris Kanan: Nama Jabatan, TTE / Ruang TTD, Nama Pejabat */}
           <div className="flex justify-end">
             <div className="w-72 sm:w-80 text-left">
-              <p className="font-semibold text-xs text-slate-900">{namaJabatan}</p>
+              <p className="font-bold text-xs uppercase tracking-wide text-black">{namaJabatan}</p>
 
-              <div className="my-2.5 min-h-[48px] flex flex-col justify-center">
+              <div className="my-2 min-h-[48px] flex flex-col justify-center">
                 {tteVerified ? (
-                  <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs">
-                    <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                      <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                    </div>
-                    <div>
-                      <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                      <p className="text-[9px] text-emerald-800 font-mono">Balai Sertifikasi Elektronik (BSrE)</p>
-                    </div>
+                  <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                    <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                    <p className="font-bold uppercase tracking-wide mt-0.5">{namaPejabat}</p>
+                    <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                   </div>
                 ) : (
-                  <div className="h-10 flex items-center text-slate-400 italic text-[10px]">
+                  <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px]">
                     (tanda tangan dan cap dinas)
                   </div>
                 )}
               </div>
 
-              <p className="font-bold text-xs text-slate-950">{namaPejabat}</p>
+              <p className="font-bold text-xs text-black">{namaPejabat}</p>
             </div>
           </div>
 
@@ -1580,21 +1701,21 @@ export const SuratUndanganLembaranTemplateView = ({ data }) => {
             {/* Tulisan Tembusan di Kiri */}
             <div className="text-left text-[11px]">
               {tembusan && tembusan.length > 0 ? (
-                <p className="font-serif text-slate-950">Tembusan:</p>
+                <p className="font-serif font-bold text-black">Tembusan:</p>
               ) : (
                 <span />
               )}
             </div>
 
             {/* NIP di Kanan (Sejajar dengan Tembusan) */}
-            <div className="w-72 sm:w-80 shrink-0 text-left text-[10.5px] text-slate-800 font-serif">
+            <div className="w-72 sm:w-80 shrink-0 text-left text-[10.5px] text-black font-mono">
               <p>NIP {nip}</p>
             </div>
           </div>
 
           {/* Butir-butir Tembusan di Bawah Tulisan Tembusan */}
           {tembusan && tembusan.length > 0 && (
-            <div className="text-left text-[10.5px] text-slate-800 max-w-md mt-0.5 font-serif">
+            <div className="text-left text-[10.5px] text-black max-w-md mt-0.5 font-serif">
               <ol className="list-decimal list-inside space-y-0.5 pl-0.5">
                 {tembusan.map((t, idx) => (
                   <li key={idx}>{t}</li>
@@ -1648,7 +1769,7 @@ export const LampiranSuratUndanganTemplateView = ({ data, isMultiPageSubsheet = 
     <div
       data-pasal47="true"
       data-has-kop="false"
-      className={`a4-sheet pasal47-without-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none ${
+      className={`a4-sheet pasal47-without-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none ${
         isMultiPageSubsheet ? 'page-break break-before-page mt-8 print:mt-0' : ''
       }`}
     >
@@ -1719,32 +1840,32 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="false"
-      className="a4-sheet pasal47-without-kop bg-white text-slate-950 font-serif p-6 sm:p-10 max-w-2xl mx-auto shadow-lg border-2 border-slate-900 rounded-sm text-xs leading-relaxed print:p-8 print:shadow-none print:border-2 print:border-black"
+      className="a4-sheet pasal47-without-kop bg-white text-black font-serif p-6 sm:p-10 max-w-2xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:p-8 print:shadow-none print:border print:border-black"
     >
       {/* Bingkai Ganda Elegan Khas Kartu Undangan Resmi (Sesuai Gambar 3) */}
-      <div className="border border-slate-400 p-6 sm:p-10 text-center flex flex-col justify-between min-h-[580px]">
+      <div className="border border-black p-6 sm:p-10 text-center flex flex-col justify-between min-h-[580px] text-black">
         {/* Bagian Atas: Logo UNSIL Terpusat */}
         <div>
           <div className="flex justify-center mb-4">
             <img
               src="/unsil-logo.png"
               alt="Logo Universitas Siliwangi"
-              className="w-20 h-20 sm:w-24 sm:h-24 object-contain filter drop-shadow-sm select-none"
+              className="w-20 h-20 sm:w-24 sm:h-24 object-contain select-none"
             />
           </div>
 
           {/* Pejabat Pengundang & Pendamping Terpusat */}
-          <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-slate-950">
+          <h2 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
             {pengundang}
           </h2>
           {pendamping && (
-            <p className="text-xs text-slate-700 italic mt-0.5 font-serif">
+            <p className="text-xs italic mt-0.5 font-serif text-black">
               {pendamping}
             </p>
           )}
 
           {/* Kalimat Penghormatan Terpusat */}
-          <div className="my-6 text-xs sm:text-[13px] text-slate-800 leading-relaxed font-serif">
+          <div className="my-6 text-xs sm:text-[13px] text-black leading-relaxed font-serif">
             <p>{kalimatMengharap}</p>
             <p className="mt-1">{kalimatPadaAcara}</p>
           </div>
@@ -1754,7 +1875,7 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
             {namaAcara.split('\n').map((baris, idx) => (
               <p
                 key={idx}
-                className="text-xs sm:text-sm font-bold tracking-wide uppercase text-slate-950 leading-snug"
+                className="text-xs sm:text-sm font-bold tracking-wide uppercase text-black leading-snug"
               >
                 {baris}
               </p>
@@ -1762,7 +1883,7 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
           </div>
 
           {/* Rincian Hari, Tanggal, Pukul & Tempat */}
-          <div className="my-6 text-xs sm:text-[12px] text-slate-900 space-y-1 font-serif">
+          <div className="my-6 text-xs sm:text-[12px] text-black space-y-1 font-serif">
             <p>
               hari <span className="font-semibold">{hari}</span> tanggal{' '}
               <span className="font-semibold">{tanggal}</span>, pukul{' '}
@@ -1775,7 +1896,7 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
         </div>
 
         {/* Bagian Bawah: Catatan Kehadiran & Pakaian (2 Kolom Terpisah Sesuai Gambar 3) */}
-        <div className="mt-8 pt-4 border-t border-slate-300 text-[10.5px] font-serif text-slate-800 text-left">
+        <div className="mt-8 pt-4 border-t border-black text-[10.5px] font-serif text-black text-left">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-start">
             {/* Kolom Kiri (Butir 1 & 2) */}
             <div className="sm:col-span-7 space-y-1.5 leading-snug">
@@ -1794,8 +1915,8 @@ export const SuratUndanganKartuTemplateView = ({ data }) => {
             </div>
 
             {/* Kolom Kanan (Pakaian Pria & Wanita) */}
-            <div className="sm:col-span-5 space-y-1 leading-snug sm:border-l sm:border-slate-200 sm:pl-4">
-              <p className="font-bold text-slate-900">Pakaian:</p>
+            <div className="sm:col-span-5 space-y-1 leading-snug sm:border-l sm:border-black sm:pl-4">
+              <p className="font-bold text-black">Pakaian:</p>
               <div className="flex items-baseline gap-1">
                 <span className="w-12 shrink-0">Pria</span>
                 <span className="w-2 shrink-0">:</span>
@@ -1879,7 +2000,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop bg-white text-slate-950 font-serif p-8 sm:p-12 max-w-3xl mx-auto shadow-lg border border-slate-300 rounded-sm text-xs leading-relaxed print:shadow-none print:border-none"
+      className="a4-sheet pasal47-with-kop bg-white text-black font-serif p-8 sm:p-12 max-w-3xl mx-auto border border-black rounded-none shadow-none text-xs leading-relaxed print:shadow-none print:border-none"
     >
       {/* Header: Dua Lambang di Kiri dan Kanan (Ukuran Terkunci Sesuai Template) */}
       <div className="flex items-center justify-between gap-4 mb-4">
@@ -1894,7 +2015,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
               />
             </div>
           ) : (
-            <div className="border border-slate-900 p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-slate-900 select-none">
+            <div className="border border-black p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-black select-none">
               <span>LAMBANG</span>
               <span>PIHAK I</span>
             </div>
@@ -1906,7 +2027,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
           {logoPihak2 ? (
             <div
               className={`w-28 h-20 flex items-center justify-center p-1 overflow-hidden select-none ${
-                tampilkanBingkaiLogo ? 'border border-slate-900' : ''
+                tampilkanBingkaiLogo ? 'border border-black' : ''
               }`}
             >
               <img
@@ -1916,7 +2037,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
               />
             </div>
           ) : (
-            <div className="border border-slate-900 p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-slate-900 select-none">
+            <div className="border border-black p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-black select-none">
               <span>LAMBANG</span>
               <span>PIHAK II</span>
             </div>
@@ -1925,7 +2046,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
       </div>
 
       {/* Judul Naskah Nota Kesepahaman Terpusat (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 space-y-1 my-5">
+      <div className="naskah-judul-block text-center font-serif text-black space-y-1 my-5">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           NOTA KESEPAHAMAN
         </h1>
@@ -1944,7 +2065,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
           {tentang.split('\n').map((baris, idx) => (
             <p
               key={idx}
-              className="text-xs sm:text-sm font-bold uppercase leading-snug tracking-wide text-slate-950"
+              className="text-xs sm:text-sm font-bold uppercase leading-snug tracking-wide text-black"
             >
               {baris}
             </p>
@@ -1952,7 +2073,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
         </div>
 
         {/* Baris Nomor Pihak I & Pihak II */}
-        <div className="pt-2 font-serif text-[11px] leading-snug text-slate-900">
+        <div className="pt-2 font-serif text-[11px] leading-snug text-black">
           <p>
             <span className="font-bold">NOMOR</span> {nomorPihak1}
           </p>
@@ -1963,7 +2084,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
       </div>
 
       {/* Komparisi Para Pihak (Sesuai Gambar Acuan) */}
-      <div className="my-5 font-serif text-[11.5px] leading-relaxed text-justify space-y-3 text-slate-900">
+      <div className="my-5 font-serif text-[11.5px] leading-relaxed text-justify space-y-3 text-black">
         <p>
           Pada hari ini, <span className="font-medium">{hari}</span>, tanggal{' '}
           <span className="font-medium">{tanggal}</span>, bulan{' '}
@@ -1995,7 +2116,7 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
       </div>
 
       {/* Pasal-Pasal Nota Kesepahaman (Judul Terpusat, Teks Justified) */}
-      <div className="my-6 space-y-5 font-serif text-[11.5px] leading-relaxed text-slate-900">
+      <div className="my-6 space-y-5 font-serif text-[11.5px] leading-relaxed text-black">
         {pasalList.map((pasal, idx) => (
           <div key={idx} className="space-y-1.5">
             <div className="text-center font-bold">
@@ -2014,13 +2135,13 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan Dua Kolom (Sesuai Gambar Acuan) */}
-      <div className="mt-12 pt-4 font-serif text-[11.5px] text-slate-900">
+      <div className="mt-12 pt-4 font-serif text-[11.5px] text-black">
         <div className="grid grid-cols-2 gap-8 text-center">
           {/* Kolom Kiri: PIHAK KESATU */}
           <div className="flex flex-col justify-between min-h-[170px]">
             <div>
-              <p className="font-bold uppercase tracking-wider text-slate-950">PIHAK KESATU</p>
-              <p className="mt-0.5 font-medium text-slate-900">
+              <p className="font-bold uppercase tracking-wider text-black">PIHAK KESATU</p>
+              <p className="mt-0.5 font-medium text-black">
                 {pihak1JabatanSingkat || pihak1Jabatan},
               </p>
             </div>
@@ -2028,28 +2149,24 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
             {/* Ruang Materai / Tanda Tangan / TTE */}
             <div className="my-3 min-h-[56px] flex flex-col items-center justify-center">
               {pihak1TteVerified ? (
-                <div className="p-1.5 rounded-lg border-2 border-emerald-700 bg-emerald-50/70 text-[10px] text-emerald-950 flex items-center gap-2 shadow-xs max-w-[220px] text-left">
-                  <div className="w-6 h-6 rounded-full bg-emerald-700 text-white flex items-center justify-center shrink-0">
-                    <ShieldCheck className="w-3.5 h-3.5 text-amber-300" />
-                  </div>
-                  <div>
-                    <p className="font-bold leading-tight">Ditandatangani Secara Elektronik</p>
-                    <p className="text-[9px] text-emerald-800 font-mono">BSrE BSSN</p>
-                  </div>
+                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight max-w-[220px]">
+                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                  <p className="font-bold uppercase tracking-wide mt-0.5">{pihak1Nama}</p>
+                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="border border-dashed border-slate-400 rounded p-1.5 w-36 text-center text-[9.5px] text-slate-400 italic">
-                  Materai, tanda tangan, dan cap jabatan/dinas
+                <div className="h-14 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                  (materai, tanda tangan, dan cap dinas)
                 </div>
               )}
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {pihak1Nama}
               </p>
               {pihak1Nip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5 font-serif">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   NIP {pihak1Nip}
                 </p>
               )}
@@ -2059,25 +2176,25 @@ export const NotaKesepahamanTemplateView = ({ data }) => {
           {/* Kolom Kanan: PIHAK KEDUA */}
           <div className="flex flex-col justify-between min-h-[170px]">
             <div>
-              <p className="font-bold uppercase tracking-wider text-slate-950">PIHAK KEDUA</p>
-              <p className="mt-0.5 font-medium text-slate-900">
+              <p className="font-bold uppercase tracking-wider text-black">PIHAK KEDUA</p>
+              <p className="mt-0.5 font-medium text-black">
                 {pihak2JabatanSingkat || pihak2Jabatan},
               </p>
             </div>
 
             {/* Ruang Materai / Tanda Tangan */}
             <div className="my-3 min-h-[56px] flex flex-col items-center justify-center">
-              <div className="border border-dashed border-slate-400 rounded p-1.5 w-36 text-center text-[9.5px] text-slate-400 italic">
-                Materai, tanda tangan, dan cap jabatan/dinas
+              <div className="h-14 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                (materai, tanda tangan, dan cap dinas)
               </div>
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {pihak2Nama}
               </p>
               {pihak2Nip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5 font-serif">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   {pihak2Nip}
                 </p>
               )}
@@ -2163,7 +2280,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Header Dua Lambang */}
       <div className="flex items-start justify-between gap-4 mb-6">
@@ -2177,7 +2294,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
               />
             </div>
           ) : (
-            <div className="border border-slate-900 p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-slate-900 select-none">
+            <div className="border border-black p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-black select-none">
               <span>LAMBANG</span>
               <span>PIHAK I</span>
             </div>
@@ -2188,7 +2305,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
           {logoPihak2 ? (
             <div
               className={`w-28 h-20 flex items-center justify-center p-1 overflow-hidden select-none ${
-                tampilkanBingkaiLogo ? 'border border-slate-900' : ''
+                tampilkanBingkaiLogo ? 'border border-black' : ''
               }`}
             >
               <img
@@ -2198,7 +2315,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
               />
             </div>
           ) : (
-            <div className="border border-slate-900 p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-slate-900 select-none">
+            <div className="border border-black p-2 w-28 h-20 flex flex-col items-center justify-center text-[10px] font-bold uppercase tracking-wider text-black select-none">
               <span>LAMBANG</span>
               <span>PIHAK II</span>
             </div>
@@ -2207,7 +2324,7 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
       </div>
 
       {/* Judul Perjanjian Kerja Sama Dalam Negeri Terpusat (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 space-y-1 my-5">
+      <div className="naskah-judul-block text-center font-serif text-black space-y-1 my-5">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           PERJANJIAN KERJA SAMA DALAM NEGERI
         </h1>
@@ -2225,21 +2342,21 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
           {tentang.split('\n').map((baris, idx) => (
             <p
               key={idx}
-              className="text-xs sm:text-sm font-bold uppercase leading-snug tracking-wide text-slate-950"
+              className="text-xs sm:text-sm font-bold uppercase leading-snug tracking-wide text-black"
             >
               {baris}
             </p>
           ))}
         </div>
 
-        <div className="pt-2 space-y-0.5 text-xs font-serif font-bold text-slate-950">
+        <div className="pt-2 space-y-0.5 text-xs font-serif font-bold text-black">
           <p>NOMOR {nomorPihak1}</p>
           <p>NOMOR {nomorPihak2}</p>
         </div>
       </div>
 
       {/* Komparisi Para Pihak */}
-      <div className="text-xs text-justify font-serif leading-relaxed text-slate-900 space-y-2 mt-6">
+      <div className="text-xs text-justify font-serif leading-relaxed text-black space-y-2 mt-6">
         <p>
           Pada hari ini, <span className="font-semibold">{hari}</span>, tanggal{' '}
           <span className="font-semibold">{tanggal}</span>, bulan{' '}
@@ -2266,10 +2383,10 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
       </div>
 
       {/* Klausul Pasal-Pasal */}
-      <div className="mt-6 space-y-5 text-xs text-slate-900 font-serif">
+      <div className="mt-6 space-y-5 text-xs text-black font-serif">
         {daftarPasal.map((pasal, idx) => (
           <div key={idx} className="space-y-1">
-            <div className="text-center font-bold text-slate-950">
+            <div className="text-center font-bold text-black">
               <p>Pasal {pasal.nomor || idx + 1}</p>
               <p className="uppercase tracking-wide">{pasal.judul}</p>
             </div>
@@ -2281,34 +2398,35 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan Berdampingan Dua Kolom */}
-      <div className="mt-10 pt-4 text-xs font-serif text-slate-900">
+      <div className="mt-10 pt-4 text-xs font-serif text-black">
         <div className="grid grid-cols-2 gap-6 text-center">
           {/* Kolom Kiri: PIHAK KESATU */}
           <div className="flex flex-col justify-between min-h-[170px]">
             <div>
-              <p className="font-bold uppercase tracking-wider text-slate-950">PIHAK KESATU</p>
-              <p className="mt-0.5 font-medium text-slate-900">{pihak1Jabatan},</p>
+              <p className="font-bold uppercase tracking-wider text-black">PIHAK KESATU</p>
+              <p className="mt-0.5 font-medium text-black">{pihak1Jabatan},</p>
             </div>
 
             <div className="my-3 min-h-[56px] flex flex-col items-center justify-center">
               {tteVerified ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                  <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight max-w-[220px]">
+                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                  <p className="font-bold uppercase tracking-wide mt-0.5">{pihak1Nama}</p>
+                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="border border-dashed border-slate-400 rounded p-1.5 w-36 text-center text-[9.5px] text-slate-400 italic">
-                  Materai, tanda tangan, dan cap jabatan/dinas
+                <div className="h-14 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                  (materai, tanda tangan, dan cap dinas)
                 </div>
               )}
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {pihak1Nama}
               </p>
               {pihak1Nip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5 font-serif">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   NIP {pihak1Nip}
                 </p>
               )}
@@ -2318,22 +2436,22 @@ export const PerjanjianKerjaSamaTemplateView = ({ data }) => {
           {/* Kolom Kanan: PIHAK KEDUA */}
           <div className="flex flex-col justify-between min-h-[170px]">
             <div>
-              <p className="font-bold uppercase tracking-wider text-slate-950">PIHAK KEDUA</p>
-              <p className="mt-0.5 font-medium text-slate-900">{pihak2Jabatan},</p>
+              <p className="font-bold uppercase tracking-wider text-black">PIHAK KEDUA</p>
+              <p className="mt-0.5 font-medium text-black">{pihak2Jabatan},</p>
             </div>
 
             <div className="my-3 min-h-[56px] flex flex-col items-center justify-center">
-              <div className="border border-dashed border-slate-400 rounded p-1.5 w-36 text-center text-[9.5px] text-slate-400 italic">
-                Materai, tanda tangan, dan cap jabatan/dinas
+              <div className="h-14 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                (materai, tanda tangan, dan cap dinas)
               </div>
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {pihak2Nama}
               </p>
               {pihak2Nip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5 font-serif">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   NIP/NIK {pihak2Nip}
                 </p>
               )}
@@ -2370,23 +2488,23 @@ export const SuratKuasaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Judul & Nomor Surat Kuasa (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
+      <div className="naskah-judul-block text-center font-serif text-black my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           SURAT KUASA
         </h1>
-        <p className="text-xs font-serif text-slate-900">
+        <p className="text-xs font-serif text-black">
           Nomor: {nomorSurat}
         </p>
       </div>
 
       {/* Identitas Pemberi & Penerima Kuasa */}
-      <div className="text-xs text-slate-900 font-serif space-y-4 leading-relaxed">
+      <div className="text-xs text-black font-serif space-y-4 leading-relaxed">
         <p>Yang bertanda tangan di bawah ini,</p>
 
         {/* Tabel Data Pemberi Kuasa */}
@@ -2455,7 +2573,7 @@ export const SuratKuasaTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan Dua Kolom */}
-      <div className="mt-12 text-xs font-serif text-slate-900">
+      <div className="mt-12 text-xs font-serif text-black">
         <div className="grid grid-cols-2 gap-8 text-center">
           {/* Kolom Kiri: Penerima Kuasa */}
           <div className="flex flex-col justify-between min-h-[160px]">
@@ -2466,15 +2584,15 @@ export const SuratKuasaTemplateView = ({ data }) => {
             </div>
 
             <div className="my-3 min-h-[50px] flex items-center justify-center">
-              <span className="text-[10px] text-slate-400 italic">tanda tangan</span>
+              <span className="text-[10px] text-black/60 italic font-serif">(tanda tangan)</span>
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {penerimaNama}
               </p>
               {penerimaNip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   NIP {penerimaNip}
                 </p>
               )}
@@ -2484,29 +2602,30 @@ export const SuratKuasaTemplateView = ({ data }) => {
           {/* Kolom Kanan: Pemberi Kuasa */}
           <div className="flex flex-col justify-between min-h-[160px]">
             <div>
-              <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
+              <p className="text-[11px] text-black mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
               <p className="font-semibold">Pemberi Kuasa,</p>
             </div>
 
             <div className="my-3 min-h-[50px] flex flex-col items-center justify-center">
               {tteVerified ? (
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                  <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight max-w-[200px]">
+                  <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                  <p className="font-bold uppercase tracking-wide mt-0.5">{pemberiNama}</p>
+                  <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="border border-dashed border-slate-400 rounded p-1 w-40 text-center text-[9px] text-slate-400 italic">
-                  tanda tangan, materai dan cap jabatan/dinas
+                <div className="h-12 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                  (materai, tanda tangan, dan cap dinas)
                 </div>
               )}
             </div>
 
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
+              <p className="font-bold uppercase tracking-wide text-xs text-black">
                 {pemberiNama}
               </p>
               {pemberiNip && (
-                <p className="text-[10.5px] text-slate-800 mt-0.5">
+                <p className="text-[10.5px] text-black mt-0.5 font-mono">
                   NIP {pemberiNip}
                 </p>
               )}
@@ -2520,7 +2639,7 @@ export const SuratKuasaTemplateView = ({ data }) => {
 
 /**
  * 14. FORMAT BERITA ACARA
- * Berdasarkan Naskah Dinas Resmi (Gambar 3)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 12)
  */
 export const BeritaAcaraTemplateView = ({ data }) => {
   const {
@@ -2533,12 +2652,16 @@ export const BeritaAcaraTemplateView = ({ data }) => {
     pihak1Nip = '197503122002121001',
     pihak1Jabatan = 'Kepala Biro Perencanaan, Keuangan, dan Umum',
     pihak2Nama = 'Ir. Hendra Gunawan, M.T.',
+    pihak2Nip = '',
     pihak2Jabatan = 'Pejabat Pembuat Komitmen (PPK) Sarana dan Prasarana',
     daftarKegiatan = [
       'Pemeriksaan fisik dan uji fungsi terhadap Pengadaan Perangkat Komputer Server dan Jaringan Terpusat SILOKA Tahun Anggaran 2026.',
       'Serah terima barang operasional teknologi informasi dalam kondisi baik, lengkap, dan memenuhi spesifikasi teknis Kerangka Acuan Kerja (KAK).'
     ],
+    uraianKegiatan = '',
     dasarPelaksanaan = 'Surat Keputusan Rektor Universitas Siliwangi Nomor 142/UN58/KP.02/2026 tanggal 15 Januari 2026 tentang Penetapan Tim Pemeriksa dan Penerima Hasil Pekerjaan Pengadaan Barang/Jasa di Lingkungan Universitas Siliwangi.',
+    jumlahRangkap = 'dua',
+    angkaRangkap = '2',
     tempatDibuat = 'Tasikmalaya',
     mengetahuiNama = 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
     mengetahuiJabatan = 'Rektor Universitas Siliwangi',
@@ -2550,125 +2673,172 @@ export const BeritaAcaraTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Berita Acara (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul & Nomor Berita Acara (Sesuai Contoh 12: Nomor Tanpa Titik Dua) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           BERITA ACARA
         </h1>
-        <p className="text-xs font-serif text-slate-900">
-          NOMOR: {nomorSurat}
+        <p className="text-xs font-serif text-black mt-0.5">
+          Nomor {nomorSurat || '........../...../...../.........'}
         </p>
       </div>
 
-      {/* Komparisi Para Pihak */}
-      <div className="text-xs text-justify font-serif text-slate-900 space-y-3 leading-relaxed">
+      {/* Komparisi Para Pihak Sesuai Contoh 12 */}
+      <div className="text-xs text-justify font-serif text-black space-y-3 leading-relaxed">
         <p>
-          Pada hari ini, <span className="font-semibold">{hari}</span>, tanggal{' '}
-          <span className="font-semibold">{tanggal}</span>, bulan{' '}
-          <span className="font-semibold">{bulan}</span>, tahun{' '}
-          <span className="font-semibold">{tahun}</span>, kami masing-masing:
+          Pada hari ini, <span className="font-semibold">{hari || '....................'}</span>, tanggal{' '}
+          <span className="font-semibold">{tanggal || '....................'}</span>, bulan{' '}
+          <span className="font-semibold">{bulan || '....................'}</span>, tahun{' '}
+          <span className="font-semibold">{tahun || '....................'}</span>, kami masing-masing:
         </p>
 
-        <div className="pl-2 space-y-2">
+        <div className="space-y-2">
           <div className="flex items-start gap-2">
-            <span className="font-semibold shrink-0">1.</span>
-            <p>
-              <span className="font-semibold">{pihak1Nama}</span>,{' '}
-              {pihak1Nip ? `NIP ${pihak1Nip} dan ` : ''}
-              {pihak1Jabatan}, selanjutnya disebut <span className="font-bold">Pihak Pertama</span>, dan
+            <span className="shrink-0 font-normal">1.</span>
+            <p className="flex-1 leading-relaxed">
+              {pihak1Nama ? (
+                <>
+                  <span className="font-semibold">{pihak1Nama}</span>
+                  {pihak1Nip ? `, NIP ${pihak1Nip}` : ''}
+                  {pihak1Jabatan ? `, ${pihak1Jabatan}` : ''}
+                  , selanjutnya disebut <span className="font-bold">Pihak Pertama</span>, dan
+                </>
+              ) : (
+                <span className="text-slate-400 select-none">
+                  ..................................................................................................................................................................................
+                  <br />
+                  selanjutnya disebut Pihak Pertama, dan
+                </span>
+              )}
             </p>
           </div>
           <div className="flex items-start gap-2">
-            <span className="font-semibold shrink-0">2.</span>
-            <p>
-              <span className="font-semibold">{pihak2Nama}</span> ({pihak2Jabatan}), selanjutnya disebut <span className="font-bold">Pihak Kedua</span>, telah melaksanakan:
+            <span className="shrink-0 font-normal">2.</span>
+            <p className="flex-1 leading-relaxed">
+              {pihak2Nama ? (
+                <>
+                  <span className="font-semibold">{pihak2Nama}</span>
+                  {pihak2Nip ? `, NIP ${pihak2Nip}` : ''}
+                  {pihak2Jabatan ? ` (${pihak2Jabatan})` : ''}
+                  , selanjutnya disebut <span className="font-bold">Pihak Kedua</span>,
+                </>
+              ) : (
+                <span className="text-slate-400 select-none">
+                  ..................................................................................................................................................................................
+                  <br />
+                  selanjutnya disebut Pihak Kedua,
+                </span>
+              )}
             </p>
           </div>
         </div>
 
-        {/* Butir-Butir Kegiatan Pelaksanaan */}
-        <div className="pl-6 space-y-1.5 pt-1">
-          {daftarKegiatan.map((item, idx) => (
-            <div key={idx} className="flex items-start gap-2">
-              <span className="font-semibold shrink-0">{idx + 1}.</span>
-              <p className="leading-relaxed">{item}</p>
+        {/* Uraian Kegiatan / Telah Melaksanakan */}
+        <div>
+          <p>
+            telah melaksanakan{' '}
+            {uraianKegiatan ||
+              (daftarKegiatan && daftarKegiatan.length > 0
+                ? ''
+                : '..................................................................................................................................................................................................................................................................................................................................................................................................')}
+          </p>
+          {daftarKegiatan && daftarKegiatan.length > 0 && (
+            <div className="pl-6 space-y-1 pt-1">
+              {daftarKegiatan.map((item, idx) => (
+                <div key={idx} className="flex items-start gap-2">
+                  <span className="shrink-0 font-normal">{idx + 1}.</span>
+                  <p className="leading-relaxed">{item}</p>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
 
-        {/* Dasar Berita Acara */}
-        <div className="pt-3 space-y-1">
-          <p>Berita acara ini dibuat dengan sesungguhnya berdasarkan:</p>
-          <p className="pl-4 italic text-slate-800 leading-relaxed">
-            {dasarPelaksanaan}
+        {/* Dasar & Jumlah Rangkap Sesuai Contoh 12 */}
+        <div className="pt-2 space-y-2">
+          <p>
+            Berita acara ini dibuat dengan sesungguhnya berdasarkan{' '}
+            {dasarPelaksanaan ||
+              '....................................................................................................................................................................................................................................................................................................................................................'}
+            .
+          </p>
+          <p>
+            Berita acara ini dibuat rangkap {jumlahRangkap || '....................'} ({angkaRangkap || '..........'}) untuk dipergunakan sebagaimana mestinya.
           </p>
         </div>
       </div>
 
-      {/* Tempat Pembuatan & Dua Kolom Tanda Tangan Pihak */}
-      <div className="mt-8 text-xs font-serif text-slate-900">
-        <div className="flex justify-end mb-4 pr-6">
-          <p className="text-xs">Dibuat di {tempatDibuat}</p>
+      {/* Tempat Pembuatan & Dua Kolom Tanda Tangan: Pihak Kedua di Kiri, Pihak Pertama di Kanan Sesuai Contoh 12 */}
+      <div className="mt-8 text-xs font-serif text-black">
+        <div className="flex justify-end mb-2">
+          <p className="text-xs">Dibuat di {tempatDibuat || '....................'}</p>
         </div>
 
         <div className="grid grid-cols-2 gap-8 text-center">
-          {/* Pihak Pertama */}
-          <div className="flex flex-col justify-between min-h-[140px]">
-            <p className="font-semibold">Pihak Pertama,</p>
+          {/* Pihak Kedua (Sisi Kiri Sesuai Contoh 12) */}
+          <div className="flex flex-col justify-between min-h-[130px]">
+            <p className="font-normal">Pihak Kedua,</p>
             <div className="my-2 min-h-[44px] flex items-center justify-center">
-              <span className="text-[10px] text-slate-400 italic">tanda tangan</span>
+              <span className="text-[10px] text-black/60 italic font-serif">Tanda tangan</span>
             </div>
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-                {pihak1Nama}
+              <p className="font-normal text-xs text-black">
+                {pihak2Nama || 'Nama Pejabat'}
+              </p>
+              <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                {pihak2Nip ? `NIP ${pihak2Nip}` : 'NIP'}
               </p>
             </div>
           </div>
 
-          {/* Pihak Kedua */}
-          <div className="flex flex-col justify-between min-h-[140px]">
-            <p className="font-semibold">Pihak Kedua,</p>
+          {/* Pihak Pertama (Sisi Kanan Sesuai Contoh 12) */}
+          <div className="flex flex-col justify-between min-h-[130px]">
+            <p className="font-normal">Pihak Pertama,</p>
             <div className="my-2 min-h-[44px] flex items-center justify-center">
-              <span className="text-[10px] text-slate-400 italic">tanda tangan</span>
+              <span className="text-[10px] text-black/60 italic font-serif">Tanda tangan</span>
             </div>
             <div>
-              <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-                {pihak2Nama}
+              <p className="font-normal text-xs text-black">
+                {pihak1Nama || 'Nama Pejabat'}
+              </p>
+              <p className="text-[10.5px] text-black mt-0.5 font-serif">
+                {pihak1Nip ? `NIP ${pihak1Nip}` : 'NIP'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Mengetahui / Mengesahkan (Tengah Bawah) */}
-        <div className="mt-8 text-center flex flex-col items-center justify-center">
-          <p className="font-semibold text-xs">Mengetahui/Mengesahkan</p>
-          <p className="text-xs text-slate-900">{mengetahuiJabatan}</p>
+        {/* Mengetahui / Mengesahkan (Tengah Bawah Sesuai Contoh 12) */}
+        <div className="mt-7 text-center flex flex-col items-center justify-center">
+          <p className="font-normal text-xs">Mengetahui/Mengesahkan</p>
+          <p className="text-xs text-black">{mengetahuiJabatan || 'Nama Jabatan'}</p>
 
-          <div className="my-3 min-h-[48px] flex items-center justify-center">
+          <div className="my-2 min-h-[48px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="py-1 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight max-w-[200px]">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{mengetahuiNama}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <span className="text-[10px] text-slate-400 italic">Tanda tangan</span>
+              <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                Tanda tangan dan cap dinas
+              </div>
             )}
           </div>
 
           <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {mengetahuiNama}
+            <p className="font-normal text-xs text-black">
+              {mengetahuiNama || 'Nama Pejabat'}
             </p>
-            {mengetahuiNip && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {mengetahuiNip}
-              </p>
-            )}
+            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+              {mengetahuiNip ? `NIP ${mengetahuiNip}` : 'NIP'}
+            </p>
           </div>
         </div>
       </div>
@@ -2678,7 +2848,7 @@ export const BeritaAcaraTemplateView = ({ data }) => {
 
 /**
  * 15. FORMAT SURAT KETERANGAN
- * Berdasarkan Naskah Dinas Resmi (Gambar 4)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 15 / Gambar 4)
  */
 export const SuratKeteranganTemplateView = ({ data }) => {
   const {
@@ -2701,53 +2871,53 @@ export const SuratKeteranganTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Keterangan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul & Nomor Surat Keterangan (Sesuai Gambar 4: Nomor Tanpa Titik Dua) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           SURAT KETERANGAN
         </h1>
-        <p className="text-xs font-serif text-slate-900">
-          Nomor: {nomorSurat}
+        <p className="text-xs font-serif text-black mt-0.5">
+          Nomor {nomorSurat || '........../...../...../.........'}
         </p>
       </div>
 
       {/* Isi Surat Keterangan */}
-      <div className="text-xs text-slate-900 font-serif space-y-4 leading-relaxed">
+      <div className="text-xs text-black font-serif space-y-3 leading-relaxed">
         <p>Yang bertanda tangan di bawah ini,</p>
 
-        {/* Pejabat Yang Menerangkan */}
-        <div className="pl-4 space-y-1">
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">nama</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span className="font-semibold">{pejabatNama}</span>
+        {/* Pejabat Yang Menerangkan (Sesuai Gambar 4: Huruf Kecil & Titik Dua Sejajar) */}
+        <div className="space-y-1 text-xs">
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pejabatNama || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">NIP</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pejabatNip}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pejabatNip || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">pangkat dan golongan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pejabatPangkatGol}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pejabatPangkatGol || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">jabatan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pejabatJabatan}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pejabatJabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
         </div>
@@ -2755,82 +2925,99 @@ export const SuratKeteranganTemplateView = ({ data }) => {
         <p className="pt-2">dengan ini menerangkan bahwa,</p>
 
         {/* Pegawai / Pihak Yang Diterangkan */}
-        <div className="pl-4 space-y-1">
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">nama</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span className="font-semibold">{pegawaiNama}</span>
+        <div className="space-y-1 text-xs">
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pegawaiNama || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">NIP</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pegawaiNip}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pegawaiNip || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">pangkat dan golongan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pegawaiPangkatGol}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pegawaiPangkatGol || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">jabatan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pegawaiJabatan}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pegawaiJabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
         </div>
 
-        {/* Narasi Isi Keterangan */}
-        <div className="pt-3 space-y-1.5">
-          <p className="font-semibold">Isi Keterangan</p>
-          <div className="text-justify pl-4 leading-relaxed whitespace-pre-line">
-            {isiKeterangan}
-          </div>
+        {/* Narasi Isi Keterangan Sesuai Gambar 4 */}
+        <div className="pt-2 text-justify font-serif leading-relaxed">
+          {isiKeterangan ? (
+            <div className="space-y-2 whitespace-pre-line">
+              {isiKeterangan.toLowerCase().startsWith('isi keterangan') ? (
+                <p>{isiKeterangan}</p>
+              ) : (
+                <p>
+                  <span className="font-normal">Isi Keterangan </span>
+                  {isiKeterangan}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5 text-slate-400 select-none">
+              <p className="leading-relaxed">
+                Isi Keterangan <span className="tracking-widest">........................................................................................................................</span>
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+            </div>
+          )}
         </div>
 
-        <p className="pt-3">
+        {/* Penutup Baku Sesuai Gambar 4 */}
+        <p className="pt-2">
           Surat keterangan ini dibuat untuk dipergunakan sebagaimana mestinya.
         </p>
       </div>
 
-      {/* Blok Tanda Tangan Kanan */}
-      <div className="mt-12 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-64 text-center flex flex-col justify-between min-h-[160px]">
-          <div>
-            <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
-            <p className="font-semibold">{pejabatJabatan},</p>
-          </div>
+      {/* Blok Tanda Tangan Kanan Sesuai Gambar 4 */}
+      <div className="mt-8 text-xs font-serif flex justify-end">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs mb-0.5">{tanggal || 'Tanggal'}</p>
+          <p className="text-xs mb-1 font-normal">{pejabatJabatan ? `${pejabatJabatan},` : 'Nama Pejabat,'}</p>
 
-          <div className="my-3 min-h-[48px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[52px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{pejabatNama}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="text-[10px] text-slate-400 italic">
-                <p>tanda tangan dan</p>
-                <p>cap dinas</p>
+              <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                <span>tanda tangan dan</span>
+                <span>cap dinas</span>
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {pejabatNama}
-            </p>
-            {pejabatNip && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {pejabatNip}
-              </p>
-            )}
-          </div>
+          <p className="font-normal text-xs text-black">{pejabatNama || 'Nama Pejabat'}</p>
+          <p className="text-[10.5px] text-black mt-0.5 font-serif">
+            {pejabatNip ? `NIP ${pejabatNip}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -2839,7 +3026,7 @@ export const SuratKeteranganTemplateView = ({ data }) => {
 
 /**
  * 16. FORMAT SURAT PERNYATAAN
- * Berdasarkan Naskah Dinas Resmi (Gambar 5)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 14 / Image 2)
  */
 export const SuratPernyataanTemplateView = ({ data }) => {
   const {
@@ -2852,6 +3039,7 @@ export const SuratPernyataanTemplateView = ({ data }) => {
     isiPernyataan = 'Dengan ini menyatakan dengan sesungguhnya bahwa seluruh data, laporan rekonsiliasi belanja modal, dan dokumen pertanggungjawaban keuangan Universitas Siliwangi Tahun Anggaran 2026 telah disusun secara benar, objektif, dan sesuai dengan Standar Akuntansi Pemerintahan (SAP). Apabila di kemudian hari ditemukan ketidaksesuaian atau kekeliruan data, saya bersedia bertanggung jawab sepenuhnya sesuai ketentuan hukum yang berlaku.',
     tanggal = '08 September 2026',
     kota = 'Tasikmalaya',
+    namaJabatan = 'Yang Menyatakan,',
     tteVerified = true
   } = data || {};
 
@@ -2859,108 +3047,129 @@ export const SuratPernyataanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Pernyataan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul & Nomor Surat Pernyataan (Sesuai Image 2 / Contoh 14: Nomor Tanpa Titik Dua) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           SURAT PERNYATAAN
         </h1>
-        <p className="text-xs font-serif text-slate-900">
-          Nomor: {nomorSurat}
+        <p className="text-xs font-serif text-black mt-0.5">
+          Nomor {nomorSurat || '........../...../...../.........'}
         </p>
       </div>
 
-      {/* Data Yang Bertanda Tangan */}
-      <div className="text-xs text-slate-900 font-serif space-y-4 leading-relaxed">
+      {/* Pembuka Yang Bertanda Tangan di Bawah Ini */}
+      <div className="text-xs text-black font-serif space-y-3 leading-relaxed">
         <p>Yang bertanda tangan di bawah ini,</p>
 
-        <div className="pl-4 space-y-1">
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">nama</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span className="font-semibold">{namaYangMenyatakan}</span>
+        {/* Identitas Diri (Sesuai Image 2: Label Huruf Kecil & Kolon Sejajar) */}
+        <div className="space-y-1 text-xs">
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">nama</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {namaYangMenyatakan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">NIP</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{nipYangMenyatakan}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">NIP</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {nipYangMenyatakan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">pangkat dan golongan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{pangkatGolongan}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">pangkat dan golongan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {pangkatGolongan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">jabatan</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{jabatan}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">jabatan</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {jabatan || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
-          <div className="grid grid-cols-12 gap-1">
-            <span className="col-span-4">alamat</span>
-            <span className="col-span-8 flex">
-              <span className="mr-2">:</span>
-              <span>{alamat}</span>
+          <div className="flex items-baseline">
+            <span className="w-40 sm:w-44 shrink-0 font-normal">alamat</span>
+            <span className="w-4 shrink-0 text-center">:</span>
+            <span className="flex-1 font-serif text-black">
+              {alamat || <span className="text-slate-400 select-none">...........................................................................</span>}
             </span>
           </div>
         </div>
 
-        {/* Isi Pernyataan */}
-        <div className="pt-3 space-y-1.5">
-          <p className="font-semibold">Isi Pernyataan</p>
-          <div className="text-justify pl-4 leading-relaxed whitespace-pre-line">
-            {isiPernyataan}
-          </div>
+        {/* Isi Pernyataan Sesuai Image 2 */}
+        <div className="pt-2 text-justify font-serif leading-relaxed">
+          {isiPernyataan ? (
+            <div className="space-y-2 whitespace-pre-line">
+              {isiPernyataan.toLowerCase().startsWith('isi pernyataan') ? (
+                <p>{isiPernyataan}</p>
+              ) : (
+                <p>
+                  <span className="font-normal">Isi Pernyataan </span>
+                  {isiPernyataan}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-1.5 text-slate-400 select-none">
+              <p className="leading-relaxed">
+                Isi Pernyataan <span className="tracking-widest">........................................................................................................................</span>
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+              <p className="leading-relaxed tracking-widest">
+                ...................................................................................................................................................
+              </p>
+            </div>
+          )}
         </div>
 
-        <p className="pt-3">
+        {/* Penutup Baku Sesuai Image 2 */}
+        <p className="pt-2">
           Surat pernyataan ini dibuat untuk dipergunakan sebagaimana mestinya.
         </p>
       </div>
 
-      {/* Blok Tanda Tangan Kanan */}
-      <div className="mt-12 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-64 text-center flex flex-col justify-between min-h-[160px]">
-          <div>
-            <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
-            <p className="font-semibold">{jabatan}</p>
-          </div>
+      {/* Blok Tanda Tangan Kanan Sesuai Image 2 */}
+      <div className="mt-8 text-xs font-serif flex justify-end">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs mb-0.5">{tanggal || 'Tanggal'}</p>
+          <p className="text-xs mb-1 font-normal">{namaJabatan || 'Nama Jabatan'}</p>
 
-          <div className="my-3 min-h-[48px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[52px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaYangMenyatakan}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-44 text-center text-[9px] text-slate-400 italic">
-                <p>Materai, tanda tangan dan</p>
-                <p>Cap dinas/jabatan</p>
+              <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                <span>Materai, tanda tangan dan</span>
+                <span>Cap dinas/jabatan</span>
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {namaYangMenyatakan}
-            </p>
-            {nipYangMenyatakan && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {nipYangMenyatakan}
-              </p>
-            )}
-          </div>
+          <p className="font-normal text-xs text-black">{namaYangMenyatakan || 'Nama Pejabat'}</p>
+          <p className="text-[10.5px] text-black mt-0.5 font-serif">
+            {nipYangMenyatakan ? `NIP ${nipYangMenyatakan}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -2969,7 +3178,7 @@ export const SuratPernyataanTemplateView = ({ data }) => {
 
 /**
  * 17. FORMAT SURAT PENGANTAR
- * Berdasarkan Naskah Dinas Resmi (Gambar 1)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 17 / Gambar 5)
  */
 export const SuratPengantarTemplateView = ({ data }) => {
   const {
@@ -2994,10 +3203,10 @@ export const SuratPengantarTemplateView = ({ data }) => {
     pengirimJabatan = 'Kepala Biro Umum dan Keuangan,',
     pengirimNama = 'Dr. Nana Sujana, Drs., M.Si.',
     pengirimNip = '196808301989031004',
-    penerimaTanggal = '08 September 2026',
-    penerimaJabatan = 'Petugas Front Office / Pengadministrasi KPPN Tasikmalaya',
-    penerimaNama = 'Dedi Supriadi, S.E.',
-    penerimaNip = '198205142008121002',
+    penerimaTanggal = '',
+    penerimaJabatan = '',
+    penerimaNama = '',
+    penerimaNip = '',
     tteVerified = true
   } = data || {};
 
@@ -3005,126 +3214,142 @@ export const SuratPengantarTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul & Nomor Surat Pengantar (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul & Nomor Surat Pengantar (Sesuai Gambar 5: Nomor Tanpa Titik Dua) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           SURAT PENGANTAR
         </h1>
-        <p className="text-xs text-slate-800">
-          Nomor {nomorSurat}
+        <p className="text-xs font-serif text-black mt-0.5">
+          Nomor {nomorSurat || '........./...../...../.........'}
         </p>
       </div>
 
-      {/* Tujuan Surat */}
-      <div className="text-xs font-serif text-slate-900 mb-5 space-y-0.5">
-        <p>Yth. {tujuan}</p>
-        {tujuanInstansi && (
-          <p className="text-slate-800 pl-7">{tujuanInstansi}</p>
-        )}
+      {/* Tujuan Surat (Sesuai Gambar 5) */}
+      <div className="text-xs font-serif text-black mb-4 space-y-0.5">
+        <p>
+          Yth. {tujuan || <span className="text-slate-400 select-none">...................................................</span>}
+        </p>
+        <p className="text-black">
+          {tujuanInstansi || (tujuan ? '' : <span className="text-slate-400 select-none">...................................................</span>)}
+        </p>
       </div>
 
-      {/* Kalimat Pembuka */}
-      <p className="text-xs font-serif text-slate-900 mb-3">
+      {/* Pembuka Sesuai Gambar 5 */}
+      <p className="text-xs font-serif text-black mb-2">
         Bersama ini kami sampaikan:
       </p>
 
-      {/* Tabel Daftar Dokumen/Barang */}
-      <div className="mb-5 overflow-x-auto">
-        <table className="w-full border-collapse border border-slate-950 text-xs font-serif">
+      {/* Tabel 4 Kolom: No. | Jenis Dokumen/Barang | Jumlah | Keterangan (Sesuai Gambar 5) */}
+      <div className="mb-4 overflow-x-auto">
+        <table className="w-full border-collapse border border-black text-xs font-serif">
           <thead>
-            <tr className="border-b border-slate-950 bg-slate-50 text-center font-bold text-slate-950">
-              <th className="border-r border-slate-950 p-2 w-10">No.</th>
-              <th className="border-r border-slate-950 p-2">Jenis Dokumen/Barang</th>
-              <th className="border-r border-slate-950 p-2 w-28">Jumlah</th>
-              <th className="p-2 w-44">Keterangan</th>
+            <tr className="border-b border-black text-center font-normal text-black">
+              <th className="border-r border-black p-2 w-10 text-center font-normal">No.</th>
+              <th className="border-r border-black p-2 text-center font-normal">Jenis Dokumen/Barang</th>
+              <th className="border-r border-black p-2 w-28 text-center font-normal">Jumlah</th>
+              <th className="p-2 w-44 text-center font-normal">Keterangan</th>
             </tr>
           </thead>
-          <tbody>
+          <tbody className="divide-y divide-black text-black">
             {items && items.length > 0 ? (
               items.map((item, idx) => (
-                <tr key={idx} className="border-b border-slate-950 align-top">
-                  <td className="border-r border-slate-950 p-2 text-center">{idx + 1}.</td>
-                  <td className="border-r border-slate-950 p-2 leading-relaxed">{item.jenis}</td>
-                  <td className="border-r border-slate-950 p-2 text-center leading-relaxed">{item.jumlah}</td>
+                <tr key={idx} className="align-top">
+                  <td className="border-r border-black p-2 text-center">{idx + 1}.</td>
+                  <td className="border-r border-black p-2 leading-relaxed">{item.jenis}</td>
+                  <td className="border-r border-black p-2 text-center leading-relaxed">{item.jumlah}</td>
                   <td className="p-2 leading-relaxed">{item.keterangan}</td>
                 </tr>
               ))
             ) : (
-              <tr className="border-b border-slate-950">
-                <td colSpan={4} className="p-4 text-center italic text-slate-500">
-                  Tidak ada daftar dokumen/barang yang disertakan
-                </td>
-              </tr>
+              <>
+                <tr className="h-16">
+                  <td className="border-r border-black p-2 text-center text-slate-400"></td>
+                  <td className="border-r border-black p-2"></td>
+                  <td className="border-r border-black p-2"></td>
+                  <td className="p-2"></td>
+                </tr>
+                <tr className="h-16">
+                  <td className="border-r border-black p-2 text-center text-slate-400"></td>
+                  <td className="border-r border-black p-2"></td>
+                  <td className="border-r border-black p-2"></td>
+                  <td className="p-2"></td>
+                </tr>
+              </>
             )}
           </tbody>
         </table>
       </div>
 
-      {/* Kalimat Penutup */}
-      <p className="text-xs font-serif text-slate-900 mb-8 text-justify leading-relaxed">
-        {kalimatPenutup}
-      </p>
-
-      {/* Area Tanda Tangan Dua Sisi (Pengirim Kanan, Tanda Terima Kiri Bawah) */}
-      <div className="mt-8 flex flex-col sm:flex-row justify-between items-start gap-8 pt-2">
-        {/* Kolom Kiri: Tanda Terima Penerima */}
-        <div className="w-64 text-xs font-serif text-slate-900 space-y-1">
-          <p className="text-[11px] text-slate-800">
-            Diterima tanggal {penerimaTanggal ? `: ${penerimaTanggal}` : '....................................'}
+      {/* Kalimat Penutup Sesuai Gambar 5 */}
+      <div className="text-xs font-serif text-black mb-6 text-justify leading-relaxed">
+        {kalimatPenutup ? (
+          <p>
+            {kalimatPenutup.toLowerCase().startsWith('kalimat penutup') ? (
+              kalimatPenutup
+            ) : (
+              kalimatPenutup
+            )}
           </p>
-          <p className="text-[11px] text-slate-800">
-            Jabatan {penerimaJabatan ? `: ${penerimaJabatan}` : '............................................'}
+        ) : (
+          <p className="text-slate-400 select-none">
+            Kalimat penutup <span className="tracking-widest">........................................................................................................................</span>
+          </p>
+        )}
+      </div>
+
+      {/* Area Tanda Tangan Dua Sisi (Pengirim Kanan, Tanda Terima Kiri Bawah Sesuai Gambar 5) */}
+      <div className="mt-6 flex justify-between items-start gap-8 pt-1 text-black font-serif text-xs">
+        {/* Kolom Kiri Bawah: Penerima Naskah Sesuai Gambar 5 */}
+        <div className="w-64 text-left space-y-1">
+          <p className="text-xs">
+            Diterima tanggal {penerimaTanggal || <span className="text-slate-400 select-none">.........................</span>}
+          </p>
+          <p className="text-xs">
+            Jabatan {penerimaJabatan || <span className="text-slate-400 select-none">.........................</span>}
           </p>
 
-          <div className="my-3 min-h-[56px] flex flex-col items-center justify-center border border-dashed border-slate-300 rounded p-1.5 text-center text-[9px] text-slate-400 italic">
-            <p>tanda tangan dan cap dinas</p>
+          <div className="my-2 min-h-[48px] flex items-center text-[10px] text-black/60 italic font-serif">
+            tanda tangan dan cap dinas
           </div>
 
           <div>
-            <p className="font-bold text-slate-950 uppercase tracking-wide">
-              {penerimaNama || '...........................................'}
+            <p className="text-xs text-black">
+              Nama {penerimaNama || <span className="text-slate-400 select-none">.........................</span>}
             </p>
-            <p className="text-[10.5px] text-slate-800 mt-0.5">
-              NIP {penerimaNip || '...........................................'}
+            <p className="text-[10.5px] text-black mt-0.5">
+              NIP {penerimaNip || <span className="text-slate-400 select-none">.........................</span>}
             </p>
           </div>
         </div>
 
-        {/* Kolom Kanan: Pengirim Naskah Dinas */}
-        <div className="w-64 text-center text-xs font-serif text-slate-900 flex flex-col justify-between min-h-[160px]">
-          <div>
-            <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
-            <p className="font-semibold">{pengirimJabatan}</p>
-          </div>
+        {/* Kolom Kanan: Pengirim Naskah Dinas Sesuai Gambar 5 */}
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs mb-0.5">{tanggal || 'Tanggal'}</p>
+          <p className="text-xs mb-1 font-normal">{pengirimJabatan || 'Nama Jabatan,'}</p>
 
-          <div className="my-3 min-h-[48px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[48px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{pengirimNama}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-44 text-center text-[9px] text-slate-400 italic">
-                <p>tanda tangan dan cap dinas</p>
+              <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                tanda tangan dan cap dinas
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {pengirimNama}
-            </p>
-            {pengirimNip && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {pengirimNip}
-              </p>
-            )}
-          </div>
+          <p className="font-normal text-xs text-black">{pengirimNama || 'Nama Pejabat'}</p>
+          <p className="text-[10.5px] text-black mt-0.5 font-serif">
+            {pengirimNip ? `NIP ${pengirimNip}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -3159,30 +3384,30 @@ export const PengumumanTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Judul & Nomor Pengumuman (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
+      <div className="naskah-judul-block text-center font-serif text-black my-6 space-y-1">
         <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
           PENGUMUMAN
         </h1>
-        <p className="text-xs text-slate-800">
+        <p className="text-xs text-black">
           Nomor {nomorSurat}
         </p>
 
         {tentang && (
           <div className="mt-3 font-bold uppercase tracking-wide max-w-xl mx-auto text-xs leading-relaxed">
-            <p className="text-[11px] text-slate-600 mb-0.5">TENTANG</p>
+            <p className="text-[11px] text-black mb-0.5">TENTANG</p>
             <p className="underline decoration-1 underline-offset-4">{tentang}</p>
           </div>
         )}
       </div>
 
       {/* Isi Paragraf Pengumuman */}
-      <div className="text-xs font-serif text-slate-900 space-y-3 leading-relaxed text-justify mb-8">
+      <div className="text-xs font-serif text-black space-y-3 leading-relaxed text-justify mb-8">
         {Array.isArray(isiParagraf) ? (
           isiParagraf.map((paragraf, idx) => (
             <p key={idx} className={idx === 0 ? 'indent-8' : ''}>
@@ -3197,37 +3422,15 @@ export const PengumumanTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan Kanan */}
-      <div className="mt-10 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-64 text-center flex flex-col justify-between min-h-[160px]">
-          <div>
-            <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
-            <p className="font-semibold">{jabatan}</p>
-          </div>
-
-          <div className="my-3 min-h-[48px] flex flex-col items-center justify-center">
-            {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
-              </div>
-            ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-44 text-center text-[9px] text-slate-400 italic">
-                <p>tanda tangan dan cap dinas</p>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {namaPejabat}
-            </p>
-            {nip && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {nip}
-              </p>
-            )}
-          </div>
-        </div>
+      <div className="mt-10 text-xs font-serif flex justify-end">
+        <OfficialSignatureBlock
+          tempatTanggal={`${kota ? `${kota}, ` : ''}${tanggal}`}
+          namaJabatan={jabatan}
+          namaPejabat={namaPejabat}
+          nip={nip}
+          tteVerified={tteVerified}
+          keterangan="tanda tangan dan cap dinas"
+        />
       </div>
     </div>
   );
@@ -3235,7 +3438,7 @@ export const PengumumanTemplateView = ({ data }) => {
 
 /**
  * 19. FORMAT NOTULA
- * Berdasarkan Naskah Dinas Resmi (Gambar 3)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 19 / Gambar 1)
  */
 export const NotulaTemplateView = ({ data }) => {
   const {
@@ -3263,8 +3466,6 @@ export const NotulaTemplateView = ({ data }) => {
     persoalanDibahas = 'Integrasi menyeluruh modul tanda tangan digital bersertifikat BSrE BSSN ke seluruh 20 format tata naskah dinas resmi SILOKA serta penguatan validasi QR-Code verifikasi dokumen kedinasan.',
     tanggapanPeserta = 'Para Dekan menyetujui percepatan implementasi template resmi naskah dinas per September 2026 dan meminta pelatihan teknis (Bimtek) bagi seluruh staf tata usaha fakultas.',
     simpulan = 'Seluruh fakultas dan biro diwajibkan menggunakan aplikasi SILOKA untuk pembuatan dan pengesahan seluruh naskah dinas resmi mulai pekan depan. Bimtek tata persuratan elektronik diagendakan pada hari Jumat, 11 September 2026.',
-    tanggal = '08 September 2026',
-    kota = 'Tasikmalaya',
     jabatanPenandatangan = 'Pemimpin Rapat,',
     namaPenandatangan = 'Prof. Dr. Eng. Ir. Aripin, IPU., ASEAN Eng.',
     nipPenandatangan = '196708161996031001',
@@ -3275,46 +3476,54 @@ export const NotulaTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Notula (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul Notula (Sesuai Gambar 1: Kapital Bold Tanpa Garis Bawah) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           NOTULA
         </h1>
       </div>
 
-      {/* Metadata Rapat (Struktur Dua Titik Sejajar) */}
-      <div className="text-xs font-serif text-slate-900 space-y-2 mb-6">
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Nama rapat</span>
-          <span>:</span>
-          <span>{namaRapat}</span>
+      {/* Metadata Rapat (Sesuai Gambar 1: Struktur Titik Dua Sejajar Tanpa Garis Pembatas) */}
+      <div className="text-xs font-serif text-black space-y-1.5 mb-4">
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Nama rapat</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {namaRapat || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Hari, tanggal</span>
-          <span>:</span>
-          <span>{hariTanggal}</span>
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Hari, tanggal</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {hariTanggal || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Pukul</span>
-          <span>:</span>
-          <span>{pukul}</span>
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Pukul</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {pukul || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Tempat</span>
-          <span>:</span>
-          <span>{tempat}</span>
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Tempat</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {tempat || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
 
         {/* Susunan Acara */}
-        <div className="grid grid-cols-[140px_12px_1fr] items-start pt-1">
-          <span className="font-semibold text-slate-950">Susunan acara</span>
-          <span>:</span>
-          <div className="space-y-1">
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Susunan acara</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <div className="flex-1 font-serif text-black space-y-0.5">
             {susunanAcara && susunanAcara.length > 0 ? (
               susunanAcara.map((acara, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -3323,29 +3532,37 @@ export const NotulaTemplateView = ({ data }) => {
                 </div>
               ))
             ) : (
-              <p className="italic text-slate-500">Susunan acara belum diatur</p>
+              <div className="text-slate-400 select-none space-y-0.5">
+                <p>1. .....................................................................................</p>
+                <p className="pl-4">2. dan seterusnya.</p>
+              </div>
             )}
           </div>
         </div>
+      </div>
 
-        <div className="border-t border-slate-200 my-3"></div>
-
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Pemimpin rapat</span>
-          <span>:</span>
-          <span>{pemimpinRapat}</span>
+      {/* Bagian Pemimpin, Notulis, dan Peserta Rapat (Sesuai Gambar 1) */}
+      <div className="text-xs font-serif text-black space-y-1.5 my-4">
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Pemimpin rapat</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {pemimpinRapat || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
-        <div className="grid grid-cols-[140px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Pencatat/notulis</span>
-          <span>:</span>
-          <span>{notulis}</span>
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Pencatat/notulis</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {notulis || <span className="text-slate-400 select-none">...........................................................................</span>}
+          </span>
         </div>
 
         {/* Peserta Rapat */}
-        <div className="grid grid-cols-[140px_12px_1fr] items-start pt-1">
-          <span className="font-semibold text-slate-950">Peserta rapat</span>
-          <span>:</span>
-          <div className="space-y-1">
+        <div className="flex items-start">
+          <span className="w-36 sm:w-40 shrink-0 font-normal">Peserta rapat</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <div className="flex-1 font-serif text-black space-y-0.5">
             {pesertaRapat && pesertaRapat.length > 0 ? (
               pesertaRapat.map((peserta, idx) => (
                 <div key={idx} className="flex gap-2">
@@ -3354,64 +3571,71 @@ export const NotulaTemplateView = ({ data }) => {
                 </div>
               ))
             ) : (
-              <p className="italic text-slate-500">Daftar peserta belum diatur</p>
+              <div className="text-slate-400 select-none space-y-0.5">
+                <p>1. .....................................................................................</p>
+                <p className="pl-4">2. dan seterusnya.</p>
+              </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Pembahasan & Hasil Rapat */}
-      <div className="border-t-2 border-slate-900 pt-4 text-xs font-serif text-slate-900 space-y-3 mb-8">
-        <div className="grid grid-cols-[200px_12px_1fr] items-start leading-relaxed text-justify">
-          <span className="font-semibold text-slate-950">1. Persoalan yang dibahas</span>
-          <span>:</span>
-          <p className="whitespace-pre-line">{persoalanDibahas}</p>
+      {/* Bagian Substansi Rapat: Persoalan, Tanggapan, Simpulan (Sesuai Gambar 1) */}
+      <div className="text-xs font-serif text-black space-y-2.5 my-5 text-justify leading-relaxed">
+        <div className="flex items-start">
+          <span className="w-48 sm:w-52 shrink-0 font-normal">1. Persoalan yang dibahas</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <div className="flex-1 font-serif text-black">
+            {persoalanDibahas || (
+              <span className="text-slate-400 select-none">...................................................................................................................</span>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-[200px_12px_1fr] items-start leading-relaxed text-justify">
-          <span className="font-semibold text-slate-950">2. Tanggapan peserta rapat</span>
-          <span>:</span>
-          <p className="whitespace-pre-line">{tanggapanPeserta}</p>
+        <div className="flex items-start">
+          <span className="w-48 sm:w-52 shrink-0 font-normal">2. Tanggapan peserta rapat</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <div className="flex-1 font-serif text-black">
+            {tanggapanPeserta || (
+              <span className="text-slate-400 select-none">...................................................................................................................</span>
+            )}
+          </div>
         </div>
 
-        <div className="grid grid-cols-[200px_12px_1fr] items-start leading-relaxed text-justify">
-          <span className="font-semibold text-slate-950">3. Simpulan</span>
-          <span>:</span>
-          <p className="whitespace-pre-line font-medium">{simpulan}</p>
+        <div className="flex items-start">
+          <span className="w-48 sm:w-52 shrink-0 font-normal">3. Simpulan</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <div className="flex-1 font-serif text-black">
+            {simpulan || (
+              <span className="text-slate-400 select-none">...................................................................................................................</span>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Blok Tanda Tangan Kanan */}
-      <div className="mt-10 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-64 text-center flex flex-col justify-between min-h-[150px]">
-          <div>
-            <p className="text-[11px] text-slate-800 mb-0.5">{kota ? `${kota}, ` : ''}{tanggal}</p>
-            <p className="font-semibold">{jabatanPenandatangan}</p>
-          </div>
+      {/* Blok Tanda Tangan Kanan Sesuai Gambar 1 (Nama jabatan, tanda tangan, Nama pejabat, NIP) */}
+      <div className="mt-8 text-xs font-serif flex justify-end">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs mb-1 font-normal">{jabatanPenandatangan || 'Nama jabatan,'}</p>
 
-          <div className="my-3 min-h-[44px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[48px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaPenandatangan}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-40 text-center text-[9px] text-slate-400 italic">
-                <p>tanda tangan</p>
+              <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                tanda tangan
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {namaPenandatangan}
-            </p>
-            {nipPenandatangan && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {nipPenandatangan}
-              </p>
-            )}
-          </div>
+          <p className="font-normal text-xs text-black">{namaPenandatangan || 'Nama pejabat'}</p>
+          <p className="text-[10.5px] text-black mt-0.5 font-serif">
+            {nipPenandatangan ? `NIP ${nipPenandatangan}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -3420,11 +3644,10 @@ export const NotulaTemplateView = ({ data }) => {
 
 /**
  * 20. FORMAT LAPORAN
- * Berdasarkan Naskah Dinas Resmi (Gambar 4)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 20 / Gambar 2)
  */
 export const LaporanTemplateView = ({ data }) => {
   const {
-    nomorSurat = '091/UN58/TI.01/2026',
     tentang = 'PELAKSANAAN AUDIT KESIAPAN TEKNOLOGI DAN IMPLEMENTASI TATA NASKAH DINAS ELEKTRONIK APLIKASI SILOKA UNIVERSITAS SILIWANGI TAHUN 2026',
     latarBelakang = 'Dalam rangka reformasi birokrasi dan percepatan transformasi digital persuratan kedinasan di lingkungan Universitas Siliwangi sesuai Peraturan Menteri Pendidikan, Kebudayaan, Riset, dan Teknologi tentang Tata Naskah Dinas serta Peraturan Rektor Nomor 3 Tahun 2023, dipandang perlu menyusun laporan pelaksanaan audit kesiapan sistem SILOKA.',
     dasar = '1. Undang-Undang Nomor 20 Tahun 2003 tentang Sistem Pendidikan Nasional;\n2. Undang-Undang Nomor 43 Tahun 2009 tentang Kearsipan;\n3. Peraturan Rektor Universitas Siliwangi Nomor 3 Tahun 2023 tentang Tata Naskah Dinas di Lingkungan Universitas Siliwangi;\n4. Surat Tugas Rektor Universitas Siliwangi Nomor 042/UN58/KP.03/2026 tanggal 01 September 2026.',
@@ -3434,118 +3657,153 @@ export const LaporanTemplateView = ({ data }) => {
     penutup = 'Demikian laporan ini dibuat dengan sebenarnya sebagai bahan evaluasi dan pertanggungjawaban pelaksanaan kegiatan. Atas perhatian dan dukungan pimpinan Universitas Siliwangi, diucapkan terima kasih.',
     kota = 'Tasikmalaya',
     tanggal = '08 September 2026',
-    jabatanPembuat = 'Koordinator Pelaksana Audit Sistem SILOKA,',
+    jabatanPembuat = 'Nama Jabatan Pembuat Laporan,',
     namaPembuat = 'Dr. Ade Rustiana, Drs., M.Si.',
     nipPembuat = '196801021992031002',
     tteVerified = true
   } = data || {};
 
+  const isBlangko = !latarBelakang && !dasar && !ruangLingkup && !kegiatanDilaksanakan && !hasilDicapai && !penutup;
+
   return (
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal"
     >
       {/* Kop Surat Resmi Universitas Siliwangi */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
-      {/* Judul Laporan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Judul Laporan (Sesuai Gambar 2: LAPORAN / TENTANG / Titik-titik judul, Tanpa Nomor) */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5 space-y-0.5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           LAPORAN
         </h1>
-        <h2 className="text-xs sm:text-sm font-bold tracking-wider uppercase">
+        <h2 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-black">
           TENTANG
         </h2>
-        <p className="text-xs sm:text-sm font-bold uppercase tracking-wide max-w-xl mx-auto underline decoration-1 underline-offset-4">
-          {tentang}
-        </p>
-        {nomorSurat && (
-          <p className="text-[11px] text-slate-600 mt-1">
-            Nomor {nomorSurat}
-          </p>
-        )}
+        <div className="pt-1 max-w-xl mx-auto">
+          {tentang ? (
+            <p className="text-xs sm:text-sm font-normal uppercase tracking-wide leading-relaxed">
+              {tentang}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400 select-none tracking-widest">
+              ........................................................................................................
+            </p>
+          )}
+        </div>
       </div>
 
-      {/* Sistematika Laporan A-D */}
-      <div className="text-xs font-serif text-slate-900 space-y-4 text-justify leading-relaxed mb-8">
+      {/* Sistematika Laporan A-D Sesuai Gambar 2 */}
+      <div className="text-xs font-serif text-black space-y-3.5 text-justify leading-relaxed my-6">
         {/* A. Pendahuluan */}
-        <div className="space-y-2">
-          <p className="font-bold text-slate-950">A. Pendahuluan</p>
+        <div className="space-y-1.5">
+          <p className="font-normal text-black">A. Pendahuluan</p>
           
-          <div className="pl-4 space-y-2">
+          <div className="pl-6 space-y-1.5">
             <div>
-              <p className="font-semibold text-slate-950">1. Latar Belakang</p>
-              <p className="pl-4 mt-0.5 whitespace-pre-line">{latarBelakang}</p>
+              <p className="font-normal text-black">1. Latar Belakang</p>
+              {latarBelakang ? (
+                <p className="pl-4 mt-0.5 whitespace-pre-line">{latarBelakang}</p>
+              ) : (
+                <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+              )}
             </div>
             <div>
-              <p className="font-semibold text-slate-950">2. Dasar</p>
-              <p className="pl-4 mt-0.5 whitespace-pre-line">{dasar}</p>
+              <p className="font-normal text-black">2. Dasar</p>
+              {dasar ? (
+                <p className="pl-4 mt-0.5 whitespace-pre-line">{dasar}</p>
+              ) : (
+                <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+              )}
             </div>
             <div>
-              <p className="font-semibold text-slate-950">3. Ruang Lingkup</p>
-              <p className="pl-4 mt-0.5 whitespace-pre-line">{ruangLingkup}</p>
+              <p className="font-normal text-black">3. Ruang Lingkup</p>
+              {ruangLingkup ? (
+                <p className="pl-4 mt-0.5 whitespace-pre-line">{ruangLingkup}</p>
+              ) : (
+                <p className="pl-4 text-slate-400 select-none tracking-widest">........................................................................................................................</p>
+              )}
             </div>
           </div>
         </div>
 
         {/* B. Kegiatan yang Dilaksanakan */}
         <div className="space-y-1">
-          <p className="font-bold text-slate-950">B. Kegiatan yang Dilaksanakan</p>
-          <div className="pl-4">
-            <p className="whitespace-pre-line">{kegiatanDilaksanakan}</p>
+          <p className="font-normal text-black">B. Kegiatan yang Dilaksanakan</p>
+          <div className="pl-6">
+            {kegiatanDilaksanakan ? (
+              <p className="whitespace-pre-line">{kegiatanDilaksanakan}</p>
+            ) : (
+              <div className="space-y-1 text-slate-400 select-none tracking-widest">
+                <p>....................................................................................................................................</p>
+                <p>....................................................................................................................................</p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* C. Hasil yang Dicapai */}
         <div className="space-y-1">
-          <p className="font-bold text-slate-950">C. Hasil yang Dicapai</p>
-          <div className="pl-4">
-            <p className="whitespace-pre-line">{hasilDicapai}</p>
+          <p className="font-normal text-black">C. Hasil yang Dicapai</p>
+          <div className="pl-6">
+            {hasilDicapai ? (
+              <p className="whitespace-pre-line">{hasilDicapai}</p>
+            ) : (
+              <div className="space-y-1 text-slate-400 select-none tracking-widest">
+                <p>....................................................................................................................................</p>
+                <p>....................................................................................................................................</p>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* D. Penutup */}
+        {/* D. Penutup Sesuai Gambar 2 (Bukan E. Penutup) */}
         <div className="space-y-1">
-          <p className="font-bold text-slate-950">D. Penutup</p>
-          <div className="pl-4">
-            <p className="whitespace-pre-line">{penutup}</p>
+          <p className="font-normal text-black">D. Penutup</p>
+          <div className="pl-6">
+            {penutup ? (
+              <p className="whitespace-pre-line">{penutup}</p>
+            ) : (
+              <p className="text-slate-400 select-none tracking-widest">....................................................................................................................................</p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Blok Tanda Tangan Kanan */}
-      <div className="mt-10 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-64 text-center flex flex-col justify-between min-h-[160px]">
-          <div>
-            <p className="text-[11px] text-slate-800">Dibuat di {kota}</p>
-            <p className="text-[11px] text-slate-800 mb-0.5">pada tanggal {tanggal}</p>
-            <p className="font-semibold">{jabatanPembuat}</p>
-          </div>
+      {/* Blok Tanda Tangan Kanan Sesuai Gambar 2 */}
+      <div className="mt-8 text-xs font-serif flex justify-end">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs">
+            Dibuat di {kota || <span className="text-slate-400 select-none">....................</span>}
+          </p>
+          <p className="text-xs mb-1">
+            pada tanggal {tanggal || <span className="text-slate-400 select-none">.................</span>}
+          </p>
+          <p className="text-xs mb-1 font-normal">
+            {jabatanPembuat || 'Nama Jabatan Pembuat Laporan,'}
+          </p>
 
-          <div className="my-3 min-h-[48px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[52px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaPembuat}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-44 text-center text-[9px] text-slate-400 italic">
-                <p>Tanda tangan, cap jabatan atau cap dinas</p>
+              <div className="h-12 flex flex-col items-center justify-center text-black/60 italic text-[10px] font-serif leading-tight text-center">
+                <span>Tanda tangan, cap jabatan atau</span>
+                <span>cap dinas</span>
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {namaPembuat}
-            </p>
-            {nipPembuat && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {nipPembuat}
-              </p>
-            )}
-          </div>
+          <p className="font-normal text-xs text-black">{namaPembuat || 'Nama Pembuat Laporan'}</p>
+          <p className="text-[10.5px] text-black mt-0.5 font-serif">
+            {nipPembuat ? `NIP ${nipPembuat}` : 'NIP'}
+          </p>
         </div>
       </div>
     </div>
@@ -3554,7 +3812,7 @@ export const LaporanTemplateView = ({ data }) => {
 
 /**
  * 21. FORMAT TELAAH STAF
- * Berdasarkan Format Tata Naskah Dinas Resmi (media_1788853859703.png)
+ * Sesuai Gambar Spesimen Resmi Peraturan Rektor No. 3/2023 (Contoh 21 / Gambar 3)
  */
 export const TelaahStafTemplateView = ({ data }) => {
   const {
@@ -3562,16 +3820,17 @@ export const TelaahStafTemplateView = ({ data }) => {
     kepada = 'Rektor Universitas Siliwangi',
     dari = 'Kepala Biro Umum dan Keuangan',
     tanggal = '08 September 2026',
+    nomor = '',
     lampiran = '1 (satu) Berkas',
     hal = 'Telaah Staf Peningkatan Keandalan Server dan Sertifikasi TTE BSrE SILOKA',
     persoalan = 'Bagian persoalan memuat pernyataan singkat dan jelas tentang persoalan yang akan dipecahkan.',
-    pranggapan = 'Pranggapan fakta yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi dan merupakan kemungkinan kejadian dimasa mendatang.',
-    faktaMempengaruhi = 'Bagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan',
+    pranggapan = 'Pranggapan memuat dugaan yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi dan merupakan kemungkinan kejadian di masa mendatang.',
+    faktaMempengaruhi = 'Bagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan.',
     analisis = 'Bagian ini memuat analisis pengaruh pranggapan dan fakta terhadap persoalan serta akibatnya, hambatan serta keuntungan dan kerugiannya, serta pemecahan atau cara bertindak yang mungkin atau dapat dilakukan.',
-    simpulan = 'Bagian simpulan memuat intisari hasil diskusi dan pilihan dan satu cara bertindak atau jalan keluar sebagai pemecahan persoalan yang dihadapi.',
-    saran = 'Bagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang di hadapi',
-    jabatanPembuat = 'Nama Jabatan Pembuat Telaah staf,',
-    namaPembuat = 'Nama Lengkap',
+    simpulan = 'Bagian simpulan memuat intisari hasil analisis dan pilihan satu cara bertindak atau jalan keluar sebagai pemecahan persoalan yang dihadapi.',
+    saran = 'Bagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang dihadapi.',
+    jabatanPembuat = 'Nama jabatan,',
+    namaPembuat = 'Nama lengkap',
     nipPembuat = '',
     tteVerified = true,
     showKopSurat = false
@@ -3581,162 +3840,198 @@ export const TelaahStafTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop={showKopSurat ? 'true' : 'false'}
-      className={`a4-sheet ${showKopSurat ? 'pasal47-with-kop' : 'pasal47-without-kop'} p-6 sm:p-10 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-slate-900 font-serif leading-normal`}
+      className={`a4-sheet ${showKopSurat ? 'pasal47-with-kop' : 'pasal47-without-kop'} p-6 sm:p-10 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-normal`}
     >
-      {/* Kop Surat Opsional */}
+      {/* Kop Surat Opsional (Secara Spesimen Tanpa Kop Surat) */}
       {showKopSurat && <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />}
 
-      {/* Header Judul Sesuai Template Acuan (Pasal 46: 1 spasi antarbaris judul, 2 spasi ke isi) */}
-      <div className="naskah-judul-block text-center font-serif text-slate-950 my-6 space-y-1">
-        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase">
+      {/* Header Judul Sesuai Gambar 3: TELAAH STAF / TENTANG / Titik-titik */}
+      <div className="naskah-judul-block text-center font-serif text-black my-5 space-y-0.5">
+        <h1 className="text-sm sm:text-base font-bold tracking-wider uppercase text-black">
           TELAAH STAF
         </h1>
-        <h2 className="text-xs sm:text-sm font-bold tracking-wider uppercase">
+        <h2 className="text-xs sm:text-sm font-bold tracking-wider uppercase text-black">
           TENTANG
         </h2>
-        {tentang ? (
-          <p className="text-xs sm:text-sm font-bold uppercase tracking-wide max-w-xl mx-auto leading-relaxed pt-1">
-            {tentang}
-          </p>
-        ) : (
-          <p className="text-xs text-slate-400 tracking-widest pt-1">
-            ........................................................................................................
-          </p>
-        )}
-        {/* Garis Titik-Titik Sesuai Gambar Acuan */}
-        <div className="pt-2 border-b border-dotted border-slate-500 w-4/5 mx-auto" />
-      </div>
-
-      {/* Bagian Metadata: Kepada, Dari, Tanggal, Lampiran, Hal (Titik Dua Sejajar) */}
-      <div className="text-xs font-serif text-slate-900 my-8 space-y-1.5 max-w-xl">
-        <div className="grid grid-cols-[85px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Kepada</span>
-          <span>:</span>
-          <span>{kepada || '................................................................'}</span>
-        </div>
-        <div className="grid grid-cols-[85px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Dari</span>
-          <span>:</span>
-          <span>{dari || '................................................................'}</span>
-        </div>
-        <div className="grid grid-cols-[85px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Tanggal</span>
-          <span>:</span>
-          <span>{tanggal || '................................................................'}</span>
-        </div>
-        <div className="grid grid-cols-[85px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Lampiran</span>
-          <span>:</span>
-          <span>{lampiran || '................................................................'}</span>
-        </div>
-        <div className="grid grid-cols-[85px_12px_1fr] items-baseline">
-          <span className="font-semibold text-slate-950">Hal</span>
-          <span>:</span>
-          <span className="font-medium">{hal || '................................................................'}</span>
+        <div className="pt-1 max-w-xl mx-auto">
+          {tentang ? (
+            <p className="text-xs sm:text-sm font-normal uppercase tracking-wide leading-relaxed">
+              {tentang}
+            </p>
+          ) : (
+            <p className="text-xs text-slate-400 select-none tracking-widest">
+              ........................................................................................................
+            </p>
+          )}
         </div>
       </div>
 
-      {/* Bagian Sistematika I s.d. VI */}
-      <div className="text-xs font-serif text-slate-900 space-y-5 text-justify leading-relaxed mb-10">
+      {/* Bagian Metadata: Kepada, Dari, Tanggal, Nomor, Lampiran, Hal (Titik Dua Sejajar Sesuai Gambar 3) */}
+      <div className="text-xs font-serif text-black my-6 space-y-1.5 max-w-xl">
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Kepada</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {kepada || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Dari</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {dari || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Tanggal</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {tanggal || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Nomor</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {nomor || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Lampiran</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {lampiran || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+        <div className="flex items-baseline">
+          <span className="w-24 sm:w-28 shrink-0 font-normal">Hal</span>
+          <span className="w-4 shrink-0 text-center">:</span>
+          <span className="flex-1 font-serif text-black">
+            {hal || <span className="text-slate-400 select-none">................................................................</span>}
+          </span>
+        </div>
+      </div>
+
+      {/* Bagian Sistematika I s.d. VI Sesuai Gambar 3 */}
+      <div className="text-xs font-serif text-black space-y-4 text-justify leading-relaxed mb-8">
         {/* I. Persoalan */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">I.</span>
             <span>Persoalan</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {persoalan}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {persoalan || (
+              <p className="text-slate-400 select-none">
+                Bagian persoalan memuat pernyataan singkat dan jelas tentang persoalan yang akan dipecahkan.
+              </p>
+            )}
           </div>
         </div>
 
         {/* II. Pranggapan */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">II.</span>
             <span>Pranggapan</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {pranggapan}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {pranggapan || (
+              <p className="text-slate-400 select-none">
+                Pranggapan memuat dugaan yang beralasan berdasarkan data dan saling berhubungan sesuai dengan situasi yang dihadapi dan merupakan kemungkinan kejadian di masa mendatang.
+              </p>
+            )}
           </div>
         </div>
 
         {/* III. Fakta-fakta yang mempengaruhi */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">III.</span>
             <span>Fakta-fakta yang mempengaruhi</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {faktaMempengaruhi}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {faktaMempengaruhi || (
+              <p className="text-slate-400 select-none">
+                Bagian fakta yang mempengaruhi memuat fakta yang merupakan landasan analisis dan pemecahan persoalan.
+              </p>
+            )}
           </div>
         </div>
 
         {/* IV. Analisis */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">IV.</span>
             <span>Analisis</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {analisis}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {analisis || (
+              <p className="text-slate-400 select-none">
+                Bagian ini memuat analisis pengaruh pranggapan dan fakta terhadap persoalan serta akibatnya, hambatan serta keuntungan dan kerugiannya, serta pemecahan atau cara bertindak yang mungkin atau dapat dilakukan.
+              </p>
+            )}
           </div>
         </div>
 
         {/* V. Simpulan */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">V.</span>
             <span>Simpulan</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {simpulan}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {simpulan || (
+              <p className="text-slate-400 select-none">
+                Bagian simpulan memuat intisari hasil analisis dan pilihan satu cara bertindak atau jalan keluar sebagai pemecahan persoalan yang dihadapi.
+              </p>
+            )}
           </div>
         </div>
 
         {/* VI. Saran */}
         <div className="space-y-1">
-          <div className="flex gap-2.5 font-bold text-slate-950">
+          <div className="flex gap-2.5 font-normal text-black">
             <span className="w-6 shrink-0">VI.</span>
             <span>Saran</span>
           </div>
-          <div className="pl-8 text-slate-800 whitespace-pre-line leading-relaxed">
-            {saran}
+          <div className="pl-8 text-black whitespace-pre-line leading-relaxed">
+            {saran || (
+              <p className="text-slate-400 select-none">
+                Bagian saran memuat secara ringkas dan jelas tentang saran tindakan untuk mengatasi persoalan yang dihadapi.
+              </p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Blok Tanda Tangan Kanan Bawah Sesuai Gambar Acuan */}
-      <div className="mt-10 text-xs font-serif text-slate-900 flex justify-end">
-        <div className="w-72 text-center flex flex-col justify-between min-h-[150px]">
-          <div>
-            <p className="font-semibold text-slate-950 leading-snug">
-              {jabatanPembuat}
-            </p>
-          </div>
+      {/* Blok Tanda Tangan Kanan Bawah Sesuai Gambar 3 */}
+      <div className="mt-8 text-xs font-serif flex justify-end">
+        <div className="w-64 sm:w-72 text-left">
+          <p className="text-xs mb-1 font-normal">
+            {jabatanPembuat || 'Nama jabatan,'}
+          </p>
 
-          <div className="my-4 min-h-[48px] flex flex-col items-center justify-center">
+          <div className="my-2 min-h-[48px] flex items-center justify-center">
             {tteVerified ? (
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50/70 border border-emerald-300 rounded text-[10px] text-emerald-800">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700" />
-                <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+              <div className="w-full py-1.5 px-2 border border-black bg-stone-50/50 text-[10px] text-black text-center font-serif leading-tight">
+                <p className="font-semibold">Ditandatangani secara elektronik oleh:</p>
+                <p className="font-bold uppercase tracking-wide mt-0.5">{namaPembuat}</p>
+                <p className="text-[9px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
               </div>
             ) : (
-              <div className="border border-dashed border-slate-400 rounded p-1 w-44 text-center text-[9px] text-slate-400 italic">
-                <p>Tanda tangan</p>
+              <div className="h-10 flex items-center justify-center text-black/60 italic text-[10px] font-serif">
+                tanda tangan
               </div>
             )}
           </div>
 
-          <div>
-            <p className="font-bold uppercase tracking-wide text-xs text-slate-950">
-              {namaPembuat}
+          <p className="font-normal text-xs text-black">{namaPembuat || 'Nama lengkap'}</p>
+          {nipPembuat ? (
+            <p className="text-[10.5px] text-black mt-0.5 font-serif">
+              NIP {nipPembuat}
             </p>
-            {nipPembuat && (
-              <p className="text-[10.5px] text-slate-800 mt-0.5">
-                NIP {nipPembuat}
-              </p>
-            )}
-          </div>
+          ) : null}
         </div>
       </div>
     </div>
@@ -3817,6 +4112,72 @@ export const DAFTAR_INSTRUKSI_REKTOR = [
   { id: 'disp_24', label: 'Lainnya...', isCustom: true }
 ];
 
+/**
+ * Memetakan target disposisi (string atau array objek) ke daftar ID numerik (1-34)
+ * untuk ditandai centang [✓] pada format cetak Contoh 21 (Disposisi Rektor).
+ */
+export const mapDisposisiTargetsToPenerusanIds = (targetsInput) => {
+  if (!targetsInput) return [];
+  const targetNames = [];
+
+  if (Array.isArray(targetsInput)) {
+    targetsInput.forEach((t) => {
+      if (typeof t === 'string') targetNames.push(t);
+      else if (t?.targetUnit) targetNames.push(t.targetUnit);
+      else if (t?.nama) targetNames.push(t.nama);
+    });
+  } else if (typeof targetsInput === 'string') {
+    targetsInput.split(',').forEach((s) => targetNames.push(s.trim()));
+  }
+
+  const clean = (str) => String(str || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  const matchedIds = new Set();
+  targetNames.forEach((targetName) => {
+    const tClean = clean(targetName);
+    if (!tClean) return;
+
+    DAFTAR_PENERUSAN_REKTOR.forEach((item) => {
+      const iClean = clean(item.label);
+      if (tClean.includes(iClean) || iClean.includes(tClean)) {
+        matchedIds.add(item.id);
+      } else if (tClean.includes('wr1') || tClean.includes('warek1') || (tClean.includes('akademik') && !tClean.includes('bakpk'))) {
+        if (item.id === 3) matchedIds.add(item.id);
+      } else if (tClean.includes('wr2') || tClean.includes('warek2') || (tClean.includes('keuangan') && !tClean.includes('bku'))) {
+        if (item.id === 4) matchedIds.add(item.id);
+      } else if (tClean.includes('wr3') || tClean.includes('warek3') || (tClean.includes('kemahasiswaan') && !tClean.includes('bakpk'))) {
+        if (item.id === 5) matchedIds.add(item.id);
+      } else if (tClean.includes('bakpk')) {
+        if (item.id === 6) matchedIds.add(item.id);
+      } else if (tClean.includes('bku')) {
+        if (item.id === 7) matchedIds.add(item.id);
+      } else if (tClean.includes('hukum') || tClean.includes('hkok')) {
+        if (item.id === 31) matchedIds.add(item.id);
+      } else if (tClean.includes('humas') || tClean.includes('keprotokolan')) {
+        if (item.id === 33) matchedIds.add(item.id);
+      } else if (tClean.includes('perencanaan') && !tClean.includes('kepalabiro')) {
+        if (item.id === 27) matchedIds.add(item.id);
+      } else if (tClean.includes('kepegawaian')) {
+        if (item.id === 30) matchedIds.add(item.id);
+      } else if (tClean.includes('bmn') || tClean.includes('kerumahtanggaan')) {
+        if (item.id === 32) matchedIds.add(item.id);
+      } else if (tClean.includes('keuangan') && !tClean.includes('bku') && !tClean.includes('wr2')) {
+        if (item.id === 29) matchedIds.add(item.id);
+      } else if (tClean.includes('akademik') && (tClean.includes('tim') || tClean.includes('ketua'))) {
+        if (item.id === 24) matchedIds.add(item.id);
+      } else if ((tClean.includes('kemahasiswaan') || tClean.includes('alumni')) && (tClean.includes('tim') || tClean.includes('ketua'))) {
+        if (item.id === 25) matchedIds.add(item.id);
+      } else if ((tClean.includes('kerjasama') || tClean.includes('mitra')) && (tClean.includes('tim') || tClean.includes('ketua'))) {
+        if (item.id === 26) matchedIds.add(item.id);
+      } else if (tClean.includes('sekretarissenat') || tClean.includes('sekretarisspi')) {
+        matchedIds.add(34);
+      }
+    });
+  });
+
+  return Array.from(matchedIds);
+};
+
 export const DisposisiRektorTemplateView = ({ data }) => {
   const {
     klasifikasi = 'Biasa', // 'Sangat Rahasia' | 'Rahasia' | 'Sangat Segera' | 'Segera' | 'Biasa'
@@ -3826,7 +4187,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
     nomorSurat = '087/KEMDIKBUD/DIKTI/TU/2026',
     asalSurat = 'Direktorat Jenderal Pendidikan Tinggi, Riset, dan Teknologi',
     hal = 'Permohonan Koordinasi dan Fasilitasi Kerja Sama Program Penguatan Riset Strategis Nasional',
-    diteruskanKepada = [4, 7, 26, 27], // array of IDs (1-34)
+    diteruskanKepada,
     diteruskanCustom = '',
     instruksiUntuk = ['disp_2', 'disp_10', 'disp_15', 'disp_20'], // array of IDs
     koordinasikanDengan = 'Wakil Rektor Bidang Keuangan & Kepala BKU',
@@ -3838,6 +4199,30 @@ export const DisposisiRektorTemplateView = ({ data }) => {
     tteVerified = true
   } = data || {};
 
+  // Jika data memuat targets riil disposisi, petakan otomatis ke ID checklist
+  const resolvedDiteruskanKepada = Array.isArray(diteruskanKepada) && diteruskanKepada.length > 0
+    ? diteruskanKepada
+    : ((data?.targets || data?.targetUnit)
+      ? mapDisposisiTargetsToPenerusanIds(data.targets || data.targetUnit)
+      : [4, 7, 26, 27]);
+
+  let effectiveDiteruskanCustom = diteruskanCustom;
+  if (!effectiveDiteruskanCustom && (data?.targets || data?.targetUnit)) {
+    const rawTargets = Array.isArray(data?.targets) ? data.targets : [];
+    const customTgt = rawTargets.find((t) => {
+      const nm = String(t?.targetUnit || t?.nama || '').toLowerCase();
+      return nm.includes('sekretaris senat') || nm.includes('sekretaris spi');
+    });
+    if (customTgt) {
+      effectiveDiteruskanCustom = customTgt.targetUnit || customTgt.nama;
+    } else if (
+      typeof data?.targetUnit === 'string' &&
+      (data.targetUnit.toLowerCase().includes('sekretaris senat') || data.targetUnit.toLowerCase().includes('sekretaris spi'))
+    ) {
+      effectiveDiteruskanCustom = data.targetUnit;
+    }
+  }
+
   const colKiriPenerusan = DAFTAR_PENERUSAN_REKTOR.slice(0, 17);
   const colKananPenerusan = DAFTAR_PENERUSAN_REKTOR.slice(17, 34);
 
@@ -3848,7 +4233,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-4 sm:p-8 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-tight"
+      className="a4-sheet pasal47-with-kop p-4 sm:p-8 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-tight"
     >
       {/* Outer Border Box Persis Gambar Acuan */}
       <div className="border-[1.5px] border-black">
@@ -3947,7 +4332,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
         </div>
 
         {/* Header Seksi: Diteruskan kepada : */}
-        <div className="px-2 py-1 font-bold text-[10.5px] sm:text-[11px] border-b border-black bg-slate-50/50">
+        <div className="px-2 py-1 font-bold text-[10.5px] sm:text-[11px] border-b border-black bg-gray-100">
           Diteruskan kepada :
         </div>
 
@@ -3956,7 +4341,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
           {/* Kolom Kiri: Nomor 1 - 17 */}
           <div className="divide-y divide-black">
             {colKiriPenerusan.map((item) => {
-              const isChecked = diteruskanKepada.includes(item.id);
+              const isChecked = resolvedDiteruskanKepada.includes(item.id);
               return (
                 <div
                   key={item.id}
@@ -3975,7 +4360,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
           {/* Kolom Kanan: Nomor 18 - 34 */}
           <div className="divide-y divide-black">
             {colKananPenerusan.map((item) => {
-              const isChecked = diteruskanKepada.includes(item.id);
+              const isChecked = resolvedDiteruskanKepada.includes(item.id);
               return (
                 <div
                   key={item.id}
@@ -3987,7 +4372,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
                   </span>
                   <span className="pl-1.5 leading-tight">
                     {item.isCustom ? (
-                      diteruskanCustom || '................................................................'
+                      effectiveDiteruskanCustom || '................................................................'
                     ) : (
                       item.label
                     )}
@@ -3999,14 +4384,14 @@ export const DisposisiRektorTemplateView = ({ data }) => {
         </div>
 
         {/* Header Seksi: Untuk : */}
-        <div className="px-2 py-1 font-bold text-[10.5px] sm:text-[11px] border-b border-black bg-slate-50/50">
+        <div className="px-2 py-1 font-bold text-[10.5px] sm:text-[11px] border-b border-black bg-gray-100">
           Untuk :
         </div>
 
         {/* Grid 2 Kolom Daftar Instruksi / Tindakan */}
         <div className="grid grid-cols-1 sm:grid-cols-2 border-b border-black divide-y sm:divide-y-0 sm:divide-x divide-black text-[9.5px] sm:text-[10px]">
           {/* Kolom Kiri: 12 Poin */}
-          <div className="divide-y divide-slate-300">
+          <div className="divide-y divide-black">
             {colKiriInstruksi.map((item) => {
               const isChecked = instruksiUntuk.includes(item.id);
               return (
@@ -4021,7 +4406,7 @@ export const DisposisiRektorTemplateView = ({ data }) => {
           </div>
 
           {/* Kolom Kanan: 12 Poin */}
-          <div className="divide-y divide-slate-300">
+          <div className="divide-y divide-black">
             {colKananInstruksi.map((item) => {
               const isChecked = instruksiUntuk.includes(item.id);
               return (
@@ -4055,9 +4440,9 @@ export const DisposisiRektorTemplateView = ({ data }) => {
           <div className="p-2.5 flex flex-col justify-between min-h-[140px]">
             <div>
               <p className="font-bold mb-1">Catatan :</p>
-              <div className="text-[10px] sm:text-[10.5px] leading-relaxed whitespace-pre-line pl-1 text-slate-900">
+              <div className="text-[10px] sm:text-[10.5px] leading-relaxed whitespace-pre-line pl-1 text-black">
                 {catatan || (
-                  <span className="text-slate-400 italic">
+                  <span className="text-black/40 italic">
                     (Tidak ada catatan tambahan)
                   </span>
                 )}
@@ -4075,22 +4460,22 @@ export const DisposisiRektorTemplateView = ({ data }) => {
             {/* Ruang TTE BSrE / Tanda Tangan */}
             <div className="my-2 min-h-[40px] flex items-center">
               {tteVerified ? (
-                <div className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50/80 border border-emerald-400 rounded text-[9px] text-emerald-900">
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-700 shrink-0" />
-                  <span className="font-sans font-medium">Tersertifikasi Elektronik BSrE</span>
+                <div className="py-1 px-2 border border-black bg-stone-50/50 text-[9px] text-black text-center font-serif leading-tight">
+                  <p className="font-semibold">Ditandatangani secara elektronik</p>
+                  <p className="text-[8px] italic text-stone-700 mt-0.5">Sertifikat Elektronik BSrE BSSN</p>
                 </div>
               ) : (
-                <div className="border border-dashed border-slate-400 rounded p-1 w-36 text-center text-[8.5px] text-slate-400 italic">
-                  Tanda tangan
+                <div className="h-8 flex items-center text-black/60 italic text-[9px] font-serif">
+                  (tanda tangan)
                 </div>
               )}
             </div>
 
             <div>
-              <p className="font-bold text-[10px] sm:text-[10.5px] uppercase tracking-tight text-slate-950">
+              <p className="font-bold text-[10px] sm:text-[10.5px] uppercase tracking-tight text-black">
                 {namaRektor}
               </p>
-              <p className="text-[9.5px] sm:text-[10px] text-slate-900">
+              <p className="text-[9.5px] sm:text-[10px] text-black font-mono">
                 NIP {nipRektor}
               </p>
             </div>
@@ -4138,19 +4523,19 @@ export const PenggunaanTteTemplateView = ({ data }) => {
     <div
       data-pasal47="true"
       data-has-kop="true"
-      className="a4-sheet pasal47-with-kop p-6 sm:p-12 max-w-3xl mx-auto bg-white shadow-md border border-slate-300 print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs"
+      className="a4-sheet pasal47-with-kop p-6 sm:p-12 max-w-3xl mx-auto bg-white border border-black rounded-none shadow-none print:shadow-none print:border-none print:m-0 print:max-w-full text-black font-serif leading-relaxed text-xs"
     >
       {/* Kop Surat Resmi UNSIL */}
       <KopSuratUnsil unit={data?.unitKerja || data?.unit || data?.kodeUnit || data?.unit_kerja_id} />
 
       {/* Baris Metadata & Titimangsa Tanggal */}
-      <div className="flex flex-col sm:flex-row justify-between items-start text-xs font-serif mt-5 mb-6 gap-2">
+      <div className="flex flex-col sm:flex-row justify-between items-start text-xs font-serif mt-5 mb-6 gap-2 text-black">
         {/* Sisi Kiri: Nomor, Lampiran, Hal (Titik Dua Sejajar Presisi) */}
         <div className="space-y-1 w-full sm:w-auto">
           <div className="grid grid-cols-[70px_14px_1fr] items-baseline">
             <span>Nomor</span>
             <span className="text-center">:</span>
-            <span className="font-medium">{nomorSurat}</span>
+            <span className="font-mono font-bold">{nomorSurat}</span>
           </div>
           <div className="grid grid-cols-[70px_14px_1fr] items-baseline">
             <span>Lampiran</span>
@@ -4160,25 +4545,25 @@ export const PenggunaanTteTemplateView = ({ data }) => {
           <div className="grid grid-cols-[70px_14px_1fr] items-baseline">
             <span>Hal</span>
             <span className="text-center">:</span>
-            <span className="font-semibold leading-relaxed">{hal}</span>
+            <span className="font-bold leading-relaxed">{hal}</span>
           </div>
         </div>
 
         {/* Sisi Kanan: Tempat & Tanggal */}
-        <div className="text-left sm:text-right text-xs font-serif pt-0.5 shrink-0">
+        <div className="text-left sm:text-right text-xs font-serif pt-0.5 shrink-0 text-black">
           <p>{tempatTanggal}</p>
         </div>
       </div>
 
       {/* Bagian Penerima / Yth. */}
-      <div className="text-xs font-serif my-6 space-y-0.5">
-        <p>Yth. {tujuanUtama}</p>
+      <div className="text-xs font-serif my-6 space-y-0.5 text-black">
+        <p className="font-bold">Yth. {tujuanUtama}</p>
         {tujuanDetail && <p className="pl-6">{tujuanDetail}</p>}
         {tujuanKota && <p className="pl-6">{tujuanKota}</p>}
       </div>
 
       {/* Isi Surat: Kalimat Pembuka, Narasi/Poin, Kalimat Penutup */}
-      <div className="text-xs font-serif space-y-4 text-justify leading-relaxed mb-8">
+      <div className="text-xs font-serif space-y-4 text-justify leading-relaxed mb-8 text-black">
         {kalimatPembuka && <p>{kalimatPembuka}</p>}
 
         <div className="space-y-2">
@@ -4197,7 +4582,7 @@ export const PenggunaanTteTemplateView = ({ data }) => {
       </div>
 
       {/* Blok Tanda Tangan Kanan Bawah */}
-      <div className="mt-8 text-xs font-serif flex justify-end">
+      <div className="mt-8 text-xs font-serif flex justify-end text-black">
         <div className="w-64 text-center flex flex-col items-center">
           <p className="font-semibold">{namaJabatan}</p>
 
@@ -4205,43 +4590,43 @@ export const PenggunaanTteTemplateView = ({ data }) => {
           <div className="my-3 border border-black p-2 w-36 flex flex-col items-center justify-center bg-white text-center">
             {tteVerified ? (
               <div className="flex flex-col items-center">
-                <div className="w-11 h-11 mb-1 p-0.5 border border-slate-200 rounded flex items-center justify-center bg-white">
-                  <QrCode className="w-9 h-9 text-slate-900" />
+                <div className="w-11 h-11 mb-1 p-0.5 border border-black flex items-center justify-center bg-white">
+                  <QrCode className="w-9 h-9 text-black" />
                 </div>
-                <p className="text-[9px] font-serif font-semibold text-slate-900 leading-tight">
+                <p className="text-[9px] font-serif font-bold text-black leading-tight">
                   Kode
                 </p>
-                <p className="text-[9px] font-serif font-semibold text-slate-900 leading-tight">
+                <p className="text-[9px] font-serif font-bold text-black leading-tight">
                   Informasi
                 </p>
-                <p className="text-[9px] font-serif font-semibold text-slate-900 leading-tight">
+                <p className="text-[9px] font-serif font-bold text-black leading-tight">
                   Elektronik
                 </p>
               </div>
             ) : (
               <div className="py-2.5">
-                <p className="text-[9.5px] font-serif leading-tight">Kode</p>
-                <p className="text-[9.5px] font-serif leading-tight">Informasi</p>
-                <p className="text-[9.5px] font-serif leading-tight">Elektronik</p>
+                <p className="text-[9.5px] font-serif leading-tight text-black">Kode</p>
+                <p className="text-[9.5px] font-serif leading-tight text-black">Informasi</p>
+                <p className="text-[9.5px] font-serif leading-tight text-black">Elektronik</p>
               </div>
             )}
           </div>
 
-          <p className="font-bold uppercase tracking-tight text-slate-950 mt-1">
+          <p className="font-bold uppercase tracking-tight text-black mt-1">
             {namaPejabat}
           </p>
-          {nip && <p className="text-[11px] text-slate-900 mt-0.5">NIP {nip}</p>}
+          {nip && <p className="text-[11px] text-black font-mono mt-0.5">NIP {nip}</p>}
         </div>
       </div>
 
       {/* Bagian Bawah: Tembusan di Kiri & Catatan Legalitas di Kanan */}
-      <div className="mt-10 flex flex-col sm:flex-row justify-between items-end gap-4 text-[10.5px]">
+      <div className="mt-10 flex flex-col sm:flex-row justify-between items-end gap-4 text-[10.5px] text-black">
         {/* Sisi Kiri: Tembusan */}
         <div className="w-full sm:w-auto">
           {tembusan && tembusan.length > 0 && (
             <div>
-              <p className="font-semibold mb-1">Tembusan:</p>
-              <ol className="list-decimal list-outside ml-4 space-y-0.5 text-slate-800">
+              <p className="font-bold mb-1">Tembusan:</p>
+              <ol className="list-decimal list-outside ml-4 space-y-0.5 text-black">
                 {tembusan.map((item, idx) => (
                   <li key={idx}>{item}</li>
                 ))}
@@ -4252,7 +4637,7 @@ export const PenggunaanTteTemplateView = ({ data }) => {
 
         {/* Sisi Kanan: Klausul Baku TTE Resmi */}
         <div className="text-right shrink-0">
-          <p className="text-[10px] font-serif italic text-slate-700">
+          <p className="text-[10px] font-serif italic text-black/80">
             Dokumen ini telah ditandatangani secara elektronik
           </p>
         </div>
@@ -4270,11 +4655,9 @@ const RAW_DOCUMENT_TEMPLATES = [
   { id: 'pos', name: '1. POS/SOP', label: 'Prosedur Operasional Standar', kode_jenis_naskah: 'POS', kategoriNaskah: 'ARAHAN', hasKopSurat: false },
   { id: 'se', name: '2. Surat Edaran', label: 'Surat Edaran', kode_jenis_naskah: 'SURAT_EDARAN', kategoriNaskah: 'ARAHAN', hasKopSurat: true },
   { id: 'sk', name: '3. Keputusan Rektor', label: 'Keputusan Rektor', kode_jenis_naskah: 'KEPUTUSAN', kategoriNaskah: 'ARAHAN', isUniversityLevel: true, hasKopSurat: true },
-
-  // Naskah Dinas Khusus: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
-  { id: 'sp', name: '4. Surat Perintah', label: 'Surat Perintah', kode_jenis_naskah: 'SURAT_PERINTAH', kategoriNaskah: 'KHUSUS', isUniversityLevel: true, hasKopSurat: true },
-  { id: 'st_lembar', name: '5. ST (Lembar)', label: 'Surat Tugas (Format Lembar)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
-  { id: 'st_kolom', name: '6. ST (Kolom)', label: 'Surat Tugas (Format Kolom)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'KHUSUS', hasKopSurat: true },
+  { id: 'sp', name: '4. Surat Perintah', label: 'Surat Perintah', kode_jenis_naskah: 'SURAT_PERINTAH', kategoriNaskah: 'ARAHAN', isUniversityLevel: true, hasKopSurat: true },
+  { id: 'st_lembar', name: '5. ST (Lembar)', label: 'Surat Tugas (Format Lembar)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'ARAHAN', hasKopSurat: true },
+  { id: 'st_kolom', name: '6. ST (Kolom)', label: 'Surat Tugas (Format Kolom)', kode_jenis_naskah: 'SURAT_TUGAS', kategoriNaskah: 'ARAHAN', hasKopSurat: true },
 
   // Naskah Dinas Korespondensi: A4 (210 x 297 mm) • Times New Roman / Arial 12pt
   { id: 'nd', name: '7. Nota Dinas', label: 'Nota Dinas', kode_jenis_naskah: 'NOTA_DINAS', kategoriNaskah: 'KORESPONDENSI', hasKopSurat: true },

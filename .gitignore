@@ -4,4 +4,5 @@ node_modules/
 .cursor/
 .wrangler/
 scratch/
+temp_templates_img/
 

@@ -68,6 +68,7 @@ export const PROCESS_ACTIVITIES = {
   STAFF_REVIEW: 'Pemeriksaan & Telaah Staf',
   PARAF_APPROVAL: 'Pembubuhan Paraf Berjenjang',
   DISPOSITION_ISSUED: 'Pemberian Instruksi Disposisi',
+  DISPOSITION_READ: 'Pembacaan Lembar Disposisi',
   DISPOSITION_FOLLOWUP: 'Penyelesaian Tindak Lanjut Disposisi',
   TTE_SIGNED: 'Penandatanganan TTE BSrE',
   ARCHIVED_JRA: 'Pengarsipan Dokumen JRA',

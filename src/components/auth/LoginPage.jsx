@@ -1,10 +1,24 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Lock, User, Mail, Eye, EyeOff, ShieldCheck, ArrowRight, Building2, KeyRound, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import {
+  Lock,
+  User,
+  Mail,
+  Eye,
+  EyeOff,
+  ShieldCheck,
+  ArrowRight,
+  Building2,
+  KeyRound,
+  AlertCircle,
+  RotateCcw,
+  Sparkles
+} from 'lucide-react';
 import usersData from '../../data/users.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
+import { resolveUserRoleSlug } from '../../utils/rbacSyncService';
 
 // 5 Akun Kanonikal Resmi Manajemen Pengguna SILOKA UNSIL (Sesuai Master Data Kepegawaian)
-const CANONICAL_MANAJEMEN_PENGGUNA_USERS = [
+export const CANONICAL_MANAJEMEN_PENGGUNA_USERS = [
   {
     id: 'usr-ac-01',
     nama_lengkap: 'Agung Cahya Nur, S.Pd., M.Pd.',
@@ -49,11 +63,11 @@ const CANONICAL_MANAJEMEN_PENGGUNA_USERS = [
     unit_kerja_id: 'UN58.32'
   },
   {
-    id: 'usr-muw7evv4-1003',
-    nama_lengkap: 'Prof. Dr. H. Dedi Kusmayadi, S.E., M.Si., Ak., CA., CRBC., ACPA., CPA., CRA., CRP., CSBA., ASEAN-CPA',
-    email: 'dedikusmayadi@unsil.ac.id',
-    nip: '196811132021211003',
-    nip_nik: '196811132021211003',
+    id: 'usr-warek-01',
+    nama_lengkap: 'Prof. Dr. Dedi Nurjamil, M.Pd.',
+    email: 'dedi.warek1@unsil.ac.id',
+    nip: '197005141997021001',
+    nip_nik: '197005141997021001',
     role: 'PEJABAT',
     role_slug: 'pimpinan',
     roleLevel: 'Level 1: Pimpinan',
@@ -78,12 +92,301 @@ const CANONICAL_MANAJEMEN_PENGGUNA_USERS = [
   }
 ];
 
+/**
+ * Format nama ringkas beretika akademik untuk kenyamanan tampilan tombol
+ */
+export const formatShortAcademicName = (fullName) => {
+  if (!fullName) return '';
+  const str = String(fullName).trim();
+
+  // Kasus khusus Rektor Universitas Siliwangi
+  if (str.includes('Aripin') && /prof/i.test(str)) {
+    return 'Prof. Aripin';
+  }
+
+  // Potong gelar belakang setelah koma pertama
+  const beforeComma = str.split(',')[0].trim();
+
+  // Ekstrak gelar depan jika ada (Prof., Dr., Drs., Dra., Ir., dll)
+  const frontMatch = beforeComma.match(/^((?:Prof\.?\s*(?:Dr\.?|Ir\.?)?|Dr\.?\s*(?:Ir\.?|Drs\.?)?|Drs\.?\s*(?:H\.?)?|Dra\.?\s*(?:Hj\.?)?|Ir\.?))\s*(.+)$/i);
+
+  if (frontMatch) {
+    const front = frontMatch[1].trim();
+    const rest = frontMatch[2].trim();
+    const restWords = rest.split(/\s+/).filter((w) => !/^(eng\.?|ir\.?|dr\.?|h\.?|hj\.?)$/i.test(w));
+    const shortRest = restWords.slice(0, 2).join(' ');
+    return `${front} ${shortRest}`.trim();
+  }
+
+  // Jika tanpa gelar depan, ambil 2-3 kata awal
+  const words = beforeComma.split(/\s+/);
+  return words.slice(0, 3).join(' ');
+};
+
+/**
+ * Sanitasi dan deduplikasi pengguna unik berdasarkan ID, NIP, Email, dan nama ternormalisasi
+ */
+export const deduplicateUsers = (users) => {
+  if (!Array.isArray(users)) return [];
+
+  let deletedSet = new Set();
+  try {
+    const rawDeleted = typeof window !== 'undefined' ? localStorage.getItem('siloka_deleted_user_ids') : null;
+    if (rawDeleted) {
+      const parsed = JSON.parse(rawDeleted);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((x) => deletedSet.add(String(x).toLowerCase().trim()));
+      }
+    }
+  } catch (e) {}
+
+  const seenIds = new Set();
+  const seenNips = new Set();
+  const seenEmails = new Set();
+  const seenNormNames = new Set();
+  const result = [];
+
+  const cleanNameForDedup = (name) => {
+    return String(name || '')
+      .toLowerCase()
+      .replace(/\b(prof|dr|drs|dra|ir|s\.pd|m\.pd|s\.kom|m\.kom|s\.t|m\.t|s\.ap|s\.ak|s\.e|m\.si|ak|ca|ipu|asean|eng|m\.cs)\b/gi, '')
+      .replace(/[^a-z]/g, '')
+      .trim();
+  };
+
+  users.forEach((u) => {
+    if (!u) return;
+    if (u.is_active === false) return;
+
+    const uId = String(u.id || '').toLowerCase().trim();
+    const uNip = String(u.nip || u.nip_nik || '').replace(/\D/g, '').trim();
+    const uEmail = String(u.email || u.username || '').toLowerCase().trim();
+    const normName = cleanNameForDedup(u.nama_lengkap || u.name || '');
+
+    // Filter pengguna yang telah dihapus di Manajemen Pengguna
+    if (uId && deletedSet.has(uId)) return;
+    if (uNip && deletedSet.has(uNip)) return;
+    if (uEmail && deletedSet.has(uEmail)) return;
+
+    // Filter duplikasi data akun
+    if (uId && seenIds.has(uId)) return;
+    if (uNip && uNip.length >= 6 && seenNips.has(uNip)) return;
+    if (uEmail && seenEmails.has(uEmail)) return;
+    if (normName && normName.length >= 5 && seenNormNames.has(normName)) return;
+
+    if (uId) seenIds.add(uId);
+    if (uNip && uNip.length >= 6) seenNips.add(uNip);
+    if (uEmail) seenEmails.add(uEmail);
+    if (normName && normName.length >= 5) seenNormNames.add(normName);
+
+    result.push(u);
+  });
+
+  return result;
+};
+
+/**
+ * Pemetaan akun pengguna ke spesifikasi tombol preset dengan badge peran presisi
+ */
+export const mapUserToDemoPreset = (u) => {
+  const isSuper =
+    u.is_super_admin === true ||
+    u.role === 'Super Admin' ||
+    u.role_slug === 'super_admin' ||
+    String(u.jabatan || '').toLowerCase().includes('super admin') ||
+    String(u.email || '').toLowerCase().includes('dedegunawan');
+
+  if (isSuper) {
+    const baseName = (u.nama_lengkap || u.name || 'Dede Gunawan').split(',')[0];
+    return {
+      id: u.id || 'usr-dg-01',
+      labelPrefix: '★ Super Admin:',
+      labelColor: 'font-bold text-unsil-gold-400',
+      displayName: `${baseName} (${u.email || 'dedegunawan@unsil.ac.id'})`,
+      email: u.email || 'dedegunawan@unsil.ac.id',
+      password: u.raw_password || u.password || 'Siloka2026!',
+      isSuper: true,
+      title: `Super Administrator SILOKA (${u.nama_lengkap || 'Dede Gunawan'})`,
+      orderPriority: 0
+    };
+  }
+
+  const roleSlug = resolveUserRoleSlug(u);
+  const posLower = String(
+    u.jabatan || u.roleLabel || u.role_label || u.sotk_position_label || u.role || ''
+  ).toLowerCase();
+  const unitLower = String(u.unit || u.nama_unit || u.unit_kerja_id || '').toLowerCase();
+  const name = String(u.nama_lengkap || u.nama || u.name || '');
+  const shortName = formatShortAcademicName(name);
+
+  let labelPrefix = 'Pejabat:';
+  let labelColor = 'font-semibold text-emerald-400';
+  let orderPriority = 50;
+
+  // 1. Rektorat Utama
+  if (posLower.includes('rektor') && !posLower.includes('wakil') && !posLower.includes('warek')) {
+    labelPrefix = 'Rektorat:';
+    labelColor = 'font-semibold text-amber-300';
+    orderPriority = 1;
+  }
+  // 2. Wakil Rektor
+  else if (
+    posLower.includes('wakil rektor bidang akademik') ||
+    posLower.includes('warek 1') ||
+    posLower.includes('warek i') ||
+    (posLower.includes('wakil rektor') && posLower.includes('akademik'))
+  ) {
+    labelPrefix = 'Wakil Rektor I:';
+    labelColor = 'font-semibold text-sky-400';
+    orderPriority = 2;
+  } else if (
+    posLower.includes('wakil rektor bidang keuangan') ||
+    posLower.includes('warek 2') ||
+    posLower.includes('warek ii') ||
+    (posLower.includes('wakil rektor') && (posLower.includes('keuangan') || posLower.includes('umum')))
+  ) {
+    labelPrefix = 'Wakil Rektor II:';
+    labelColor = 'font-semibold text-emerald-400';
+    orderPriority = 3;
+  } else if (
+    posLower.includes('wakil rektor bidang kemahasiswaan') ||
+    posLower.includes('warek 3') ||
+    posLower.includes('warek iii') ||
+    (posLower.includes('wakil rektor') && (posLower.includes('kemahasiswaan') || posLower.includes('alumni')))
+  ) {
+    labelPrefix = 'Wakil Rektor III:';
+    labelColor = 'font-semibold text-teal-400';
+    orderPriority = 4;
+  } else if (
+    posLower.includes('wakil rektor bidang perencanaan') ||
+    posLower.includes('warek 4') ||
+    posLower.includes('warek iv') ||
+    (posLower.includes('wakil rektor') && (posLower.includes('perencanaan') || posLower.includes('kerjasama')))
+  ) {
+    labelPrefix = 'Wakil Rektor IV:';
+    labelColor = 'font-semibold text-cyan-400';
+    orderPriority = 5;
+  }
+  // 3. Senat Universitas & Dewan Penyantun
+  else if (posLower.includes('senat')) {
+    if (posLower.includes('ketua')) {
+      labelPrefix = 'Ketua Senat:';
+      orderPriority = 6;
+    } else {
+      labelPrefix = 'Sekretaris Senat:';
+      orderPriority = 7;
+    }
+    labelColor = 'font-semibold text-purple-300';
+  } else if (posLower.includes('dewan penyantun') || posLower.includes('dewan')) {
+    labelPrefix = 'Dewan Penyantun:';
+    labelColor = 'font-semibold text-violet-300';
+    orderPriority = 8;
+  }
+  // 4. Dekan & Direktur Pascasarjana
+  else if (posLower.includes('dekan') || posLower.includes('direktur')) {
+    labelPrefix = posLower.includes('direktur') ? 'Direktur:' : 'Dekan:';
+    labelColor = 'font-semibold text-emerald-400';
+    orderPriority = 9;
+  }
+  // 5. Kepala Biro / Lembaga / UPA
+  else if (posLower.includes('biro')) {
+    labelPrefix = 'Ka. Biro:';
+    labelColor = 'font-semibold text-blue-400';
+    orderPriority = 10;
+  } else if (posLower.includes('lppm') || posLower.includes('lpmpp') || posLower.includes('lembaga')) {
+    labelPrefix = 'Ka. Lembaga:';
+    labelColor = 'font-semibold text-blue-400';
+    orderPriority = 11;
+  } else if (posLower.includes('upa') || posLower.includes('tik') || posLower.includes('perpustakaan') || posLower.includes('laboratorium')) {
+    labelPrefix = 'Ka. UPA:';
+    labelColor = 'font-semibold text-indigo-300';
+    orderPriority = 12;
+  }
+  // 6. Verifikator Hierarki (Wakil Dekan, Kajur, Kaprodi)
+  else if (posLower.includes('wakil dekan') || posLower.includes('wadek')) {
+    labelPrefix = 'Wakil Dekan:';
+    labelColor = 'font-semibold text-cyan-400';
+    orderPriority = 13;
+  } else if (posLower.includes('ketua jurusan') || posLower.includes('kajur')) {
+    labelPrefix = 'Ketua Jurusan:';
+    labelColor = 'font-semibold text-cyan-400';
+    orderPriority = 14;
+  } else if (posLower.includes('kaprodi') || posLower.includes('koordinator program studi') || posLower.includes('koorprodi')) {
+    labelPrefix = 'Kaprodi:';
+    labelColor = 'font-semibold text-cyan-400';
+    orderPriority = 15;
+  }
+  // 7. Pengawas / Satuan Pengawas Internal (SPI)
+  else if (
+    roleSlug === 'auditor_spi' ||
+    unitLower.includes('spi') ||
+    posLower.includes('spi') ||
+    posLower.includes('auditor') ||
+    posLower.includes('pengawas')
+  ) {
+    labelPrefix = 'Pengawas SPI:';
+    labelColor = 'font-semibold text-rose-300';
+    orderPriority = 16;
+  }
+  // 8. Administrator TU / Sekretariat / Pengendali Surat
+  else if (
+    roleSlug === 'admin_tu' ||
+    posLower.includes('tata usaha') ||
+    posLower.includes('persuratan') ||
+    posLower.includes('pengadministrasi') ||
+    posLower.includes('operator')
+  ) {
+    labelPrefix = 'Staf TU:';
+    labelColor = 'font-semibold text-amber-400';
+    orderPriority = 17;
+  }
+  // 9. Dosen / Staff Drafter (Konseptor Tridharma)
+  else if (
+    roleSlug === 'drafter' ||
+    String(u.role || '').toUpperCase() === 'DOSEN' ||
+    posLower.includes('dosen')
+  ) {
+    labelPrefix = 'Dosen:';
+    labelColor = 'font-semibold text-sky-300';
+    orderPriority = 18;
+  }
+  // 10. Pejabat Umum Lainnya
+  else if (
+    roleSlug === 'pimpinan' ||
+    u.is_pejabat === true ||
+    String(u.role || '').toUpperCase() === 'PEJABAT'
+  ) {
+    labelPrefix = 'Pejabat:';
+    labelColor = 'font-semibold text-emerald-400';
+    orderPriority = 19;
+  }
+  // 11. Staf Pelaksana
+  else {
+    labelPrefix = 'Staf:';
+    labelColor = 'font-semibold text-slate-300';
+    orderPriority = 20;
+  }
+
+  return {
+    id: u.id || u.email,
+    labelPrefix,
+    labelColor,
+    displayName: shortName || name,
+    email: u.email || u.username,
+    password: u.raw_password || u.password || 'Siloka2026!',
+    isSuper: false,
+    title: `${u.jabatan || u.roleLabel || labelPrefix} (${u.nama_lengkap || name})`,
+    orderPriority
+  };
+};
+
 export const LoginPage = ({ onLoginSuccess }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
   // Sinkronisasi dinamis daftar akun uji coba langsung dari modul Manajemen Pengguna
@@ -94,173 +397,97 @@ export const LoginPage = ({ onLoginSuccess }) => {
         if (stored) {
           const parsed = JSON.parse(stored);
           if (Array.isArray(parsed) && parsed.length > 0) {
-            const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
-            const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
-            const valid = parsed.filter((u) => {
-              const uId = String(u.id || '').toLowerCase();
-              const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
-              const uEmail = String(u.email || '').toLowerCase();
-              return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
-            });
+            const valid = deduplicateUsers(parsed);
             if (valid.length > 0) return valid;
           }
         }
       } catch (e) {}
     }
-    return CANONICAL_MANAJEMEN_PENGGUNA_USERS;
+    return deduplicateUsers(usersData);
   });
 
-  useEffect(() => {
-    let isMounted = true;
-    const syncUsers = async () => {
-      try {
-        const res = await fetch('/api/admin/users', {
-          headers: {
-            'Authorization': 'Bearer superadmin-secret-token',
-            'x-user-role': 'SUPER_ADMIN'
+  const syncUsers = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      // 1. Ambil data pengguna terbaru dari backend database API
+      const res = await fetch('/api/admin/users', {
+        headers: {
+          Authorization: 'Bearer superadmin-secret-token',
+          'x-user-role': 'SUPER_ADMIN'
+        }
+      });
+      if (res.ok) {
+        const json = await res.json();
+        if (json && Array.isArray(json.data) && json.data.length > 0) {
+          const valid = deduplicateUsers(json.data);
+          if (valid.length > 0) {
+            setDemoUsers(valid);
+            try {
+              localStorage.setItem('siloka_users_data', JSON.stringify(valid));
+            } catch (e) {}
+            return;
           }
-        });
-        if (res.ok) {
-          const json = await res.json();
-          if (isMounted && json && Array.isArray(json.data) && json.data.length > 0) {
-            const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
-            const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
-            const valid = json.data.filter((u) => {
-              const uId = String(u.id || '').toLowerCase();
-              const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
-              const uEmail = String(u.email || '').toLowerCase();
-              return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
-            });
+        }
+      }
+    } catch (e) {
+      // Backend offline, lanjutkan membaca dari penyimpanan lokal
+    } finally {
+      setIsSyncing(false);
+    }
+
+    // 2. Baca dari penyimpanan lokal browser
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('siloka_users_data');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            const valid = deduplicateUsers(parsed);
             if (valid.length > 0) {
               setDemoUsers(valid);
-              try {
-                localStorage.setItem('siloka_users_data', JSON.stringify(valid));
-              } catch (e) {}
               return;
             }
           }
         }
       } catch (e) {}
+    }
 
-      if (typeof window !== 'undefined') {
-        try {
-          const stored = localStorage.getItem('siloka_users_data');
-          if (stored) {
-            const parsed = JSON.parse(stored);
-            if (Array.isArray(parsed) && parsed.length > 0 && isMounted) {
-              const deletedList = JSON.parse(localStorage.getItem('siloka_deleted_user_ids') || '[]');
-              const delSet = new Set(Array.isArray(deletedList) ? deletedList.map((x) => String(x).toLowerCase().trim()) : []);
-              const valid = parsed.filter((u) => {
-                const uId = String(u.id || '').toLowerCase();
-                const uNip = String(u.nip || u.nip_nik || '').toLowerCase();
-                const uEmail = String(u.email || '').toLowerCase();
-                return !delSet.has(uId) && !delSet.has(uNip) && !delSet.has(uEmail);
-              });
-              if (valid.length > 0) {
-                setDemoUsers(valid);
-              }
-            }
-          }
-        } catch (e) {}
-      }
-    };
+    // 3. Fallback: master dataset resmi kepegawaian
+    setDemoUsers(deduplicateUsers(usersData));
+  }, []);
+
+  useEffect(() => {
+    let isMounted = true;
 
     syncUsers();
 
-    const handleStorageChange = () => {
-      syncUsers();
+    const handleStorageOrUpdate = () => {
+      if (isMounted) {
+        syncUsers();
+      }
     };
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('siloka:user-deleted', handleStorageChange);
+
+    window.addEventListener('storage', handleStorageOrUpdate);
+    window.addEventListener('siloka:users-updated', handleStorageOrUpdate);
+    window.addEventListener('siloka:user-deleted', handleStorageOrUpdate);
+    window.addEventListener('siloka:rbac-change', handleStorageOrUpdate);
+    window.addEventListener('focus', handleStorageOrUpdate);
+
     return () => {
       isMounted = false;
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('siloka:user-deleted', handleStorageChange);
+      window.removeEventListener('storage', handleStorageOrUpdate);
+      window.removeEventListener('siloka:users-updated', handleStorageOrUpdate);
+      window.removeEventListener('siloka:user-deleted', handleStorageOrUpdate);
+      window.removeEventListener('siloka:rbac-change', handleStorageOrUpdate);
+      window.removeEventListener('focus', handleStorageOrUpdate);
     };
-  }, []);
+  }, [syncUsers]);
 
   // Format opsi tombol akun masuk terhubung langsung dengan profil Manajemen Pengguna
   const demoButtons = useMemo(() => {
     const list = Array.isArray(demoUsers) && demoUsers.length > 0 ? demoUsers : CANONICAL_MANAJEMEN_PENGGUNA_USERS;
-
-    const formatted = list.map((u) => {
-      const isSuper =
-        u.is_super_admin === true ||
-        u.role === 'Super Admin' ||
-        u.role_slug === 'super_admin' ||
-        String(u.jabatan || '').toLowerCase().includes('super admin') ||
-        String(u.email || '').toLowerCase().includes('dedegunawan');
-
-      if (isSuper) {
-        const baseName = (u.nama_lengkap || u.name || 'Dede Gunawan').split(',')[0];
-        return {
-          id: u.id || 'usr-dg-01',
-          labelPrefix: '★ Super Admin:',
-          labelColor: 'font-bold text-unsil-gold-400',
-          displayName: `${baseName} (${u.email || 'dedegunawan@unsil.ac.id'})`,
-          email: u.email || 'dedegunawan@unsil.ac.id',
-          password: u.raw_password || u.password || 'Siloka2026!',
-          isSuper: true,
-          title: `Super Administrator SILOKA (${u.nama_lengkap || 'Dede Gunawan'})`,
-          orderPriority: 2
-        };
-      }
-
-      const jab = String(u.jabatan || u.roleLabel || u.role_label || u.role || '').toLowerCase();
-      const name = String(u.nama_lengkap || u.nama || u.name || '');
-
-      let labelPrefix = 'Pejabat:';
-      let labelColor = 'font-semibold text-emerald-400';
-      let displayName = name.split(',')[0] || name;
-      let orderPriority = 10;
-
-      if (jab.includes('rektor') && !jab.includes('wakil') && !jab.includes('warek')) {
-        labelPrefix = 'Rektorat:';
-        labelColor = 'font-semibold text-amber-300';
-        displayName = name.includes('Aripin') ? 'Prof. Aripin' : displayName;
-        orderPriority = 1;
-      } else if (jab.includes('pengadministrasi') || jab.includes('tata usaha') || jab.includes('admin_tu') || jab.includes('operator') || u.role_slug === 'admin_tu') {
-        labelPrefix = 'Staf TU:';
-        labelColor = 'font-semibold text-unsil-gold-300';
-        displayName = name.includes('Agung Cahya') ? 'Agung Cahya Nur' : displayName;
-        orderPriority = 0;
-      } else if (jab.includes('wakil rektor bidang akademik') || jab.includes('wakil rektor i') || jab.includes('warek 1') || jab.includes('akademik')) {
-        labelPrefix = 'Wakil Rektor I:';
-        labelColor = 'font-semibold text-sky-400';
-        displayName = name.includes('Dedi Kusmayadi') ? 'Prof. Dedi Kusmayadi' : displayName;
-        orderPriority = 3;
-      } else if (jab.includes('wakil rektor bidang keuangan') || jab.includes('wakil rektor ii') || jab.includes('warek 2') || jab.includes('keuangan dan umum')) {
-        labelPrefix = 'Wakil Rektor II:';
-        labelColor = 'font-semibold text-emerald-400';
-        displayName = name.includes('Ade Rustiana') ? 'Dr. Ade Rustiana' : displayName;
-        orderPriority = 4;
-      } else if (jab.includes('dekan')) {
-        labelPrefix = 'Dekan:';
-        labelColor = 'font-semibold text-emerald-400';
-        orderPriority = 5;
-      } else if (jab.includes('spi') || jab.includes('pengawas')) {
-        labelPrefix = 'Pengawas:';
-        labelColor = 'font-semibold text-rose-300';
-        orderPriority = 6;
-      } else if (jab.includes('tik')) {
-        labelPrefix = jab.includes('kepala') ? 'Kepala TIK:' : 'Staf TIK:';
-        labelColor = 'font-semibold text-indigo-300';
-        orderPriority = 7;
-      }
-
-      return {
-        id: u.id || u.email,
-        labelPrefix,
-        labelColor,
-        displayName,
-        email: u.email || u.username,
-        password: u.raw_password || u.password || 'Siloka2026!',
-        isSuper: false,
-        title: `${u.jabatan || labelPrefix} (${u.nama_lengkap || displayName})`,
-        orderPriority
-      };
-    });
-
+    const deduped = deduplicateUsers(list);
+    const formatted = deduped.map(mapUserToDemoPreset);
     return formatted.sort((a, b) => a.orderPriority - b.orderPriority);
   }, [demoUsers]);
 
@@ -602,12 +829,30 @@ export const LoginPage = ({ onLoginSuccess }) => {
             </button>
           </form>
 
-          {/* Quick Demo Preset Accounts - Terintegrasi dengan Manajemen Pengguna (allUsers) */}
+          {/* Quick Demo Preset Accounts - Terintegrasi dengan Manajemen Pengguna & Peran (Real-Time) */}
           <div className="mt-6 pt-5 border-t border-slate-800">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-2 text-center">
-              Pilihan Akun Masuk (Uji Coba):
-            </p>
-            <div className="grid grid-cols-2 gap-1.5 text-[11px]">
+            <div className="flex items-center justify-between mb-2.5 px-0.5">
+              <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                Pilihan Akun Masuk (Uji Coba):
+              </p>
+              <div className="flex items-center gap-1.5">
+                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-medium bg-emerald-950/80 text-emerald-300 border border-emerald-800/60 shadow-xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                  Real-Time
+                </span>
+                <button
+                  type="button"
+                  onClick={() => syncUsers()}
+                  title="Sinkronisasikan ulang akun secara real-time dari Manajemen Pengguna Super Admin"
+                  className="p-1 rounded text-slate-400 hover:text-unsil-gold-300 hover:bg-slate-800 transition cursor-pointer"
+                  aria-label="Refresh Akun Uji Coba"
+                >
+                  <RotateCcw className={`w-3 h-3 ${isSyncing ? 'animate-spin text-unsil-gold-400' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-1.5 text-[11px] max-h-64 sm:max-h-72 overflow-y-auto pr-1">
               {demoButtons.map((btn) => (
                 <button
                   key={btn.id}
@@ -617,14 +862,15 @@ export const LoginPage = ({ onLoginSuccess }) => {
                     setPassword(btn.password || 'Siloka2026!');
                     setErrorMsg('');
                   }}
-                  className={`p-1.5 rounded text-left transition truncate cursor-pointer ${
+                  className={`p-1.5 rounded text-left transition truncate cursor-pointer flex items-center gap-1.5 ${
                     btn.isSuper
                       ? 'bg-unsil-gold-500/20 hover:bg-unsil-gold-500/30 text-unsil-gold-200 border border-unsil-gold-500/50 col-span-2 shadow-xs'
                       : 'bg-slate-800/80 hover:bg-slate-700/80 text-slate-300 border border-slate-700/60'
                   }`}
                   title={btn.title}
                 >
-                  <span className={btn.labelColor}>{btn.labelPrefix}</span> {btn.displayName}
+                  <span className={`${btn.labelColor} shrink-0`}>{btn.labelPrefix}</span>
+                  <span className="truncate">{btn.displayName}</span>
                 </button>
               ))}
             </div>

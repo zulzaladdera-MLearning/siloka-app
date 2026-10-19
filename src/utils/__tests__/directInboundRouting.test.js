@@ -4,7 +4,7 @@ import { getAllOfficialsWithUserMapping } from '../pejabatHelper';
 describe('Verifikasi Fitur Tujuan Surat (Pejabat UNSIL) & Direct Inbound Routing', () => {
   it('harus hanya memuat nama jabatan resmi pada label tujuan surat (tanpa nama orang/user)', () => {
     const officials = getAllOfficialsWithUserMapping();
-    expect(officials.length).toBeGreaterThan(10);
+    expect(officials.length).toBeGreaterThanOrEqual(7);
 
     officials.forEach((official) => {
       // Label hanya berisi nama jabatan

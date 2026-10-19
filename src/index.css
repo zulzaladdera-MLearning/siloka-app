@@ -101,29 +101,33 @@
 
 .kop-baris-kementerian {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 16pt !important;
+  font-size: 11pt !important;
   text-transform: uppercase !important;
   font-weight: 400 !important;
   line-height: 1.15 !important;
   color: #000000 !important;
+  text-align: center !important;
 }
 
 .kop-baris-universitas,
 .kop-baris-unit {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 14pt !important;
+  font-size: 12pt !important;
   font-weight: 700 !important;
   text-transform: uppercase !important;
   line-height: 1.15 !important;
   color: #000000 !important;
+  text-align: center !important;
 }
 
-.kop-baris-alamat {
+.kop-baris-alamat,
+.kop-baris-laman {
   font-family: "Times New Roman", "Tinos", Times, serif !important;
-  font-size: 12pt !important;
+  font-size: 8.5pt !important;
   font-weight: 400 !important;
   line-height: 1.2 !important;
   color: #000000 !important;
+  text-align: center !important;
 }
 
 /* Ketentuan Spasi Judul Naskah Dinas:
@@ -211,6 +215,11 @@ img, .protected-asset {
 /* Pengaturan Ruang Tepi (Margin) Naskah Dinas Sesuai Pasal 47 Peraturan Rektor UNSIL No. 3/2023 */
 .a4-sheet,
 .f4-sheet {
+  border: 1px solid #000000;
+  border-radius: 0px !important;
+  background-color: #ffffff;
+  color: #000000;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   padding-top: 1.2cm;
   padding-bottom: 1.2cm;
   padding-left: 1.5cm;

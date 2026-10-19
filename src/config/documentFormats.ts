@@ -783,7 +783,15 @@ export function normalizeUserRole(user: any): string {
     return rawRole;
   }
 
-  const role = String(user.role || user.id_role || '').toUpperCase().trim();
+  const role = String(
+    user.role ||
+    user.role_slug ||
+    user.roleSlug ||
+    user.id_role ||
+    user.roleKey ||
+    user.role_name ||
+    ''
+  ).toUpperCase().trim();
   const idRoleNum = Number(user.id_role);
   const roleLevel = String(user.roleLevel || user.role_level || '').toLowerCase();
 
@@ -802,7 +810,15 @@ export function normalizeUserRole(user: any): string {
     .join(' ')
     .toLowerCase();
 
-  if (role === 'SUPER_ADMIN' || role === 'SUPER ADMIN' || combinedPosition.includes('super admin')) {
+  if (
+    role === 'SUPER_ADMIN' ||
+    role === 'SUPER ADMIN' ||
+    role === 'SUPERADMIN' ||
+    Boolean(user.is_super_admin) ||
+    Boolean(user.isSuperAdmin) ||
+    idRoleNum === 1 ||
+    combinedPosition.includes('super admin')
+  ) {
     return 'SUPER_ADMIN';
   }
 
@@ -819,6 +835,7 @@ export function normalizeUserRole(user: any): string {
     role === 'DOSEN TANPA JABATAN' ||
     role === 'DOSEN (NON-JABATAN)' ||
     role === 'DOSEN' ||
+    ((role === 'DRAFTER' || user.role_slug === 'drafter') && !hasStructuralPositionKeyword) ||
     combinedPosition.includes('dosen tanpa jabatan') ||
     combinedPosition.includes('dosen biasa') ||
     combinedPosition.includes('dosen (non-jabatan)') ||
@@ -833,10 +850,16 @@ export function normalizeUserRole(user: any): string {
   // 1. Deteksi Staf / Operator / Pelaksana terlebih dahulu agar label "Staf ... Rektorat" tidak terdeteksi sebagai "Rektor"
   const isExplicitStaffOrOperator =
     role === 'STAFF_TU' ||
+    role === 'ADMIN_TU' ||
+    role === 'ADMIN TU' ||
     role === 'OPERATOR' ||
     role === 'OPERATOR_UNIT' ||
     role === 'STAF_PERSURATAN' ||
+    role === 'VERIFIKATOR' ||
+    user.role_slug === 'admin_tu' ||
+    user.role_slug === 'verifikator' ||
     roleLevel.includes('pelaksana') ||
+    /^(staf|operator|analis|arsiparis|pengadministrasi|sekretariat)\b/i.test(combinedPosition.trim());
     /^(staf|operator|analis|arsiparis|pengadministrasi|sekretariat)\b/i.test(combinedPosition.trim());
 
   if (isExplicitStaffOrOperator && !user.is_pejabat) {
@@ -910,12 +933,12 @@ export function normalizeUserRole(user: any): string {
     return 'KEPALA_BIRO';
   }
 
-  if (Boolean(user.is_pejabat) || role === 'PEJABAT') {
+  if (Boolean(user.is_pejabat) || role === 'PEJABAT' || role === 'PIMPINAN' || user.role_slug === 'pimpinan') {
     return 'PEJABAT';
   }
 
-  // Dosen Biasa / Tanpa Jabatan
-  if (role === 'DOSEN' || combinedPosition.includes('dosen')) {
+  // Dosen Biasa / Tanpa Jabatan / Drafter
+  if (role === 'DOSEN' || role === 'DRAFTER' || user.role_slug === 'drafter' || combinedPosition.includes('dosen')) {
     return 'DOSEN_NON_JABATAN';
   }
 
@@ -942,9 +965,25 @@ export function getAuthorizedTemplates(
   }
 
   // DOSEN_NON_JABATAN (Dosen Fungsional Tanpa Jabatan Struktural):
-  // Dibatasi ketat hanya tepat 6 Template Tridharma sesuai Matriks Hak Akses & Pertor 3/2023:
-  // 1. ST (Lembar), 2. ST (Kolom), 3. Nota Dinas, 4. Surat Keterangan, 5. Laporan, 6. Telaah Staf
+  // Dibatasi ketat hanya tepat 6 Template Tridharma secara default, atau 11 Template jika menyertakan kategori kondisional & draf usulan
   if (normalizedRole === 'DOSEN_NON_JABATAN') {
+    if (options?.categoryFilter === 'MANDIRI') {
+      const mandiriIds = ['nd', 'sper', 'lap', 'ts', 'ba', 'notula'];
+      return mandiriIds
+        .map((id) => DOCUMENT_TEMPLATES.find((tpl) => tpl.id === id))
+        .filter((tpl): tpl is DocumentTemplateItem => Boolean(tpl));
+    }
+    if (options?.categoryFilter === 'KONSEP_PIMPINAN') {
+      const usulanIds = ['st_lembar', 'st_kolom', 'sd', 'sket', 'speng'];
+      return usulanIds
+        .map((id) => DOCUMENT_TEMPLATES.find((tpl) => tpl.id === id))
+        .filter((tpl): tpl is DocumentTemplateItem => Boolean(tpl));
+    }
+    if (options?.includeConditional) {
+      return LECTURER_ALLOWED_TEMPLATE_IDS
+        .map((id) => DOCUMENT_TEMPLATES.find((tpl) => tpl.id === id))
+        .filter((tpl): tpl is DocumentTemplateItem => Boolean(tpl));
+    }
     return LECTURER_TRIDHARMA_6_TEMPLATE_IDS
       .map((id) => DOCUMENT_TEMPLATES.find((tpl) => tpl.id === id))
       .filter((tpl): tpl is DocumentTemplateItem => Boolean(tpl));
@@ -988,8 +1027,12 @@ export function getAuthorizedTemplatesWithNumbering(
 /**
  * Memeriksa apakah suatu format template sah untuk user tertentu
  */
-export function isTemplateAllowedForUser(templateId: string, user: any): boolean {
-  const authorized = getAuthorizedTemplates(user, { includeConditional: true });
+export function isTemplateAllowedForUser(
+  templateId: string,
+  user: any,
+  options?: { includeConditional?: boolean }
+): boolean {
+  const authorized = getAuthorizedTemplates(user, options);
   return authorized.some((tpl) => tpl.id === templateId);
 }
 

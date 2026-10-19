@@ -37,7 +37,8 @@ export const getPejabatByUnit = async (kodeUnit, sessionUserInfo = null) => {
 
   try {
     const res = await query(sql, [targetUnit]);
-    if (res && res.rows && res.rows.length > 0) {
+    if (res && Array.isArray(res.rows)) {
+      // Jika database terhubung, gunakan hasil database sebagai Single Source of Truth
       return res.rows;
     }
   } catch (err) {
@@ -70,7 +71,7 @@ export const getAllPejabat = async () => {
 
   try {
     const res = await query(sql);
-    if (res && res.rows && res.rows.length > 0) {
+    if (res && Array.isArray(res.rows)) {
       return res.rows;
     }
   } catch (err) {

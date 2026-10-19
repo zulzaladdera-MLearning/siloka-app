@@ -14,7 +14,9 @@ import {
   Check,
   CheckSquare,
   Clock,
-  Sparkles,
+  CornerDownRight,
+  Users,
+  UserCheck,
   Ban
 } from 'lucide-react';
 import { isLetterSignatureRequest } from '../../utils/letterActionPolicy';
@@ -37,8 +39,83 @@ export const QuickDisposisiModal = ({
   onSubmitDisposisi,
   allLetters = [],
   currentUser = null,
-  allUsers = []
+  allUsers = [],
+  allUnits = [],
+  forwardFromDisposisi = null
 }) => {
+  // Master Data Unit Kerja (Reaktif terhadap CRUD di Manajemen Unit Kerja & Storage Event)
+  const [liveUnits, setLiveUnits] = useState(() => {
+    if (Array.isArray(allUnits) && allUnits.length > 0) return allUnits;
+    try {
+      if (typeof localStorage !== 'undefined') {
+        const saved = localStorage.getItem('siloka_unit_kerja_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch (_) {}
+    return [];
+  });
+
+  useEffect(() => {
+    if (Array.isArray(allUnits) && allUnits.length > 0) {
+      setLiveUnits(allUnits);
+    }
+  }, [allUnits]);
+
+  useEffect(() => {
+    const handleUnitDataChanged = (event) => {
+      const updated = event?.detail?.units;
+      if (Array.isArray(updated) && updated.length > 0) {
+        setLiveUnits(updated);
+      } else {
+        try {
+          const saved = localStorage.getItem('siloka_unit_kerja_data');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            if (Array.isArray(parsed)) setLiveUnits(parsed);
+          }
+        } catch (_) {}
+      }
+    };
+
+    window.addEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitDataChanged);
+    window.addEventListener('storage', handleUnitDataChanged);
+    return () => {
+      window.removeEventListener('SILOKA_UNIT_DATA_CHANGED', handleUnitDataChanged);
+      window.removeEventListener('storage', handleUnitDataChanged);
+    };
+  }, []);
+
+  // Reaktivitas Real-Time terhadap Perubahan Manajemen Alur Disposisi dari Super Admin
+  const [routingVersion, setRoutingVersion] = useState(0);
+  useEffect(() => {
+    const handleRoutingChanged = () => {
+      setRoutingVersion((v) => v + 1);
+    };
+    window.addEventListener('SILOKA_DISPOSISI_ROUTING_CHANGED', handleRoutingChanged);
+    window.addEventListener('storage', handleRoutingChanged);
+    return () => {
+      window.removeEventListener('SILOKA_DISPOSISI_ROUTING_CHANGED', handleRoutingChanged);
+      window.removeEventListener('storage', handleRoutingChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isOpen) {
+      try {
+        const saved = localStorage.getItem('siloka_unit_kerja_data');
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setLiveUnits(parsed);
+          }
+        }
+      } catch (_) {}
+    }
+  }, [isOpen]);
+
   // Profil Pengguna Aktif yang Disinkronkan dengan Manajemen Pengguna (allUsers)
   const effectiveCurrentUser = useMemo(() => {
     if (!currentUser) return null;
@@ -74,10 +151,10 @@ export const QuickDisposisiModal = ({
   const isTargetCancelled = letter ? (letter.status === 'Dibatalkan' || letter.status === 'Dianulir' || Boolean(letter.isDibatalkan)) : false;
 
   // Target Disposisi Berjenjang Top-Down sesuai Matriks Kewenangan OTK UNSIL
-  // Terintegrasi langsung dengan Manajemen Pengguna (allUsers)
+  // Terintegrasi langsung dengan Manajemen Pengguna (allUsers), Manajemen Unit Kerja (liveUnits), dan Manajemen Alur Disposisi
   const hierarchicalTargets = useMemo(() => {
-    return getHierarchicalDisposisiTargets(effectiveCurrentUser, allUsers);
-  }, [effectiveCurrentUser, allUsers]);
+    return getHierarchicalDisposisiTargets(effectiveCurrentUser, allUsers, liveUnits);
+  }, [effectiveCurrentUser, allUsers, liveUnits, routingVersion]);
 
   // Kalkulasi tanggal jatuh tempo berdasarkan SLA Peraturan Rektor No. 3/2023
   const calculateDueDateBySifat = (sifat) => {
@@ -89,13 +166,15 @@ export const QuickDisposisiModal = ({
 
   // State Manajemen Disposisi
   const [selectedLetterId, setSelectedLetterId] = useState('');
-  const [targetUnit, setTargetUnit] = useState('');
-  const [selectedTargetObj, setSelectedTargetObj] = useState(null);
-  const [isCustomTarget, setIsCustomTarget] = useState(false);
-  const [customTargetUnit, setCustomTargetUnit] = useState('');
+  const [selectedTargets, setSelectedTargets] = useState([]);
   const [isUnitDropdownOpen, setIsUnitDropdownOpen] = useState(false);
   const [unitSearchQuery, setUnitSearchQuery] = useState('');
   const unitDropdownRef = useRef(null);
+
+  // Target Utama (Lead PIC) dan String Representasi untuk Backwards Compatibility
+  const leadTarget = selectedTargets[0] || null;
+  const targetUnit = selectedTargets.map((t) => t.nama).join(', ');
+  const selectedTargetObj = leadTarget;
 
   // State Instruksi Tindak Lanjut ("Untuk :") Format Contoh 21
   const [actions, setActions] = useState(['Proses sesuai prosedur']);
@@ -119,34 +198,39 @@ export const QuickDisposisiModal = ({
       setSelectedLetterId(activeLetter.id);
     }
 
-    // Default target bawahan sesuai pimpinan login
-    const defaultTarget = hierarchicalTargets[0]?.nama || '';
-    const existingTarget = activeLetter?.disposisi?.tujuanDisposisi || activeLetter?.disposisi?.targetUnit;
-    const finalTargetName = existingTarget || defaultTarget;
-    setTargetUnit(finalTargetName);
+    // STANDAR BAKU TATA NASKAH DINAS (Clean Slate):
+    // Target bawahan penerima disposisi SELALU dimulai dalam keadaan KOSONG ([])
+    // agar pimpinan/pejabat memilih sendiri pejabat bawahan tujuannya secara sadar.
+    // Dilarang keras melakukan auto-restore atau pre-populate nama pejabat lain!
+    setSelectedTargets([]);
 
-    const activeTargetObj = hierarchicalTargets.find((t) => t.nama === finalTargetName) || hierarchicalTargets[0] || null;
-    setSelectedTargetObj(activeTargetObj);
-
-    setIsCustomTarget(false);
-    setCustomTargetUnit('');
-
-    // Pre-fill butir instruksi jika surat sudah memiliki riwayat disposisi
-    if (activeLetter?.disposisi?.actions && Array.isArray(activeLetter.disposisi.actions) && activeLetter.disposisi.actions.length > 0) {
-      setActions(activeLetter.disposisi.actions);
+    // Pre-fill butir instruksi jika surat diteruskan dari disposisi atasan atau default bersih
+    if (forwardFromDisposisi) {
+      const pStr = String(forwardFromDisposisi.pemberiDisposisi || '').toLowerCase();
+      if (pStr.includes('rektor')) {
+        setActions(['Ikuti Disposisi Rektor', 'Proses sesuai prosedur']);
+      } else {
+        setActions(['Proses sesuai prosedur']);
+      }
+      setCustomNote(
+        forwardFromDisposisi.instruksi
+          ? `Meneruskan arahan ${forwardFromDisposisi.pemberiDisposisi}: "${forwardFromDisposisi.instruksi}"`
+          : (forwardFromDisposisi.catatan || '')
+      );
     } else {
       setActions(['Proses sesuai prosedur']);
+      setCustomNote('');
     }
 
-    const currentSifat = activeLetter?.disposisi?.sifatInstruksi || activeLetter?.sifat || 'Segera';
+    const currentSifat = forwardFromDisposisi?.sifatInstruksi || activeLetter?.sifat || 'Segera';
     setSifatInstruksi(currentSifat);
-    setDueDate(activeLetter?.disposisi?.batasWaktu || calculateDueDateBySifat(currentSifat));
-    setCustomNote(activeLetter?.disposisi?.customNote || '');
+    setDueDate(calculateDueDateBySifat(currentSifat));
     setKoordinasiDetail('');
     setLainnyaDetail('');
     setValidationError('');
     setIsUnitDropdownOpen(false);
-  }, [isOpen, letter, hierarchicalTargets]);
+    setUnitSearchQuery('');
+  }, [isOpen, letter, hierarchicalTargets, forwardFromDisposisi]);
 
   // Close dropdown target ketika klik di luar
   useEffect(() => {
@@ -171,10 +255,36 @@ export const QuickDisposisiModal = ({
 
   const selectedTeamObj = useMemo(() => {
     return (
-      hierarchicalTargets.find((t) => t.nama === targetUnit) ||
-      hierarchicalTargets[0] || { nama: targetUnit || 'Unit Kerja Terkait', deskripsi: '' }
+      leadTarget ||
+      hierarchicalTargets[0] || { nama: 'Unit Kerja Terkait', deskripsi: '' }
     );
-  }, [targetUnit, hierarchicalTargets]);
+  }, [leadTarget, hierarchicalTargets]);
+
+  // Handler Multi-Recipient Disposisi
+  const handleToggleTarget = (team) => {
+    setValidationError('');
+    setSelectedTargets((prev) => {
+      const exists = prev.some((t) => t.id === team.id || t.nama === team.nama);
+      if (exists) {
+        return prev.filter((t) => t.id !== team.id && t.nama !== team.nama);
+      }
+      return [...prev, team];
+    });
+  };
+
+  const handleRemoveTarget = (teamToRemove, e) => {
+    if (e) e.stopPropagation();
+    setValidationError('');
+    setSelectedTargets((prev) => prev.filter((t) => t.id !== teamToRemove.id && t.nama !== teamToRemove.nama));
+  };
+
+  const handleSetLeadTarget = (targetToLead, e) => {
+    if (e) e.stopPropagation();
+    setSelectedTargets((prev) => {
+      const filtered = prev.filter((t) => t.id !== targetToLead.id && t.nama !== targetToLead.nama);
+      return [targetToLead, ...filtered];
+    });
+  };
 
   // Filter unit kerja bawahan berdasarkan pencarian
   const filteredTeams = useMemo(() => {
@@ -184,7 +294,11 @@ export const QuickDisposisiModal = ({
       (t) =>
         t.nama.toLowerCase().includes(q) ||
         (t.deskripsi && t.deskripsi.toLowerCase().includes(q)) ||
-        (t.badge && t.badge.toLowerCase().includes(q))
+        (t.badge && t.badge.toLowerCase().includes(q)) ||
+        (t.cluster && t.cluster.toLowerCase().includes(q)) ||
+        (t.user_nama && t.user_nama.toLowerCase().includes(q)) ||
+        (t.user_nip && t.user_nip.toLowerCase().includes(q)) ||
+        (t.user_email && t.user_email.toLowerCase().includes(q))
     );
   }, [unitSearchQuery, hierarchicalTargets]);
 
@@ -216,6 +330,14 @@ export const QuickDisposisiModal = ({
     setActions([]);
   };
 
+  const handleCloseModal = () => {
+    setSelectedTargets([]);
+    setValidationError('');
+    setIsUnitDropdownOpen(false);
+    setUnitSearchQuery('');
+    onClose();
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
 
@@ -229,9 +351,34 @@ export const QuickDisposisiModal = ({
       return;
     }
 
-    const finalTarget = isCustomTarget ? customTargetUnit.trim() : targetUnit.trim();
-    if (!finalTarget) {
-      setValidationError('Mohon tentukan unit / pejabat bawahan penerima disposisi.');
+    if (selectedTargets.length === 0) {
+      setValidationError('Mohon tentukan minimal satu pejabat bawahan penerima disposisi.');
+      return;
+    }
+
+    // KAIDAH MUTLAK TATA NASKAH DINAS (Pasal 55 ayat 3 Peraturan Rektor No. 3/2023):
+    // Cek apakah ada target yang melanggar hierarki komando disposisi (bawahan mendisposisikan ke Rektor)
+    const isUserRektor =
+      !String(effectiveCurrentUser?.jabatan || '').toLowerCase().includes('wakil') &&
+      (String(effectiveCurrentUser?.jabatan || '').toLowerCase().includes('rektor') ||
+        effectiveCurrentUser?.role === 'REKTOR' ||
+        effectiveCurrentUser?.subRoleKey === 'REKTOR');
+
+    const hasRektorTarget = selectedTargets.some((t) => {
+      const tNama = String(t.nama || '').toLowerCase();
+      const tDesk = String(t.deskripsi || '').toLowerCase();
+      return (
+        t.user_id === 'usr-01' ||
+        t.id === 'tgt-rektor' ||
+        (tNama.includes('rektor') && !tNama.includes('wakil')) ||
+        (tDesk.includes('rektor') && !tDesk.includes('wakil'))
+      );
+    });
+
+    if (!isUserRektor && hasRektorTarget) {
+      setValidationError(
+        'Pejabat bawahan tidak dapat mendisposisikan naskah kepada Rektor. Gunakan Nota Dinas atau Surat Balasan untuk pelaporan ke pimpinan.'
+      );
       return;
     }
 
@@ -254,19 +401,34 @@ export const QuickDisposisiModal = ({
     const pemberiName = effectiveCurrentUser?.nama_lengkap || effectiveCurrentUser?.nama || effectiveCurrentUser?.name || 'Pimpinan Unit';
     const pemberiJabatan = effectiveCurrentUser?.jabatan || effectiveCurrentUser?.sotk_position_label || effectiveCurrentUser?.roleLabel || 'Pimpinan';
 
-    const matchedTargetObj = (!isCustomTarget && selectedTargetObj && selectedTargetObj.nama === finalTarget)
-      ? selectedTargetObj
-      : hierarchicalTargets.find((t) => t.nama === finalTarget) || null;
+    const primaryTarget = selectedTargets[0];
+    const targetsPayload = selectedTargets.map((t, idx) => ({
+      id: t.id,
+      targetUnit: t.nama,
+      target_user_id: t.user_id || null,
+      target_user_email: t.user_email || null,
+      target_pejabat_nip: t.user_nip || null,
+      target_pejabat_nama: t.user_nama || null,
+      target_jabatan: t.nama,
+      isLead: idx === 0,
+      isRead: false,
+      readAt: null,
+      readBy: null,
+      readByNip: null
+    }));
+
+    const finalTarget = selectedTargets.map((t) => t.nama).join(', ');
 
     onSubmitDisposisi({
       letterId: selectedLetterObj.id,
       nomorAgenda: selectedLetterObj.nomorAgenda || `AGD-${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`,
       targetUnit: finalTarget,
-      target_user_id: matchedTargetObj?.user_id || null,
-      target_user_email: matchedTargetObj?.user_email || null,
-      target_pejabat_nip: matchedTargetObj?.user_nip || null,
-      target_pejabat_nama: matchedTargetObj?.user_nama || null,
-      target_jabatan: finalTarget,
+      target_user_id: primaryTarget?.user_id || null,
+      target_user_email: primaryTarget?.user_email || null,
+      target_pejabat_nip: primaryTarget?.user_nip || null,
+      target_pejabat_nama: primaryTarget?.user_nama || null,
+      target_jabatan: primaryTarget?.nama || finalTarget,
+      targets: targetsPayload,
       sifatInstruksi,
       actions: finalizedActions,
       customNote,
@@ -274,9 +436,16 @@ export const QuickDisposisiModal = ({
       pemberiName,
       pemberiJabatan,
       pemberiUserId: effectiveCurrentUser?.id || effectiveCurrentUser?.id_user || null,
-      timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB'
+      parentDisposisiId: forwardFromDisposisi?.id || null,
+      forwardedFrom: forwardFromDisposisi?.pemberiDisposisi || null,
+      timestamp: new Date().toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) + ' WIB',
+      isRead: false,
+      readAt: null,
+      readBy: null,
+      readByNip: null,
+      readers: []
     });
-    onClose();
+    handleCloseModal();
   };
 
   return (
@@ -304,7 +473,7 @@ export const QuickDisposisiModal = ({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleCloseModal}
             className="p-1.5 rounded-lg text-emerald-300 hover:text-white hover:bg-white/10 transition-colors"
             aria-label="Tutup Modal"
           >
@@ -329,7 +498,7 @@ export const QuickDisposisiModal = ({
             <div className="pt-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCloseModal}
                 className="px-5 py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 Tutup & Kembali
@@ -352,7 +521,7 @@ export const QuickDisposisiModal = ({
             <div className="pt-3">
               <button
                 type="button"
-                onClick={onClose}
+                onClick={handleCloseModal}
                 className="px-5 py-2 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-lg text-xs font-semibold shadow-xs transition cursor-pointer"
               >
                 Tutup & Kembali
@@ -361,6 +530,19 @@ export const QuickDisposisiModal = ({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs text-slate-700">
+            {/* Banner Penerusan Disposisi */}
+            {forwardFromDisposisi && (
+              <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 text-xs text-amber-950 flex items-start gap-2.5 shadow-2xs">
+                <CornerDownRight className="w-4 h-4 text-amber-700 shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold text-amber-950">Penerusan Disposisi</p>
+                  <p className="text-[11px] text-amber-900 mt-0.5">
+                    Meneruskan arahan dari <strong>{forwardFromDisposisi.pemberiDisposisi}</strong>: "{forwardFromDisposisi.instruksi}"
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* KARTU IDENTITAS NASKAH DINAS YANG DIDISPOSISIKAN (Terkunci & Presisi) */}
             {selectedLetterObj && (
               <div className="p-3.5 rounded-xl bg-emerald-50/90 border border-emerald-200/90 shadow-2xs space-y-2">
@@ -409,7 +591,13 @@ export const QuickDisposisiModal = ({
                     <span className="text-slate-500 font-medium">Pilih Naskah Masuk Lainnya:</span>
                     <select
                       value={selectedLetterId}
-                      onChange={(e) => setSelectedLetterId(e.target.value)}
+                      onChange={(e) => {
+                        setSelectedLetterId(e.target.value);
+                        setSelectedTargets([]);
+                        setValidationError('');
+                        setIsUnitDropdownOpen(false);
+                        setUnitSearchQuery('');
+                      }}
                       className="p-1 px-2 bg-white border border-slate-300 rounded text-xs text-slate-800 max-w-[280px] truncate"
                     >
                       {disposableLetters.map((l) => (
@@ -431,124 +619,211 @@ export const QuickDisposisiModal = ({
                   <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-700">
                     Diteruskan Kepada (Bawahan / Unit Pengolah Tujuan) *
                   </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsCustomTarget(!isCustomTarget);
-                      if (!isCustomTarget) {
-                        setCustomTargetUnit('');
-                      } else {
-                        setTargetUnit(hierarchicalTargets[0]?.nama || '');
-                      }
-                    }}
-                    className="text-[10.5px] text-unsil-green-800 hover:text-unsil-green-950 font-semibold hover:underline cursor-pointer"
-                  >
-                    {isCustomTarget ? '← Pilih dari Struktur SOTK' : '✍️ Ketik Manual Tujuan Lain'}
-                  </button>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    Hierarki Resmi SOTK UNSIL
+                  </span>
                 </div>
 
-                {isCustomTarget ? (
-                  <input
-                    type="text"
-                    value={customTargetUnit}
-                    onChange={(e) => {
-                      setCustomTargetUnit(e.target.value);
-                      setTargetUnit(e.target.value);
-                    }}
-                    placeholder="Ketik nama jabatan bawahan, nama staf, atau unit pengolah..."
-                    className="w-full p-2.5 bg-amber-50/60 border border-amber-300 rounded-lg text-xs font-medium text-slate-800 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20"
-                    autoFocus
-                    required
-                  />
-                ) : (
-                  <div className="relative" ref={unitDropdownRef}>
+                <div className="relative" ref={unitDropdownRef}>
                     <button
                       type="button"
                       onClick={() => setIsUnitDropdownOpen((prev) => !prev)}
-                      className="w-full p-2.5 bg-white border border-slate-300 hover:border-unsil-green-700 rounded-lg text-xs font-medium text-slate-800 flex items-center justify-between shadow-2xs transition focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 cursor-pointer"
+                      className={`w-full p-2.5 bg-white border ${
+                        selectedTargets.length === 0 && validationError ? 'border-red-400' : 'border-slate-300 hover:border-unsil-green-700'
+                      } rounded-lg text-xs font-medium text-slate-800 flex items-center justify-between shadow-2xs transition focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 cursor-pointer`}
                     >
                       <div className="flex items-center gap-2 truncate">
                         <div className="w-6 h-6 rounded bg-unsil-green-800 text-unsil-gold-400 flex items-center justify-center shrink-0">
                           <Building2 className="w-3.5 h-3.5" />
                         </div>
-                        <span className="font-bold text-slate-900 truncate">{targetUnit || 'Pilih Subordinat / Unit'}</span>
-                        {selectedTeamObj?.deskripsi && (
-                          <span className="text-[11px] text-slate-400 truncate hidden sm:inline">
-                            — {selectedTeamObj.deskripsi}
-                          </span>
+                        {selectedTargets.length === 0 ? (
+                          <span className="text-slate-400 italic">Pilih satu atau lebih pejabat bawahan...</span>
+                        ) : selectedTargets.length === 1 ? (
+                          <>
+                            <span className="font-bold text-slate-900 truncate">{leadTarget?.nama}</span>
+                            {leadTarget?.is_active_account && (
+                              <span className="text-[9.5px] font-semibold px-1.5 py-0.5 rounded bg-emerald-100/80 text-emerald-800 border border-emerald-200 shrink-0">
+                                [Akun Terhubung]
+                              </span>
+                            )}
+                            {leadTarget?.deskripsi && (
+                              <span className="text-[11px] text-slate-400 truncate hidden sm:inline">
+                                — {leadTarget.deskripsi}
+                              </span>
+                            )}
+                          </>
+                        ) : (
+                          <>
+                            <span className="font-bold text-slate-900 truncate">
+                              {selectedTargets.length} Pejabat Dituju
+                            </span>
+                            <span className="text-[11px] text-slate-500 truncate hidden sm:inline">
+                              (Utama: {leadTarget?.nama})
+                            </span>
+                          </>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 text-slate-400 shrink-0 ml-1">
-                        {selectedTeamObj?.badge && (
+                        {selectedTargets.length > 0 && (
                           <span className="text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-unsil-green-900 font-bold border border-emerald-200">
-                            {selectedTeamObj.badge}
+                            {selectedTargets.length} Pejabat
                           </span>
                         )}
                         <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isUnitDropdownOpen ? 'rotate-180 text-unsil-green-800' : ''}`} />
                       </div>
                     </button>
 
+                    {/* Ringkasan Chip Pejabat Terpilih */}
+                    {selectedTargets.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1.5">
+                        {selectedTargets.map((team, idx) => {
+                          const isLead = idx === 0;
+                          return (
+                            <div
+                              key={team.id || `selected-chip-${idx}`}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[11px] font-medium border transition ${
+                                isLead
+                                  ? 'bg-emerald-50 text-unsil-green-950 border-emerald-300 shadow-2xs'
+                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:border-slate-300'
+                              }`}
+                            >
+                              {isLead ? (
+                                <UserCheck className="w-3.5 h-3.5 text-unsil-green-800 shrink-0" />
+                              ) : (
+                                <Users className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+                              )}
+                              <span className="font-semibold text-slate-900 truncate max-w-[210px]" title={team.nama}>
+                                {team.nama}
+                              </span>
+                              <span
+                                className={`text-[9.5px] px-1.5 py-0.2 rounded font-bold uppercase tracking-wider ${
+                                  isLead ? 'bg-unsil-green-800 text-unsil-gold-300' : 'bg-slate-200 text-slate-700'
+                                }`}
+                              >
+                                {isLead ? 'Utama' : 'Koordinasi'}
+                              </span>
+                              {!isLead && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => handleSetLeadTarget(team, e)}
+                                  title="Jadikan pejabat ini sebagai Penanggung Jawab Utama (PIC)"
+                                  className="text-[10px] text-unsil-green-800 hover:text-unsil-green-950 font-semibold hover:underline cursor-pointer ml-0.5"
+                                >
+                                  Jadikan Utama
+                                </button>
+                              )}
+                              <button
+                                type="button"
+                                onClick={(e) => handleRemoveTarget(team, e)}
+                                title="Hapus dari daftar penerima disposisi"
+                                className="w-3.5 h-3.5 rounded-full hover:bg-slate-200 flex items-center justify-center text-slate-400 hover:text-red-600 transition cursor-pointer ml-0.5"
+                              >
+                                <X className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+
                     {/* Searchable Dropdown Menu */}
                     {isUnitDropdownOpen && (
                       <div className="absolute left-0 right-0 top-full mt-1 bg-white rounded-xl shadow-xl border border-slate-200 py-2 z-30 animate-in fade-in slide-in-from-top-1 duration-150">
-                        <div className="px-3 pb-2 border-b border-slate-100">
-                          <div className="relative">
+                        <div className="px-3 pb-2 border-b border-slate-100 flex items-center gap-2">
+                          <div className="relative flex-1">
                             <Search className="w-3.5 h-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
                               type="text"
                               value={unitSearchQuery}
                               onChange={(e) => setUnitSearchQuery(e.target.value)}
-                              placeholder="Cari pejabat / unit bawahan..."
+                              placeholder="Cari pejabat, NIP, unit bawahan, atau klaster..."
                               className="w-full pl-8 pr-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-md focus:outline-none focus:ring-1 focus:ring-unsil-green-800 focus:bg-white text-slate-800 placeholder-slate-400"
                               autoFocus
                             />
                           </div>
+                          {selectedTargets.length > 0 && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedTargets([])}
+                              className="text-[10px] text-red-600 hover:underline font-semibold shrink-0"
+                            >
+                              Reset
+                            </button>
+                          )}
                         </div>
 
-                        <div className="max-h-48 overflow-y-auto divide-y divide-slate-50 p-1">
+                        <div className="max-h-56 overflow-y-auto divide-y divide-slate-50 p-1">
                           {filteredTeams.length > 0 ? (
-                            filteredTeams.map((team) => {
-                              const isSelected = targetUnit === team.nama;
+                            filteredTeams.map((team, idx) => {
+                              const isSelected = selectedTargets.some((t) => t.id === team.id || t.nama === team.nama);
+                              const isLead = isSelected && selectedTargets[0]?.nama === team.nama;
+                              const showClusterHeader =
+                                team.cluster &&
+                                (!unitSearchQuery.trim() || true) &&
+                                (idx === 0 || team.cluster !== filteredTeams[idx - 1]?.cluster);
+
                               return (
-                                <button
-                                  key={team.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setTargetUnit(team.nama);
-                                    setSelectedTargetObj(team);
-                                    setIsUnitDropdownOpen(false);
-                                    setUnitSearchQuery('');
-                                  }}
-                                  className={`w-full p-2 rounded-lg text-left flex items-start justify-between gap-2 transition cursor-pointer ${
-                                    isSelected
-                                      ? 'bg-emerald-50 text-unsil-green-950 font-semibold'
-                                      : 'hover:bg-slate-50 text-slate-700'
-                                  }`}
-                                >
-                                  <div className="flex items-start gap-2 truncate">
-                                    <div className={`w-5 h-5 rounded flex items-center justify-center shrink-0 mt-0.5 ${
-                                      isSelected ? 'bg-unsil-green-800 text-unsil-gold-300' : 'bg-slate-100 text-slate-500'
-                                    }`}>
-                                      <Building className="w-3 h-3" />
+                                <div key={team.id || `team-${idx}`}>
+                                  {showClusterHeader && (
+                                    <div className="px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-unsil-green-900 bg-emerald-50/70 border-y border-emerald-100/60 sticky top-0 z-10 backdrop-blur-xs flex items-center justify-between">
+                                      <span>{team.cluster}</span>
+                                      <span className="text-[9px] font-medium text-slate-500">Klaster Resmi SOTK</span>
                                     </div>
-                                    <div className="truncate">
-                                      <div className="flex items-center gap-1.5 truncate">
-                                        <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
-                                        {team.is_active_account && (
-                                          <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100/80 text-emerald-800 border border-emerald-200 shrink-0">
-                                            Akun Terhubung
-                                          </span>
+                                  )}
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleTarget(team)}
+                                    className={`w-full p-2 rounded-lg text-left flex items-start justify-between gap-2 transition cursor-pointer ${
+                                      isSelected
+                                        ? 'bg-emerald-50/90 text-unsil-green-950 font-semibold'
+                                        : 'hover:bg-slate-50 text-slate-700'
+                                    }`}
+                                  >
+                                    <div className="flex items-start gap-2.5 truncate">
+                                      {/* Checkbox visual */}
+                                      <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 mt-0.5 transition ${
+                                        isSelected
+                                          ? 'bg-unsil-green-800 border-unsil-green-800 text-white'
+                                          : 'border-slate-300 bg-white'
+                                      }`}>
+                                        {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
+                                      </div>
+                                      <div className="truncate">
+                                        <div className="flex items-center gap-1.5 truncate">
+                                          <p className="text-xs font-bold leading-tight truncate">{team.nama}</p>
+                                          {team.is_active_account ? (
+                                            <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded bg-emerald-100/80 text-emerald-800 border border-emerald-200 shrink-0">
+                                              [Akun Terhubung]
+                                            </span>
+                                          ) : (
+                                            <span className="text-[9.5px] font-semibold px-1.5 py-0.2 rounded bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                                              [Belum Terhubung]
+                                            </span>
+                                          )}
+                                        </div>
+                                        {team.deskripsi && (
+                                          <p className="text-[10px] text-slate-500 mt-0.5 truncate">{team.deskripsi}</p>
                                         )}
                                       </div>
-                                      {team.deskripsi && (
-                                        <p className="text-[10px] text-slate-500 mt-0.5 truncate">{team.deskripsi}</p>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0 mt-0.5">
+                                      {team.badge && (
+                                        <span className="text-[9.5px] px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-medium">
+                                          {team.badge}
+                                        </span>
+                                      )}
+                                      {isSelected && (
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                          isLead
+                                            ? 'bg-unsil-green-800 text-unsil-gold-300'
+                                            : 'bg-emerald-100 text-emerald-800'
+                                        }`}>
+                                          {isLead ? 'Utama' : 'Koordinasi'}
+                                        </span>
                                       )}
                                     </div>
-                                  </div>
-                                  {isSelected && (
-                                    <Check className="w-4 h-4 text-unsil-green-800 shrink-0 mt-0.5" />
-                                  )}
-                                </button>
+                                  </button>
+                                </div>
                               );
                             })
                           ) : (
@@ -557,11 +832,24 @@ export const QuickDisposisiModal = ({
                             </div>
                           )}
                         </div>
+
+                        {/* Dropdown Footer */}
+                        <div className="px-3 pt-2 pb-1 border-t border-slate-100 bg-slate-50/70 flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">
+                            {selectedTargets.length} pejabat dipilih
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setIsUnitDropdownOpen(false)}
+                            className="px-2.5 py-1 bg-unsil-green-800 hover:bg-unsil-green-900 text-white rounded-md text-[10.5px] font-semibold shadow-2xs transition cursor-pointer"
+                          >
+                            Selesai Memilih
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
-                )}
-              </div>
+                </div>
 
               {/* Derajat Kecepatan & Batas Waktu */}
               <div className="space-y-1">
@@ -749,7 +1037,7 @@ export const QuickDisposisiModal = ({
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={onClose}
+                  onClick={handleCloseModal}
                   className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
                 >
                   Batal
