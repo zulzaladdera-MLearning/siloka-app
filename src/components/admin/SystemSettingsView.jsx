@@ -28,8 +28,6 @@ import {
   AlertTriangle,
   Users,
   ArrowLeft,
-  Network,
-  GraduationCap,
   ChevronRight
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
@@ -1284,7 +1282,7 @@ export const SystemSettingsView = ({
                 Total {filteredUnits.length} Unit Kerja
               </span>
               <span className="text-[11px] text-slate-500">
-                Klik baris unit kerja atau tombol &ldquo;Kelola Pengguna&rdquo; untuk melihat rincian pegawai.
+                Klik tombol &ldquo;Kelola Pengguna&rdquo; untuk melihat rincian akun pegawai pada unit kerja terkait.
               </span>
             </div>
 
@@ -1316,18 +1314,13 @@ export const SystemSettingsView = ({
                     filteredUnits.map((u, index) => (
                       <tr
                         key={u.id || u.kode_unit}
-                        onClick={() => {
-                          setSelectedUnitForFilter(u);
-                          setSelectedRoleFilter('ALL');
-                          setSearchQuery('');
-                        }}
-                        className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                        className="hover:bg-slate-50/60 transition-colors"
                       >
                         <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
                           {index + 1}
                         </td>
                         <td className="py-3.5 px-4">
-                          <div className="font-bold text-slate-900 group-hover:text-unsil-green-900 transition-colors">
+                          <div className="font-bold text-slate-900">
                             {u.nama_unit}
                           </div>
                           {u.parent_kode && u.parent_kode !== 'UN58' && (
@@ -1335,24 +1328,6 @@ export const SystemSettingsView = ({
                               Induk: {u.parent_name}
                             </div>
                           )}
-                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                            <span
-                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-blue-50 text-blue-900 border border-blue-200"
-                              title="Struktur Formasi Jabatan Resmi Unit"
-                            >
-                              <Network className="w-3 h-3 text-blue-700" />
-                              <span>Struktur Organisasi</span>
-                            </span>
-                            {(u.tipe_unit === 'FAKULTAS' || u.tipe_unit === 'PASCASARJANA' || (u.jurusan && u.jurusan.length > 0)) && (
-                              <span
-                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-emerald-50 text-unsil-green-900 border border-emerald-200"
-                                title="Daftar Jurusan / Program Studi"
-                              >
-                                <GraduationCap className="w-3.5 h-3.5 text-unsil-green-800" />
-                                <span>{u.jurusan?.length || 0} Jurusan</span>
-                              </span>
-                            )}
-                          </div>
                         </td>
                         <td className="py-3.5 px-4">
                           <div className="inline-flex items-center gap-1.5">
@@ -1401,7 +1376,7 @@ export const SystemSettingsView = ({
                             </span>
                           )}
                         </td>
-                        <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                        <td className="py-3.5 px-4 text-center">
                           <button
                             type="button"
                             onClick={() => {
@@ -1410,7 +1385,7 @@ export const SystemSettingsView = ({
                               setSearchQuery('');
                             }}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-unsil-green-900 bg-emerald-50 hover:bg-unsil-green-900 hover:text-white border border-emerald-200 transition cursor-pointer shadow-2xs group/btn"
-                            title={`Lihat daftar pengguna di ${u.nama_unit}`}
+                            title={`Kelola akun pengguna di ${u.nama_unit}`}
                           >
                             <Users className="w-3.5 h-3.5" />
                             <span>Kelola Pengguna</span>
