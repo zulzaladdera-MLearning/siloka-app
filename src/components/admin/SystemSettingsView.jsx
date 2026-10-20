@@ -25,7 +25,12 @@ import {
   Briefcase,
   CheckSquare,
   Info,
-  AlertTriangle
+  AlertTriangle,
+  Users,
+  ArrowLeft,
+  Network,
+  GraduationCap,
+  ChevronRight
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
@@ -220,6 +225,44 @@ const resolveDisplayUnit = (u) => {
 };
 
 /**
+ * Memeriksa apakah seorang pengguna bertugas pada unit kerja tertentu
+ * Single Source of Truth: Menghubungkan kode_unit, unit_kerja_id, nama_unit, dan singkatan.
+ */
+export const isUserInUnit = (u, unit) => {
+  if (!u || !unit) return false;
+  if (u.is_active === false || u.is_aktif === false || u.status_aktif === false) return false;
+
+  const unitCode = String(unit.kode_unit || '').trim().toUpperCase();
+  const uKode = String(u.unit_kerja_id || u.kode_unit || u.id_unit || '').trim().toUpperCase();
+  const uNama = String(u.unit || u.unitKerja || '').trim().toLowerCase();
+  const unitName = String(unit.nama_unit || '').trim().toLowerCase();
+  const unitSingkatan = String(unit.singkatan || '').trim().toLowerCase();
+
+  // 1. Pencocokan langsung kode unit (misal 'UN58.13', 'UN58.SENAT', 'UN58.32')
+  if (uKode && uKode === unitCode) {
+    return true;
+  }
+
+  // 2. Pencocokan langsung nama unit atau singkatan
+  if (unitName && (uNama === unitName || uNama.includes(unitName))) {
+    return true;
+  }
+  if (unitSingkatan && (uNama === unitSingkatan || uNama.includes(unitSingkatan))) {
+    return true;
+  }
+
+  // 3. Kasus khusus Rektorat / Universitas Siliwangi (UN58):
+  // Menangkap pejabat rektorat / staf universitas dan mengecualikan sub-unit yang memiliki kode spesifik sendiri
+  if (unitCode === 'UN58') {
+    if (uKode === 'UN58' || uNama.includes('rektorat') || uNama === 'universitas siliwangi') {
+      if (!uKode.startsWith('UN58.')) return true;
+    }
+  }
+
+  return false;
+};
+
+/**
  * Pratinjau Hak Akses Real-Time saat Memilih Peran Pengguna
  */
 const UserRoleCapabilityPreview = ({ roleSlug }) => {
@@ -359,6 +402,10 @@ export const SystemSettingsView = ({
   }, []);
 
   // Filter & Search State
+  const [viewMode, setViewMode] = useState('BY_UNIT'); // 'BY_UNIT' | 'ALL_USERS'
+  const [selectedUnitForFilter, setSelectedUnitForFilter] = useState(null);
+  const [unitSearchQuery, setUnitSearchQuery] = useState('');
+  const [selectedUnitKategori, setSelectedUnitKategori] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
 
@@ -393,6 +440,18 @@ export const SystemSettingsView = ({
       window.removeEventListener('storage', handleUnitChange);
     };
   }, []);
+
+  // Sinkronkan selectedUnitForFilter dengan activeUnits jika ada pembaruan unit
+  useEffect(() => {
+    if (selectedUnitForFilter) {
+      const updated = activeUnits.find(
+        (u) => u.kode_unit === selectedUnitForFilter.kode_unit || u.id === selectedUnitForFilter.id
+      );
+      if (updated) {
+        setSelectedUnitForFilter((prev) => ({ ...prev, ...updated }));
+      }
+    }
+  }, [activeUnits]);
 
   // State Edit User Form
   const [editFormData, setEditFormData] = useState({
@@ -477,57 +536,151 @@ export const SystemSettingsView = ({
     return 'bg-amber-50 text-amber-800 border-amber-200';
   };
 
-  // Filter Data Pengguna (Sekaligus Membersihkan Artefak Dummy "Administrator Utama SILOKA")
+  // Data pengguna bersih (mengecualikan artefak dummy Administrator Utama SILOKA)
+  const cleanAllUsers = useMemo(() => {
+    return (allUsers || []).filter(
+      (u) =>
+        u.id !== 'usr-admin-01' &&
+        u.id !== 'usr-00' &&
+        !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
+    );
+  }, [allUsers]);
+
+  // Daftar Unit Kerja yang Diperkaya Jumlah Pegawai Aktual (Single Source of Truth)
+  const enrichedUnits = useMemo(() => {
+    return activeUnits.map((unit) => {
+      const unitUsers = cleanAllUsers.filter((u) => isUserInUnit(u, unit));
+      const parentObj = activeUnits.find((p) => p.kode_unit === unit.parent_kode);
+
+      return {
+        ...unit,
+        parent_name: parentObj ? parentObj.nama_unit : unit.parent_kode || 'Universitas Siliwangi',
+        memberCount: unitUsers.length,
+        jurusanCount: Array.isArray(unit.jurusan) ? unit.jurusan.length : 0
+      };
+    });
+  }, [activeUnits, cleanAllUsers]);
+
+  // Filter Unit Kerja (Tingkat 1)
+  const filteredUnits = useMemo(() => {
+    return enrichedUnits.filter((unit) => {
+      const matchKategori =
+        selectedUnitKategori === 'ALL' ||
+        (selectedUnitKategori === 'FAKULTAS' &&
+          (unit.tipe_unit === 'FAKULTAS' || unit.tipe_unit === 'PASCASARJANA')) ||
+        (selectedUnitKategori === 'BIRO' && unit.tipe_unit === 'BIRO') ||
+        (selectedUnitKategori === 'LEMBAGA_UPA' &&
+          (unit.tipe_unit === 'LEMBAGA' || unit.tipe_unit === 'UPA')) ||
+        (selectedUnitKategori === 'ORGAN' &&
+          ['UNIVERSITAS', 'ORGAN'].includes(unit.tipe_unit));
+
+      const term = unitSearchQuery.trim().toLowerCase();
+      const matchSearch =
+        !term ||
+        (unit.nama_unit && unit.nama_unit.toLowerCase().includes(term)) ||
+        (unit.kode_unit && unit.kode_unit.toLowerCase().includes(term)) ||
+        (unit.singkatan && unit.singkatan.toLowerCase().includes(term));
+
+      return matchKategori && matchSearch;
+    });
+  }, [enrichedUnits, selectedUnitKategori, unitSearchQuery]);
+
+  // Pengguna Terdaftar pada Unit Kerja Terpilih (Tingkat 2)
+  const selectedUnitUsers = useMemo(() => {
+    if (!selectedUnitForFilter) return [];
+    return cleanAllUsers.filter((u) => isUserInUnit(u, selectedUnitForFilter));
+  }, [selectedUnitForFilter, cleanAllUsers]);
+
+  // Kolam Pengguna Aktif yang Sedang Dieksplorasi (Berdasarkan Unit atau Semua)
+  const activeUserPool = useMemo(() => {
+    if (viewMode === 'ALL_USERS' || !selectedUnitForFilter) {
+      return cleanAllUsers;
+    }
+    return selectedUnitUsers;
+  }, [viewMode, selectedUnitForFilter, cleanAllUsers, selectedUnitUsers]);
+
+  // Hitungan Peran Aktual untuk Filter Bar
+  const roleCounts = useMemo(() => {
+    const pimpinan = activeUserPool.filter((u) => resolveUserRoleSlug(u) === 'pimpinan').length;
+    const tu = activeUserPool.filter((u) => resolveUserRoleSlug(u) === 'admin_tu').length;
+    const dosen = activeUserPool.filter((u) => resolveUserRoleSlug(u) === 'drafter').length;
+    const superAdmin = activeUserPool.filter((u) => resolveUserRoleSlug(u) === 'super_admin').length;
+    return {
+      all: activeUserPool.length,
+      pimpinan,
+      tu,
+      dosen,
+      superAdmin
+    };
+  }, [activeUserPool]);
+
+  // Filter Data Pengguna Sesuai Pencarian dan Peran
   const filteredUsers = useMemo(() => {
-    return allUsers
-      .filter(
-        (u) =>
-          u.id !== 'usr-admin-01' &&
-          u.id !== 'usr-00' &&
-          !String(u.nama_lengkap || u.name || '').includes('Administrator Utama SILOKA')
-      )
-      .filter((u) => {
-        const q = searchQuery.toLowerCase().trim();
-        const name = (u.nama_lengkap || u.name || '').toLowerCase();
-        const nip = (u.nip || u.nip_nik || '').toLowerCase();
-        const email = (u.email || u.username || '').toLowerCase();
-        const unit = resolveDisplayUnit(u).toLowerCase();
-        const role = resolveDisplayRole(u).toLowerCase();
-        const userSlug = resolveUserRoleSlug(u);
+    return activeUserPool.filter((u) => {
+      const q = searchQuery.toLowerCase().trim();
+      const name = (u.nama_lengkap || u.name || '').toLowerCase();
+      const nip = (u.nip || u.nip_nik || '').toLowerCase();
+      const email = (u.email || u.username || '').toLowerCase();
+      const unit = resolveDisplayUnit(u).toLowerCase();
+      const role = resolveDisplayRole(u).toLowerCase();
+      const userSlug = resolveUserRoleSlug(u);
 
-        const matchesSearch =
-          !q ||
-          name.includes(q) ||
-          nip.includes(q) ||
-          email.includes(q) ||
-          unit.includes(q) ||
-          role.includes(q) ||
-          userSlug.includes(q);
+      const matchesSearch =
+        !q ||
+        name.includes(q) ||
+        nip.includes(q) ||
+        email.includes(q) ||
+        unit.includes(q) ||
+        role.includes(q) ||
+        userSlug.includes(q);
 
-        if (!matchesSearch) return false;
+      if (!matchesSearch) return false;
 
-        if (selectedRoleFilter === 'ALL') return true;
-        if (selectedRoleFilter === 'SUPER_ADMIN' || selectedRoleFilter === 'super_admin') {
-          return userSlug === 'super_admin';
-        }
-        if (selectedRoleFilter === 'PIMPINAN' || selectedRoleFilter === 'pimpinan') {
-          return userSlug === 'pimpinan';
-        }
-        if (selectedRoleFilter === 'VERIFIKATOR' || selectedRoleFilter === 'verifikator') {
-          return userSlug === 'verifikator';
-        }
-        if (selectedRoleFilter === 'OPERATOR' || selectedRoleFilter === 'admin_tu') {
-          return userSlug === 'admin_tu';
-        }
-        if (selectedRoleFilter === 'DOSEN' || selectedRoleFilter === 'drafter') {
-          return userSlug === 'drafter';
-        }
-        if (selectedRoleFilter === 'auditor_spi') {
-          return userSlug === 'auditor_spi';
-        }
-        return userSlug === selectedRoleFilter;
-      });
-  }, [allUsers, searchQuery, selectedRoleFilter]);
+      if (selectedRoleFilter === 'ALL') return true;
+      if (selectedRoleFilter === 'SUPER_ADMIN' || selectedRoleFilter === 'super_admin') {
+        return userSlug === 'super_admin';
+      }
+      if (selectedRoleFilter === 'PIMPINAN' || selectedRoleFilter === 'pimpinan') {
+        return userSlug === 'pimpinan';
+      }
+      if (selectedRoleFilter === 'VERIFIKATOR' || selectedRoleFilter === 'verifikator') {
+        return userSlug === 'verifikator';
+      }
+      if (selectedRoleFilter === 'OPERATOR' || selectedRoleFilter === 'admin_tu') {
+        return userSlug === 'admin_tu';
+      }
+      if (selectedRoleFilter === 'DOSEN' || selectedRoleFilter === 'drafter') {
+        return userSlug === 'drafter';
+      }
+      if (selectedRoleFilter === 'auditor_spi') {
+        return userSlug === 'auditor_spi';
+      }
+      return userSlug === selectedRoleFilter;
+    });
+  }, [activeUserPool, searchQuery, selectedRoleFilter]);
+
+  // Handler: Buka Modal Tambah Pengguna Baru (Terpreset ke Unit Kerja)
+  const handleOpenAddUserModal = (targetUnit = null) => {
+    const unitObj = targetUnit || selectedUnitForFilter;
+    const defaultUnit = unitObj?.kode_unit || 'UN58';
+    const defaultSlug = 'pimpinan';
+    const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug, activeUnits);
+    const jurList = getJurusanByUnitCode(defaultUnit, activeUnits);
+    setNewUserData({
+      name: '',
+      nip: '',
+      email: '',
+      unit_kerja_id: defaultUnit,
+      jurusan: jurList[0]?.nama || '',
+      role_slug: defaultSlug,
+      role: 'PEJABAT',
+      jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
+      password: 'Siloka2026!'
+    });
+    setIsCustomJabatanAdd(false);
+    setShowNewPassword(false);
+    setIsAddUserModalOpen(true);
+  };
 
   // Handler: Buka Modal Detail / Atur Role
   const handleOpenDetailModal = (targetUser) => {
@@ -1014,26 +1167,7 @@ export const SystemSettingsView = ({
           {/* Tombol Tambah Pengguna Baru */}
           <button
             type="button"
-            onClick={() => {
-              const defaultUnit = 'UN58.13';
-              const defaultSlug = 'pimpinan';
-              const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug, activeUnits);
-              const jurList = getJurusanByUnitCode(defaultUnit, activeUnits);
-              setNewUserData({
-                name: '',
-                nip: '',
-                email: '',
-                unit_kerja_id: defaultUnit,
-                jurusan: jurList[0]?.nama || '',
-                role_slug: defaultSlug,
-                role: 'PEJABAT',
-                jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
-                password: 'Siloka2026!'
-              });
-              setIsCustomJabatanAdd(false);
-              setShowNewPassword(false);
-              setIsAddUserModalOpen(true);
-            }}
+            onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
             className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -1043,254 +1177,606 @@ export const SystemSettingsView = ({
       </div>
 
       {/* =========================================================================
-          KONTROL FILTER & PENCARIAN (DENGAN TAB FILTER PERAN RESMI)
+          TAB TOGGLE NAVIGASI: BERDASARKAN UNIT KERJA vs SEMUA PENGGUNA
           ========================================================================= */}
-      <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
-        {/* Tab Filter Peran Utama Persuratan */}
-        <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
-          <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-            Filter:
+      <div className="flex items-center border-b border-slate-200 bg-white px-2 pt-2 rounded-t-xl">
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('BY_UNIT');
+            setSelectedUnitForFilter(null);
+            setSelectedRoleFilter('ALL');
+            setSearchQuery('');
+          }}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer ${
+            viewMode === 'BY_UNIT'
+              ? 'border-unsil-green-900 text-unsil-green-900 bg-unsil-green-50/40 rounded-t-lg'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          }`}
+        >
+          <Building2 className="w-4 h-4" />
+          <span>Berdasarkan Unit Kerja</span>
+          <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-100 text-slate-700 font-bold">
+            {activeUnits.length} Unit
           </span>
-          <button
-            type="button"
-            onClick={() => setSelectedRoleFilter('ALL')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedRoleFilter === 'ALL'
-                ? 'bg-unsil-green-900 text-white shadow-2xs'
-                : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-            }`}
-          >
-            Semua Pengguna ({allUsers.length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedRoleFilter('pimpinan')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedRoleFilter === 'pimpinan' || selectedRoleFilter === 'PIMPINAN'
-                ? 'bg-blue-600 text-white shadow-2xs'
-                : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-            }`}
-          >
-            Pejabat Struktural
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedRoleFilter('admin_tu')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedRoleFilter === 'admin_tu' || selectedRoleFilter === 'OPERATOR'
-                ? 'bg-emerald-600 text-white shadow-2xs'
-                : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-            }`}
-          >
-            Staf TU / Operator
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedRoleFilter('drafter')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedRoleFilter === 'drafter' || selectedRoleFilter === 'DOSEN'
-                ? 'bg-slate-800 text-white shadow-2xs'
-                : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-            }`}
-          >
-            Dosen Fungsional
-          </button>
-          <button
-            type="button"
-            onClick={() => setSelectedRoleFilter('super_admin')}
-            className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-              selectedRoleFilter === 'super_admin' || selectedRoleFilter === 'SUPER_ADMIN'
-                ? 'bg-rose-600 text-white shadow-2xs'
-                : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-            }`}
-          >
-            Super Administrator
-          </button>
-        </div>
+        </button>
 
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-            {/* Input Pencarian */}
-            <div className="relative flex-1 max-w-md">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Cari nama, NIP, atau email..."
-                className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
-
-            {/* Filter Dropdown Role (Sinkron dengan Manajemen Role) */}
-            <div className="w-full sm:w-56">
-              <select
-                value={selectedRoleFilter}
-                onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
-              >
-                <option value="ALL">Semua Peran ({allUsers.length})</option>
-                {rolesCatalog.map((r) => (
-                  <option key={r.slug || r.id} value={r.slug || r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          {/* Badge Total Pengguna */}
-          <div className="flex items-center justify-end">
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-              Total: {filteredUsers.length} Pengguna
-            </span>
-          </div>
-        </div>
+        <button
+          type="button"
+          onClick={() => {
+            setViewMode('ALL_USERS');
+            setSelectedUnitForFilter(null);
+            setSelectedRoleFilter('ALL');
+            setSearchQuery('');
+          }}
+          className={`inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold border-b-2 transition cursor-pointer ${
+            viewMode === 'ALL_USERS'
+              ? 'border-unsil-green-900 text-unsil-green-900 bg-unsil-green-50/40 rounded-t-lg'
+              : 'border-transparent text-slate-500 hover:text-slate-800 hover:border-slate-300'
+          }`}
+        >
+          <Users className="w-4 h-4" />
+          <span>Semua Pengguna</span>
+          <span className="px-2 py-0.5 rounded-full text-[10.5px] bg-slate-100 text-slate-700 font-bold">
+            {cleanAllUsers.length} Pegawai
+          </span>
+        </button>
       </div>
 
       {/* =========================================================================
-          TABEL DATA PENGGUNA (SESUAI GAMBAR 1)
+          KONTEN TINGKAT 1: TABEL UNIT KERJA (SESUAI GAMBAR 4)
           ========================================================================= */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                <th className="py-3.5 px-4 w-12 text-center">NO</th>
-                <th className="py-3.5 px-4 min-w-[240px]">PENGGUNA</th>
-                <th className="py-3.5 px-4 min-w-[200px]">UNIT KERJA</th>
-                <th className="py-3.5 px-4 min-w-[200px]">PERAN & HAK AKSES</th>
-                <th className="py-3.5 px-4 min-w-[150px]">STATUS AKUN</th>
-                <th className="py-3.5 px-4 text-center w-36">AKSI</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-100 text-xs">
-              {filteredUsers.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="py-12 text-center text-slate-400">
-                    Tidak ditemukan data pengguna yang cocok dengan kriteria pencarian.
-                  </td>
-                </tr>
-              ) : (
-                filteredUsers.map((u, index) => {
-                  const displayName = u.nama_lengkap || u.name || 'Pengguna SILOKA';
-                  const email = u.email || u.username || '-';
-                  const nip = u.nip || u.nip_nik || '';
-                  const unitName = resolveDisplayUnit(u);
-                  const displayRole = resolveDisplayRole(u);
-                  const userRoleSlug = resolveUserRoleSlug(u);
-                  const canonicalRole = rolesCatalog.find((r) => (r.slug || r.id) === userRoleSlug);
-                  const colorStyle = getAvatarColor(displayName);
+      {viewMode === 'BY_UNIT' && !selectedUnitForFilter && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Kontrol Pencarian & Filter Kategori Unit Kerja */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={unitSearchQuery}
+                  onChange={(e) => setUnitSearchQuery(e.target.value)}
+                  placeholder="Cari nama unit kerja atau singkatan..."
+                  className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                />
+                {unitSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setUnitSearchQuery('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
 
-                  return (
-                    <tr
-                      key={u.id || index}
-                      className="hover:bg-slate-50/60 transition group"
-                    >
-                      {/* 1. NO */}
-                      <td className="py-3.5 px-4 text-center font-medium text-slate-500">
-                        {index + 1}
-                      </td>
+              {/* Filter Kategori Unit */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0">
+                {[
+                  { id: 'ALL', label: `Semua (${enrichedUnits.length})` },
+                  { id: 'FAKULTAS', label: 'Fakultas' },
+                  { id: 'BIRO', label: 'Biro' },
+                  { id: 'LEMBAGA_UPA', label: 'Lembaga & UPA' },
+                  { id: 'ORGAN', label: 'Pimpinan' }
+                ].map((kat) => (
+                  <button
+                    key={kat.id}
+                    type="button"
+                    onClick={() => setSelectedUnitKategori(kat.id)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition cursor-pointer ${
+                      selectedUnitKategori === kat.id
+                        ? 'bg-unsil-green-900 text-white shadow-xs'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
+                    }`}
+                  >
+                    {kat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
 
-                      {/* 2. PENGGUNA */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex items-center gap-3">
-                          <div
-                            className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
-                          >
-                            {getInitials(displayName)}
-                          </div>
-                          <div className="min-w-0">
-                            <p className="font-bold text-slate-900 leading-tight truncate">
-                              {displayName}
-                            </p>
-                            <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                              {email}
-                              {nip ? ` • NIP ${nip}` : ''}
-                            </p>
-                          </div>
-                        </div>
-                      </td>
+          {/* Tabel Unit Kerja Resmi (Persis Format Gambar 4) */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="px-5 py-3.5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 bg-slate-50/60">
+              <span className="font-bold text-xs text-slate-700">
+                Total {filteredUnits.length} Unit Kerja
+              </span>
+              <span className="text-[11px] text-slate-500">
+                Klik baris unit kerja atau tombol &ldquo;Kelola Pengguna&rdquo; untuk melihat rincian pegawai.
+              </span>
+            </div>
 
-                      {/* 3. UNIT KERJA */}
-                      <td className="py-3.5 px-4">
-                        <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 max-w-[240px] truncate">
-                          {unitName}
-                        </span>
-                        {u.jurusan && (
-                          <span className="block text-[10.5px] text-slate-500 font-semibold mt-0.5 truncate">
-                            Jurusan {u.jurusan}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* 4. ROLE (Peran Aktual yang Diemban & Sinkron RBAC) */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-1 items-start">
-                          <span
-                            className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-medium border max-w-[240px] truncate ${
-                              canonicalRole?.badgeColor || getRoleBadgeStyle(displayRole)
-                            }`}
-                            title={displayRole}
-                          >
-                            {displayRole}
-                          </span>
-                          {canonicalRole && (
-                            <span className="text-[10px] text-slate-500 font-medium">
-                              {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} hak akses
-                            </span>
-                          )}
-                        </div>
-                      </td>
-
-                      {/* 5. STATUS AKUN */}
-                      <td className="py-3.5 px-4">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                          Aktif Terverifikasi
-                        </span>
-                      </td>
-
-                      {/* 6. AKSI */}
-                      <td className="py-3.5 px-4 text-center">
-                        <div className="flex items-center justify-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetailModal(u)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
-                          >
-                            <SlidersHorizontal className="w-3.5 h-3.5" />
-                            <span>Detail &amp; Hak Akses</span>
-                          </button>
-                          {!isSuperAdminUser(u) && onDeleteUser && (
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteUser(u)}
-                              className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
-                              title={`Hapus akun pengguna ${displayName}`}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          )}
-                        </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
+                    <th className="py-3 px-4 w-12 text-center">No</th>
+                    <th className="py-3 px-4 min-w-[280px]">Nama Unit Kerja</th>
+                    <th className="py-3 px-4 min-w-[140px]">Kode / Singkatan</th>
+                    <th className="py-3 px-4 min-w-[120px]">Kategori</th>
+                    <th className="py-3 px-4 text-center min-w-[90px]">Pegawai</th>
+                    <th className="py-3 px-4 text-center min-w-[90px]">Status</th>
+                    <th className="py-3 px-4 text-center w-36">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredUnits.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="py-12 text-center text-slate-500">
+                        <Building2 className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-slate-700">Unit kerja tidak ditemukan.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Silakan periksa kata kunci pencarian atau pilih filter kategori lain.
+                        </p>
                       </td>
                     </tr>
-                  );
-                })
-              )}
-            </tbody>
-          </table>
+                  ) : (
+                    filteredUnits.map((u, index) => (
+                      <tr
+                        key={u.id || u.kode_unit}
+                        onClick={() => {
+                          setSelectedUnitForFilter(u);
+                          setSelectedRoleFilter('ALL');
+                          setSearchQuery('');
+                        }}
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                      >
+                        <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
+                          {index + 1}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900 group-hover:text-unsil-green-900 transition-colors">
+                            {u.nama_unit}
+                          </div>
+                          {u.parent_kode && u.parent_kode !== 'UN58' && (
+                            <div className="text-[10.5px] text-slate-400 mt-0.5">
+                              Induk: {u.parent_name}
+                            </div>
+                          )}
+                          <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                            <span
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-blue-50 text-blue-900 border border-blue-200"
+                              title="Struktur Formasi Jabatan Resmi Unit"
+                            >
+                              <Network className="w-3 h-3 text-blue-700" />
+                              <span>Struktur Organisasi</span>
+                            </span>
+                            {(u.tipe_unit === 'FAKULTAS' || u.tipe_unit === 'PASCASARJANA' || (u.jurusan && u.jurusan.length > 0)) && (
+                              <span
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-emerald-50 text-unsil-green-900 border border-emerald-200"
+                                title="Daftar Jurusan / Program Studi"
+                              >
+                                <GraduationCap className="w-3.5 h-3.5 text-unsil-green-800" />
+                                <span>{u.jurusan?.length || 0} Jurusan</span>
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <div className="inline-flex items-center gap-1.5">
+                            <span className="font-mono font-bold text-unsil-green-950 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                              {u.kode_unit}
+                            </span>
+                            {u.singkatan && u.singkatan !== u.kode_unit && (
+                              <span className="text-[11px] font-semibold text-slate-600">
+                                ({u.singkatan})
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
+                          <span
+                            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10.5px] font-bold ${
+                              u.tipe_unit === 'FAKULTAS' || u.tipe_unit === 'PASCASARJANA'
+                                ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                                : u.tipe_unit === 'BIRO'
+                                ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                                : u.tipe_unit === 'LEMBAGA' || u.tipe_unit === 'UPA'
+                                ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                                : 'bg-purple-50 text-purple-800 border border-purple-200'
+                            }`}
+                          >
+                            {u.tipe_unit === 'ORGAN' || u.tipe_unit === 'UNIVERSITAS'
+                              ? 'Pimpinan'
+                              : u.tipe_unit}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-100 text-slate-700 font-bold text-[11px]">
+                            <Users className="w-3 h-3 text-slate-400" />
+                            {u.memberCount}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-center">
+                          {u.is_active !== false ? (
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              Aktif
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center text-[11px] font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full border border-slate-200">
+                              Nonaktif
+                            </span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedUnitForFilter(u);
+                              setSelectedRoleFilter('ALL');
+                              setSearchQuery('');
+                            }}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-unsil-green-900 bg-emerald-50 hover:bg-unsil-green-900 hover:text-white border border-emerald-200 transition cursor-pointer shadow-2xs group/btn"
+                            title={`Lihat daftar pengguna di ${u.nama_unit}`}
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                            <span>Kelola Pengguna</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-unsil-green-700 group-hover/btn:text-white transition group-hover/btn:translate-x-0.5" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          KONTEN TINGKAT 2: PENGGUNA DI UNIT TERPILIH (SESUAI GAMBAR 1, 2, 3)
+          ATAU MODE TAMPILAN SEMUA PENGGUNA
+          ========================================================================= */}
+      {(viewMode === 'ALL_USERS' || (viewMode === 'BY_UNIT' && selectedUnitForFilter)) && (
+        <div className="space-y-4 animate-in fade-in duration-200">
+          {/* Banner Navigasi & Info Unit Kerja Terpilih (Khusus Mode Unit Kerja) */}
+          {viewMode === 'BY_UNIT' && selectedUnitForFilter && (
+            <div className="bg-white rounded-xl border border-slate-200 p-4 shadow-2xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedUnitForFilter(null);
+                    setSelectedRoleFilter('ALL');
+                    setSearchQuery('');
+                  }}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-300 rounded-lg hover:bg-unsil-green-50 hover:text-unsil-green-900 hover:border-unsil-green-700 transition cursor-pointer shadow-2xs w-fit"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Kembali ke Daftar Unit Kerja</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
+                  className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95 w-fit"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tambah Pengguna ke Unit Ini</span>
+                </button>
+              </div>
+
+              {/* Rincian Identitas Unit Kerja */}
+              <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-mono font-bold text-unsil-green-950 bg-slate-100 px-2 py-0.5 rounded text-xs border border-slate-200">
+                      {selectedUnitForFilter.kode_unit}
+                    </span>
+                    <h2 className="text-lg font-bold text-slate-900">
+                      {selectedUnitForFilter.nama_unit}
+                    </h2>
+                    {selectedUnitForFilter.singkatan && (
+                      <span className="text-xs font-semibold text-slate-500">
+                        ({selectedUnitForFilter.singkatan})
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Daftar seluruh akun pegawai dan pejabat struktural yang bertugas pada unit kerja ini.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold ${
+                      selectedUnitForFilter.tipe_unit === 'FAKULTAS' || selectedUnitForFilter.tipe_unit === 'PASCASARJANA'
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : selectedUnitForFilter.tipe_unit === 'BIRO'
+                        ? 'bg-blue-50 text-blue-800 border border-blue-200'
+                        : selectedUnitForFilter.tipe_unit === 'LEMBAGA' || selectedUnitForFilter.tipe_unit === 'UPA'
+                        ? 'bg-amber-50 text-amber-800 border border-amber-200'
+                        : 'bg-purple-50 text-purple-800 border border-purple-200'
+                    }`}
+                  >
+                    {selectedUnitForFilter.tipe_unit === 'ORGAN' || selectedUnitForFilter.tipe_unit === 'UNIVERSITAS'
+                      ? 'Pimpinan'
+                      : selectedUnitForFilter.tipe_unit}
+                  </span>
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-slate-100 text-slate-800 border border-slate-200">
+                    <Users className="w-3.5 h-3.5 text-slate-500" />
+                    {selectedUnitUsers.length} Pegawai Terdaftar
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Kontrol Filter Peran & Pencarian Pengguna (Persis Gambar 1) */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
+            {/* Tab Filter Peran Utama Persuratan */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
+              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
+                Filter:
+              </span>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleFilter('ALL')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedRoleFilter === 'ALL'
+                    ? 'bg-unsil-green-900 text-white shadow-2xs'
+                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Semua Pengguna ({roleCounts.all})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleFilter('pimpinan')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedRoleFilter === 'pimpinan' || selectedRoleFilter === 'PIMPINAN'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                }`}
+              >
+                Pejabat Struktural ({roleCounts.pimpinan})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleFilter('admin_tu')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedRoleFilter === 'admin_tu' || selectedRoleFilter === 'OPERATOR'
+                    ? 'bg-emerald-600 text-white shadow-2xs'
+                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                }`}
+              >
+                Staf TU / Operator ({roleCounts.tu})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleFilter('drafter')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedRoleFilter === 'drafter' || selectedRoleFilter === 'DOSEN'
+                    ? 'bg-slate-800 text-white shadow-2xs'
+                    : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
+                }`}
+              >
+                Dosen Fungsional ({roleCounts.dosen})
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedRoleFilter('super_admin')}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                  selectedRoleFilter === 'super_admin' || selectedRoleFilter === 'SUPER_ADMIN'
+                    ? 'bg-rose-600 text-white shadow-2xs'
+                    : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
+                }`}
+              >
+                Super Administrator ({roleCounts.superAdmin})
+              </button>
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
+                {/* Input Pencarian */}
+                <div className="relative flex-1 max-w-md">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Cari nama, NIP, atau email..."
+                    className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Dropdown Role */}
+                <div className="w-full sm:w-56">
+                  <select
+                    value={selectedRoleFilter}
+                    onChange={(e) => setSelectedRoleFilter(e.target.value)}
+                    className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
+                  >
+                    <option value="ALL">Semua Peran ({activeUserPool.length})</option>
+                    {rolesCatalog.map((r) => (
+                      <option key={r.slug || r.id} value={r.slug || r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Badge Total Pengguna */}
+              <div className="flex items-center justify-end">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
+                  Total: {filteredUsers.length} Pengguna
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabel Data Pengguna (Persis Gambar 1, 2, 3) */}
+          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                    <th className="py-3.5 px-4 w-12 text-center">NO</th>
+                    <th className="py-3.5 px-4 min-w-[240px]">PENGGUNA</th>
+                    <th className="py-3.5 px-4 min-w-[200px]">UNIT KERJA</th>
+                    <th className="py-3.5 px-4 min-w-[200px]">PERAN &amp; HAK AKSES</th>
+                    <th className="py-3.5 px-4 min-w-[150px]">STATUS AKUN</th>
+                    <th className="py-3.5 px-4 text-center w-36">AKSI</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {filteredUsers.length === 0 ? (
+                    <tr>
+                      <td colSpan={6} className="py-12 text-center text-slate-400">
+                        {selectedUnitForFilter && selectedUnitUsers.length === 0 ? (
+                          <div className="max-w-md mx-auto space-y-3 py-4 text-center">
+                            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
+                              <Users className="w-6 h-6" />
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-800 text-sm">
+                                Belum Ada Pegawai di Unit Kerja Ini
+                              </p>
+                              <p className="text-xs text-slate-500 mt-1">
+                                Saat ini belum ada akun pegawai atau pejabat yang ditugaskan pada {selectedUnitForFilter.nama_unit}.
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
+                              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah Pengguna ke Unit Ini</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <span>Tidak ditemukan data pengguna yang cocok dengan kriteria pencarian.</span>
+                        )}
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredUsers.map((u, index) => {
+                      const displayName = u.nama_lengkap || u.name || 'Pengguna SILOKA';
+                      const email = u.email || u.username || '-';
+                      const nip = u.nip || u.nip_nik || '';
+                      const unitName = resolveDisplayUnit(u);
+                      const displayRole = resolveDisplayRole(u);
+                      const userRoleSlug = resolveUserRoleSlug(u);
+                      const canonicalRole = rolesCatalog.find((r) => (r.slug || r.id) === userRoleSlug);
+                      const colorStyle = getAvatarColor(displayName);
+
+                      return (
+                        <tr
+                          key={u.id || index}
+                          className="hover:bg-slate-50/60 transition group"
+                        >
+                          {/* 1. NO */}
+                          <td className="py-3.5 px-4 text-center font-medium text-slate-500">
+                            {index + 1}
+                          </td>
+
+                          {/* 2. PENGGUNA */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
+                              >
+                                {getInitials(displayName)}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-slate-900 leading-tight truncate">
+                                  {displayName}
+                                </p>
+                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                                  {email}
+                                  {nip ? ` • NIP ${nip}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 3. UNIT KERJA */}
+                          <td className="py-3.5 px-4">
+                            <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 max-w-[240px] truncate">
+                              {unitName}
+                            </span>
+                            {u.jurusan && (
+                              <span className="block text-[10.5px] text-slate-500 font-semibold mt-0.5 truncate">
+                                Jurusan {u.jurusan}
+                              </span>
+                            )}
+                          </td>
+
+                          {/* 4. PERAN & HAK AKSES */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-col gap-1 items-start">
+                              <span
+                                className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-medium border max-w-[240px] truncate ${
+                                  canonicalRole?.badgeColor || getRoleBadgeStyle(displayRole)
+                                }`}
+                                title={displayRole}
+                              >
+                                {displayRole}
+                              </span>
+                              {canonicalRole && (
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} hak akses
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 5. STATUS AKUN */}
+                          <td className="py-3.5 px-4">
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                              Aktif Terverifikasi
+                            </span>
+                          </td>
+
+                          {/* 6. AKSI */}
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="flex items-center justify-center gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenDetailModal(u)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
+                              >
+                                <SlidersHorizontal className="w-3.5 h-3.5" />
+                                <span>Detail &amp; Hak Akses</span>
+                              </button>
+                              {!isSuperAdminUser(u) && onDeleteUser && (
+                                <button
+                                type="button"
+                                onClick={() => handleDeleteUser(u)}
+                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                                title={`Hapus akun pengguna ${displayName}`}
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
+    )}
 
       {/* =========================================================================
           MODAL DETAIL / ATUR ROLE PENGGUNA

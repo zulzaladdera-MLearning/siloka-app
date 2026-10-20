@@ -245,4 +245,61 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     // Verifikasi modul SystemSettingsView dapat dievaluasi tanpa melempar ReferenceError
     expect(typeof SystemSettingsModule.default).toBe('function');
   });
+
+  it('memastikan fungsi isUserInUnit mengidentifikasi unit kerja pegawai secara akurat (Single Source of Truth)', async () => {
+    const { isUserInUnit } = await import('../SystemSettingsView');
+    const unitKerjaList = (await import('../../../data/unitKerja.json')).default;
+    const usersData = (await import('../../../data/users.json')).default;
+
+    const unitRektorat = unitKerjaList.find((u) => u.kode_unit === 'UN58');
+    const unitSenat = unitKerjaList.find((u) => u.kode_unit === 'UN58.SENAT');
+    const unitFT = unitKerjaList.find((u) => u.kode_unit === 'UN58.13');
+    const unitTIK = unitKerjaList.find((u) => u.kode_unit === 'UN58.32');
+
+    expect(unitRektorat).toBeDefined();
+    expect(unitSenat).toBeDefined();
+    expect(unitFT).toBeDefined();
+    expect(unitTIK).toBeDefined();
+
+    // Akun Rektor (Aripin) harus terdaftar di Rektorat (UN58), bukan di FT atau Senat
+    const userRektor = usersData.find((u) => String(u.jabatan || '').includes('Rektor Universitas Siliwangi'));
+    expect(isUserInUnit(userRektor, unitRektorat)).toBe(true);
+    expect(isUserInUnit(userRektor, unitFT)).toBe(false);
+    expect(isUserInUnit(userRektor, unitSenat)).toBe(false);
+
+    // Akun Wakil Rektor (Dedi Nurjamil) harus terdaftar di Rektorat (UN58)
+    const userWarek = usersData.find((u) => String(u.jabatan || '').includes('Wakil Rektor Bidang Akademik'));
+    expect(isUserInUnit(userWarek, unitRektorat)).toBe(true);
+    expect(isUserInUnit(userWarek, unitFT)).toBe(false);
+
+    // Akun Staf TU Rektorat (Agung Cahya Nur) harus terdaftar di Rektorat (UN58)
+    const userTURektorat = usersData.find((u) => String(u.email || '').includes('agungcahyanur'));
+    expect(isUserInUnit(userTURektorat, unitRektorat)).toBe(true);
+
+    // Akun Ketua Senat harus terdaftar di Senat, bukan di Rektorat
+    const userSenat = usersData.find((u) => String(u.jabatan || '').includes('Ketua Senat'));
+    expect(isUserInUnit(userSenat, unitSenat)).toBe(true);
+    expect(isUserInUnit(userSenat, unitRektorat)).toBe(false);
+
+    // Akun Super Administrator (Dede Gunawan) harus terdaftar di UPA TIK (UN58.32)
+    const userSuper = usersData.find((u) => u.email === 'dedegunawan@unsil.ac.id');
+    expect(isUserInUnit(userSuper, unitTIK)).toBe(true);
+    expect(isUserInUnit(userSuper, unitRektorat)).toBe(false);
+  });
+
+  it('memastikan filter unit kerja di Manajemen Pengguna menyaring pengguna sesuai formasi jabatan unit', async () => {
+    const { isUserInUnit } = await import('../SystemSettingsView');
+    const unitKerjaList = (await import('../../../data/unitKerja.json')).default;
+    const usersData = (await import('../../../data/users.json')).default;
+
+    const unitRektorat = unitKerjaList.find((u) => u.kode_unit === 'UN58');
+    const rektoratUsers = usersData.filter((u) => isUserInUnit(u, unitRektorat));
+
+    // Seluruh pengguna di Rektorat harus memiliki jabatan resmi tingkat pimpinan/universitas
+    const jabatansInRektorat = rektoratUsers.map((u) => u.jabatan);
+    expect(jabatansInRektorat.some((j) => j.includes('Rektor'))).toBe(true);
+    expect(jabatansInRektorat.some((j) => j.includes('Wakil Rektor'))).toBe(true);
+    // Tidak boleh ada Dekan Fakultas di dalam unit Rektorat
+    expect(jabatansInRektorat.some((j) => j.includes('Dekan'))).toBe(false);
+  });
 });
