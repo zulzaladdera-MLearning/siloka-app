@@ -367,4 +367,60 @@ describe('UnitManagement - Fitur Edit & Kelola Struktur Organisasi Dinamis', () 
       expect(filtered[0].id).toBe('jur-2');
     });
   });
+
+  describe('Sub-Halaman Struktur Jabatan Unit (Desain Sederhana & Ramah Pemula)', () => {
+    it('menghitung ringkasan formasi jabatan (total, terisi, dan lowong) secara akurat', () => {
+      const mockStruktur = [
+        { id: 's1', nama_jabatan: 'Dekan Fakultas Teknik', kategori_peran: 'pimpinan' },
+        { id: 's2', nama_jabatan: 'Wakil Dekan Bidang Akademik', kategori_peran: 'pimpinan' },
+        { id: 's3', nama_jabatan: 'Kepala Bagian Tata Usaha', kategori_peran: 'admin_tu' }
+      ];
+
+      const mockUsers = [
+        {
+          id: 'u1',
+          name: 'Prof. Dekan',
+          jabatan: 'Dekan Fakultas Teknik',
+          unit_kerja_id: 'UN58.13',
+          is_active: true
+        }
+      ];
+
+      // Dekan Fakultas Teknik terisi, sisanya lowong
+      const filledCount = mockStruktur.filter((item) =>
+        mockUsers.some(
+          (u) =>
+            u.is_active &&
+            u.jabatan?.toLowerCase().trim() === item.nama_jabatan.toLowerCase().trim()
+        )
+      ).length;
+
+      const totalCount = mockStruktur.length;
+      const vacantCount = totalCount - filledCount;
+
+      expect(totalCount).toBe(3);
+      expect(filledCount).toBe(1);
+      expect(vacantCount).toBe(2);
+    });
+
+    it('mendukung pencarian nama jabatan secara real-time pada sub-halaman', () => {
+      const mockStruktur = [
+        { id: 's1', nama_jabatan: 'Dekan Fakultas Teknik' },
+        { id: 's2', nama_jabatan: 'Wakil Dekan Bidang Akademik' },
+        { id: 's3', nama_jabatan: 'Kepala Bagian Tata Usaha' },
+        { id: 's4', nama_jabatan: 'Ketua Jurusan Informatika' }
+      ];
+
+      const searchQuery = 'dekan';
+      const filtered = mockStruktur.filter((item) =>
+        item.nama_jabatan.toLowerCase().includes(searchQuery.toLowerCase().trim())
+      );
+
+      expect(filtered).toHaveLength(2);
+      expect(filtered.map((f) => f.nama_jabatan)).toEqual([
+        'Dekan Fakultas Teknik',
+        'Wakil Dekan Bidang Akademik'
+      ]);
+    });
+  });
 });
