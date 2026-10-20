@@ -28,7 +28,9 @@ import {
   AlertTriangle,
   Users,
   ArrowLeft,
-  ChevronRight
+  ChevronRight,
+  GraduationCap,
+  BookOpen
 } from 'lucide-react';
 import unitKerjaList from '../../data/unitKerja.json';
 import { isSuperAdminUser } from '../../utils/authGuards';
@@ -40,7 +42,8 @@ import {
   getActiveUnitKerjaList,
   getJurusanByUnitCode,
   findPositionOccupant,
-  isSingleIncumbentPosition
+  isSingleIncumbentPosition,
+  resolveJabatanScope
 } from '../../utils/unitJabatanOptions';
 import {
   getRolesCatalog,
@@ -363,6 +366,313 @@ const UserRoleCapabilityPreview = ({ roleSlug }) => {
   );
 };
 
+// Role Display Badge Styling Helper (Module-Level)
+export const getRoleBadgeStyle = (displayRole = '') => {
+  const lower = String(displayRole || '').toLowerCase();
+  if (lower.includes('super admin')) {
+    return 'bg-purple-50 text-purple-700 border-purple-200';
+  }
+  if (lower.includes('rektor') || lower.includes('dekan') || lower.includes('kepala biro')) {
+    return 'bg-emerald-50 text-emerald-800 border-emerald-200';
+  }
+  if (lower.includes('dosen')) {
+    return 'bg-blue-50 text-blue-700 border-blue-200';
+  }
+  if (lower.includes('operator') || lower.includes('staf') || lower.includes('pranata')) {
+    return 'bg-slate-100 text-slate-700 border-slate-200';
+  }
+  return 'bg-amber-50 text-amber-800 border-amber-200';
+};
+
+/**
+ * Mengklasifikasikan pengguna dalam konteks struktur hierarki unit kerja:
+ * 1. Pejabat Pimpinan Fakultas (Dekan, Wakil Dekan, Kabag TU)
+ * 2. Staf Tata Usaha Fakultas (Operator, Staf TU Fakultas)
+ * 3. Pejabat / Pimpinan Jurusan (Kajur, Sekjur, Ka Lab)
+ * 4. Staf Administrasi Jurusan (Staf TU Prodi)
+ * 5. Dosen Pengajar / Fungsional (Tridharma tanpa jabatan struktural)
+ * 6. Pengelola Khusus (Super Administrator / Auditor)
+ */
+export const classifyUserInUnit = (user, jurusans = []) => {
+  if (!user) {
+    return {
+      level: 'FAKULTAS',
+      category: 'staf_fakultas',
+      label: 'Staf Unit',
+      jurusan: 'FAKULTAS'
+    };
+  }
+
+  const roleSlug = resolveUserRoleSlug(user);
+  if (roleSlug === 'super_admin' || isSuperAdminUser(user)) {
+    return {
+      level: 'SPECIAL',
+      category: 'super_admin',
+      label: 'Super Administrator',
+      jurusan: 'FAKULTAS'
+    };
+  }
+  if (roleSlug === 'auditor_spi') {
+    return {
+      level: 'SPECIAL',
+      category: 'auditor',
+      label: 'Auditor SPI',
+      jurusan: 'FAKULTAS'
+    };
+  }
+
+  const scope = resolveJabatanScope(user, jurusans);
+  const isAtJurusan = scope && scope !== 'FAKULTAS' && scope !== 'ALL' && scope !== 'SEMUA';
+  const posLower = String(user.jabatan || user.roleLabel || user.role_label || '').toLowerCase();
+
+  const isStructuralTitle =
+    user.is_pejabat === true ||
+    roleSlug === 'pimpinan' ||
+    roleSlug === 'verifikator' ||
+    isSingleIncumbentPosition(user.jabatan, roleSlug) ||
+    /\b(rektor|warek|wakil rektor|dekan|wadek|wakil dekan|kajur|ketua jurusan|kaprodi|koordinator program studi|sekjur|sekretaris jurusan|kepala lab|kalab|kabag|kepala bagian|kepala biro|kepala upa|kepala upt|direktur|ketua lembaga|ketua pusat)\b/i.test(posLower);
+
+  const isStafTitle =
+    roleSlug === 'admin_tu' ||
+    /\b(staf|operator|tata usaha|pengadministrasi|arsiparis|pranata|teknisi|administrasi)\b/i.test(posLower);
+
+  const isDosenTitle =
+    roleSlug === 'drafter' ||
+    user.role === 'DOSEN' ||
+    /\b(dosen|pengajar|lektor|asisten ahli|guru besar|profesor)\b/i.test(posLower);
+
+  if (isAtJurusan) {
+    if (isStructuralTitle) {
+      return {
+        level: 'JURUSAN',
+        category: 'pejabat_jurusan',
+        label: 'Pimpinan Jurusan / Prodi',
+        jurusan: scope
+      };
+    }
+    if (isStafTitle) {
+      return {
+        level: 'JURUSAN',
+        category: 'staf_jurusan',
+        label: 'Staf Administrasi Jurusan',
+        jurusan: scope
+      };
+    }
+    return {
+      level: 'JURUSAN',
+      category: 'dosen_biasa',
+      label: 'Dosen Pengajar (Tanpa Jabatan)',
+      jurusan: scope
+    };
+  } else {
+    if (isStructuralTitle) {
+      return {
+        level: 'FAKULTAS',
+        category: 'pejabat_fakultas',
+        label: 'Pejabat Pimpinan Fakultas',
+        jurusan: 'FAKULTAS'
+      };
+    }
+    if (isDosenTitle) {
+      return {
+        level: 'JURUSAN',
+        category: 'dosen_biasa',
+        label: 'Dosen Pengajar',
+        jurusan: 'FAKULTAS'
+      };
+    }
+    return {
+      level: 'FAKULTAS',
+      category: 'staf_fakultas',
+      label: 'Staf Tata Usaha Fakultas',
+      jurusan: 'FAKULTAS'
+    };
+  }
+};
+
+/**
+ * Komponen Tabel Seksi Pengguna Berdasarkan Kategori Hierarki Unit
+ * Tampilan Sederhana, Lapang, dan Mudah Dipahami Orang Awam / Anak SMP
+ */
+const UserSectionTable = ({
+  title,
+  subtitle,
+  icon: Icon,
+  badgeText,
+  badgeColor = 'bg-blue-50 text-blue-700 border-blue-200',
+  users = [],
+  emptyMessage = 'Belum ada pegawai di bagian ini.',
+  onAddUser,
+  addLabel = 'Tambah Pegawai',
+  onDetailClick,
+  onDeleteClick,
+  rolesCatalog = []
+}) => {
+  return (
+    <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+      {/* Header Seksi */}
+      <div className="p-4 sm:p-5 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/60">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 shadow-2xs flex items-center justify-center shrink-0">
+            <Icon className="w-4 h-4 text-slate-700" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="font-extrabold text-sm text-slate-900">{title}</h3>
+              <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-bold border ${badgeColor}`}>
+                {badgeText}
+              </span>
+            </div>
+            {subtitle && (
+              <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+            )}
+          </div>
+        </div>
+
+        {onAddUser && (
+          <button
+            type="button"
+            onClick={onAddUser}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-unsil-green-950 bg-white hover:bg-unsil-green-50 border border-slate-300 hover:border-unsil-green-700 rounded-xl transition cursor-pointer shadow-2xs shrink-0 w-fit"
+          >
+            <Plus className="w-3.5 h-3.5 text-unsil-green-800" />
+            <span>{addLabel}</span>
+          </button>
+        )}
+      </div>
+
+      {/* Konten Tabel atau Pesan Kosong */}
+      {users.length === 0 ? (
+        <div className="py-8 px-4 text-center">
+          <div className="w-10 h-10 rounded-xl bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-2">
+            <Icon className="w-5 h-5 text-slate-400" />
+          </div>
+          <p className="text-xs font-semibold text-slate-600">{emptyMessage}</p>
+          {onAddUser && (
+            <button
+              type="button"
+              onClick={onAddUser}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-unsil-green-900 hover:bg-unsil-green-950 rounded-lg transition cursor-pointer shadow-2xs"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>{addLabel}</span>
+            </button>
+          )}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-[10.5px] font-bold text-slate-500 uppercase tracking-wider">
+                <th className="py-3 px-4 w-12 text-center">NO</th>
+                <th className="py-3 px-4 min-w-[240px]">NAMA &amp; IDENTITAS</th>
+                <th className="py-3 px-4 min-w-[200px]">JABATAN &amp; PERAN</th>
+                <th className="py-3 px-4 min-w-[130px]">STATUS AKUN</th>
+                <th className="py-3 px-4 text-center w-36">AKSI</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {users.map((u, index) => {
+                const displayName = u.nama_lengkap || u.name || 'Pengguna SILOKA';
+                const email = u.email || u.username || '-';
+                const nip = u.nip || u.nip_nik || '';
+                const displayRole = resolveDisplayRole(u);
+                const userRoleSlug = u.role_slug || resolveUserRoleSlug(u);
+                const canonicalRole = rolesCatalog.find((r) => (r.slug || r.id) === userRoleSlug);
+                const colorStyle = getAvatarColor(displayName);
+
+                return (
+                  <tr key={u.id || index} className="hover:bg-slate-50/60 transition group">
+                    {/* 1. NO */}
+                    <td className="py-3.5 px-4 text-center font-medium text-slate-400">
+                      {index + 1}
+                    </td>
+
+                    {/* 2. NAMA & IDENTITAS */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
+                        >
+                          {getInitials(displayName)}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 leading-tight truncate">
+                            {displayName}
+                          </p>
+                          <p className="text-[11px] text-slate-500 truncate mt-0.5">
+                            {email}
+                            {nip ? ` • NIP ${nip}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* 3. JABATAN & PERAN */}
+                    <td className="py-3.5 px-4">
+                      <div className="flex flex-col gap-1 items-start">
+                        <span
+                          className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-bold border max-w-[260px] truncate ${
+                            canonicalRole?.badgeColor || getRoleBadgeStyle(displayRole)
+                          }`}
+                          title={displayRole}
+                        >
+                          {displayRole}
+                        </span>
+                        <div className="flex flex-wrap items-center gap-1.5 text-[10.5px] text-slate-500 font-medium">
+                          {canonicalRole && <span>{canonicalRole.name}</span>}
+                          {u.jurusan && (
+                            <span className="font-mono font-bold text-slate-700 bg-slate-100 px-1.5 py-0.5 rounded text-[10px] border border-slate-200">
+                              {u.jurusan}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </td>
+
+                    {/* 4. STATUS AKUN */}
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                        Aktif
+                      </span>
+                    </td>
+
+                    {/* 5. AKSI */}
+                    <td className="py-3.5 px-4 text-center">
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => onDetailClick(u)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-900 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
+                          title="Ubah wewenang dan profil akun"
+                        >
+                          <SlidersHorizontal className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Detail &amp; Hak Akses</span>
+                        </button>
+                        {!isSuperAdminUser(u) && onDeleteClick && (
+                          <button
+                            type="button"
+                            onClick={() => onDeleteClick(u)}
+                            className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
+                            title={`Hapus akun ${displayName}`}
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+};
+
 /**
  * Komponen Utama: Manajemen User
  * Menggantikan seluruh isi menu pengaturan lama sesuai instruksi pengguna.
@@ -405,6 +715,10 @@ export const SystemSettingsView = ({
   const [selectedUnitKategori, setSelectedUnitKategori] = useState('ALL');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState('ALL');
+
+  // Sub-Unit & Jurusan State (Pemisahan Hierarki yang Bersih dan Ramah Pengguna)
+  const [subUnitTab, setSubUnitTab] = useState('FAKULTAS'); // 'FAKULTAS' | 'JURUSAN'
+  const [selectedJurusanFilter, setSelectedJurusanFilter] = useState('ALL'); // 'ALL' | nama jurusan
 
   // State Modal
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -591,6 +905,133 @@ export const SystemSettingsView = ({
   // Kolam Pengguna Aktif pada Unit Kerja Terpilih
   const activeUserPool = selectedUnitUsers;
 
+  // Daftar Jurusan resmi dari unit kerja terpilih
+  const unitJurusans = useMemo(() => {
+    if (!selectedUnitForFilter) return [];
+    return (
+      getJurusanByUnitCode(selectedUnitForFilter.kode_unit, activeUnits) ||
+      selectedUnitForFilter.jurusan ||
+      []
+    );
+  }, [selectedUnitForFilter, activeUnits]);
+
+  // Apakah unit memiliki struktur jurusan? (Fakultas / Pascasarjana ber-jurusan)
+  const hasJurusans = useMemo(() => {
+    return Array.isArray(unitJurusans) && unitJurusans.length > 0;
+  }, [unitJurusans]);
+
+  // Klasifikasi pengguna pada unit kerja terpilih sesuai hierarki dan filter pencarian
+  const classifiedUsers = useMemo(() => {
+    const res = {
+      pejabatFakultas: [],
+      stafFakultas: [],
+      pejabatJurusan: [],
+      stafJurusan: [],
+      dosenBiasa: [],
+      specialRoles: []
+    };
+
+    if (!selectedUnitForFilter) return res;
+
+    const q = searchQuery.toLowerCase().trim();
+    const matchesQuery = (u) => {
+      if (!q) return true;
+      const name = (u.nama_lengkap || u.name || '').toLowerCase();
+      const nip = (u.nip || u.nip_nik || '').toLowerCase();
+      const email = (u.email || u.username || '').toLowerCase();
+      const jabatan = String(u.jabatan || u.roleLabel || u.role_label || '').toLowerCase();
+      const jurusan = String(u.jurusan || '').toLowerCase();
+      return (
+        name.includes(q) ||
+        nip.includes(q) ||
+        email.includes(q) ||
+        jabatan.includes(q) ||
+        jurusan.includes(q)
+      );
+    };
+
+    selectedUnitUsers.forEach((u) => {
+      if (!matchesQuery(u)) return;
+
+      const cls = classifyUserInUnit(u, unitJurusans);
+      const userWithMeta = { ...u, _classification: cls };
+
+      if (cls.category === 'super_admin' || cls.category === 'auditor') {
+        res.specialRoles.push(userWithMeta);
+      } else if (cls.category === 'pejabat_fakultas') {
+        res.pejabatFakultas.push(userWithMeta);
+      } else if (cls.category === 'staf_fakultas') {
+        res.stafFakultas.push(userWithMeta);
+      } else if (cls.category === 'pejabat_jurusan') {
+        res.pejabatJurusan.push(userWithMeta);
+      } else if (cls.category === 'staf_jurusan') {
+        res.stafJurusan.push(userWithMeta);
+      } else if (cls.category === 'dosen_biasa') {
+        res.dosenBiasa.push(userWithMeta);
+      } else {
+        res.stafFakultas.push(userWithMeta);
+      }
+    });
+
+    return res;
+  }, [selectedUnitUsers, unitJurusans, selectedUnitForFilter, searchQuery]);
+
+  // Pengguna jurusan yang disaring berdasarkan pilihan jurusan saat ini
+  const displayedPejabatJurusan = useMemo(() => {
+    if (selectedJurusanFilter === 'ALL') return classifiedUsers.pejabatJurusan;
+    return classifiedUsers.pejabatJurusan.filter(
+      (u) =>
+        u._classification?.jurusan === selectedJurusanFilter ||
+        u.jurusan === selectedJurusanFilter
+    );
+  }, [classifiedUsers.pejabatJurusan, selectedJurusanFilter]);
+
+  const displayedStafJurusan = useMemo(() => {
+    if (selectedJurusanFilter === 'ALL') return classifiedUsers.stafJurusan;
+    return classifiedUsers.stafJurusan.filter(
+      (u) =>
+        u._classification?.jurusan === selectedJurusanFilter ||
+        u.jurusan === selectedJurusanFilter
+    );
+  }, [classifiedUsers.stafJurusan, selectedJurusanFilter]);
+
+  const displayedDosenBiasa = useMemo(() => {
+    if (selectedJurusanFilter === 'ALL') return classifiedUsers.dosenBiasa;
+    return classifiedUsers.dosenBiasa.filter(
+      (u) =>
+        u._classification?.jurusan === selectedJurusanFilter ||
+        u.jurusan === selectedJurusanFilter
+    );
+  }, [classifiedUsers.dosenBiasa, selectedJurusanFilter]);
+
+  // Total hitungan per kategori
+  const facultyCount =
+    classifiedUsers.pejabatFakultas.length + classifiedUsers.stafFakultas.length;
+  const jurusanTotalCount =
+    classifiedUsers.pejabatJurusan.length +
+    classifiedUsers.stafJurusan.length +
+    classifiedUsers.dosenBiasa.length;
+  const totalFilteredCount =
+    facultyCount + jurusanTotalCount + classifiedUsers.specialRoles.length;
+
+  const getCountForJurusan = (jurusanName) => {
+    const jClean = String(jurusanName || '').toLowerCase().trim();
+    return (
+      classifiedUsers.pejabatJurusan.filter(
+        (u) =>
+          String(u._classification?.jurusan || u.jurusan || '').toLowerCase().trim() === jClean
+      ).length +
+      classifiedUsers.stafJurusan.filter(
+        (u) =>
+          String(u._classification?.jurusan || u.jurusan || '').toLowerCase().trim() === jClean
+      ).length +
+      classifiedUsers.dosenBiasa.filter(
+        (u) =>
+          String(u._classification?.jurusan || u.jurusan || '').toLowerCase().trim() === jClean
+      ).length
+    );
+  };
+
   // Hitungan Peran Aktual untuk Filter Bar
   const roleCounts = useMemo(() => {
     const pimpinan = activeUserPool.filter((u) => resolveUserRoleSlug(u) === 'pimpinan').length;
@@ -651,22 +1092,36 @@ export const SystemSettingsView = ({
     });
   }, [activeUserPool, searchQuery, selectedRoleFilter]);
 
-  // Handler: Buka Modal Tambah Pengguna Baru (Terpreset ke Unit Kerja)
-  const handleOpenAddUserModal = (targetUnit = null) => {
+  // Handler: Buka Modal Tambah Pengguna Baru (Terpreset ke Unit Kerja dan Konteks)
+  const handleOpenAddUserModal = (targetUnit = null, preset = {}) => {
     const unitObj = targetUnit || selectedUnitForFilter;
     const defaultUnit = unitObj?.kode_unit || 'UN58';
-    const defaultSlug = 'pimpinan';
-    const defaultPositions = getPositionsByUnitAndRole(defaultUnit, defaultSlug, activeUnits);
     const jurList = getJurusanByUnitCode(defaultUnit, activeUnits);
+    const targetSlug = preset.role_slug || 'pimpinan';
+    const targetRole =
+      preset.role ||
+      (targetSlug === 'pimpinan' || targetSlug === 'verifikator'
+        ? 'PEJABAT'
+        : targetSlug === 'drafter'
+        ? 'DOSEN'
+        : 'STAF');
+    const targetJurusan =
+      preset.jurusan !== undefined ? preset.jurusan : (jurList[0]?.nama || '');
+    const defaultPositions = getPositionsByUnitAndRole(defaultUnit, targetSlug, activeUnits);
+    const targetJabatan =
+      preset.jabatan ||
+      defaultPositions[0] ||
+      (targetSlug === 'drafter' ? 'Dosen' : 'Staf Administrasi');
+
     setNewUserData({
       name: '',
       nip: '',
       email: '',
       unit_kerja_id: defaultUnit,
-      jurusan: jurList[0]?.nama || '',
-      role_slug: defaultSlug,
-      role: 'PEJABAT',
-      jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
+      jurusan: targetJurusan,
+      role_slug: targetSlug,
+      role: targetRole,
+      jabatan: targetJabatan,
       password: 'Siloka2026!'
     });
     setIsCustomJabatanAdd(false);
@@ -1415,275 +1870,471 @@ export const SystemSettingsView = ({
             </div>
           </div>
 
-          {/* Kontrol Filter Peran & Pencarian Pengguna (Persis Gambar 1) */}
-          <div className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-2xs space-y-3">
-            {/* Tab Filter Peran Utama Persuratan */}
-            <div className="flex flex-wrap items-center gap-1.5 pb-2 border-b border-slate-100">
-              <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mr-1">
-                Filter:
-              </span>
-              <button
-                type="button"
-                onClick={() => setSelectedRoleFilter('ALL')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedRoleFilter === 'ALL'
-                    ? 'bg-unsil-green-900 text-white shadow-2xs'
-                    : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'
-                }`}
-              >
-                Semua Pegawai Unit ({roleCounts.all})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRoleFilter('pimpinan')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedRoleFilter === 'pimpinan' || selectedRoleFilter === 'PIMPINAN'
-                    ? 'bg-blue-600 text-white shadow-2xs'
-                    : 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
-                }`}
-              >
-                Pejabat Struktural ({roleCounts.pimpinan})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRoleFilter('admin_tu')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedRoleFilter === 'admin_tu' || selectedRoleFilter === 'OPERATOR'
-                    ? 'bg-emerald-600 text-white shadow-2xs'
-                    : 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                }`}
-              >
-                Staf TU / Operator ({roleCounts.tu})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRoleFilter('drafter')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedRoleFilter === 'drafter' || selectedRoleFilter === 'DOSEN'
-                    ? 'bg-slate-800 text-white shadow-2xs'
-                    : 'bg-slate-100 text-slate-700 border border-slate-200 hover:bg-slate-200'
-                }`}
-              >
-                Dosen Fungsional ({roleCounts.dosen})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSelectedRoleFilter('super_admin')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                  selectedRoleFilter === 'super_admin' || selectedRoleFilter === 'SUPER_ADMIN'
-                    ? 'bg-rose-600 text-white shadow-2xs'
-                    : 'bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100'
-                }`}
-              >
-                Super Administrator ({roleCounts.superAdmin})
-              </button>
+          {/* Tampilan Pengguna Terstruktur Sesuai Hierarki Unit Kerja */}
+          {selectedUnitUsers.length === 0 ? (
+            <div className="bg-white rounded-2xl border border-slate-200 p-8 sm:p-12 text-center shadow-xs">
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-50 text-unsil-green-900 border border-emerald-200 flex items-center justify-center mx-auto shadow-2xs">
+                  <Users className="w-7 h-7" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-base">
+                    Belum Ada Pegawai di {selectedUnitForFilter.nama_unit}
+                  </h3>
+                  <p className="text-xs text-slate-500 mt-1.5 leading-relaxed">
+                    Saat ini belum ada akun pejabat struktural maupun staf pelaksana yang ditugaskan pada unit kerja ini.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
+                  className="inline-flex items-center gap-2 px-4 py-2.5 text-xs font-bold text-white bg-unsil-green-900 hover:bg-unsil-green-950 rounded-xl transition cursor-pointer shadow-xs"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Tambah Pegawai Pertama</span>
+                </button>
+              </div>
             </div>
-
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-              <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 flex-1">
-                {/* Input Pencarian */}
+          ) : (
+            <div className="space-y-4">
+              {/* 1. Bar Pencarian Pegawai Cepat */}
+              <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div className="relative flex-1 max-w-md">
-                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    placeholder="Cari nama, NIP, atau email..."
-                    className="w-full pl-9 pr-3 py-2 text-xs bg-white border border-slate-300 rounded-lg text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition"
+                    placeholder="Cari nama pegawai, NIP, email, atau jabatan..."
+                    className="w-full pl-9.5 pr-8 py-2 text-xs bg-slate-50 border border-slate-300 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 focus:bg-white transition"
                   />
                   {searchQuery && (
                     <button
                       type="button"
                       onClick={() => setSearchQuery('')}
                       className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5"
+                      title="Bersihkan pencarian"
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
                   )}
                 </div>
 
-                {/* Filter Dropdown Role */}
-                <div className="w-full sm:w-56">
-                  <select
-                    value={selectedRoleFilter}
-                    onChange={(e) => setSelectedRoleFilter(e.target.value)}
-                    className="w-full py-2 px-3 text-xs bg-white border border-slate-300 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium"
-                  >
-                    <option value="ALL">Semua Peran ({activeUserPool.length})</option>
-                    {rolesCatalog.map((r) => (
-                      <option key={r.slug || r.id} value={r.slug || r.id}>
-                        {r.name}
-                      </option>
-                    ))}
-                  </select>
+                <div className="flex items-center gap-2 text-xs text-slate-600 font-medium shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+                    <UserCheck className="w-3.5 h-3.5 text-unsil-green-800" />
+                    {searchQuery ? (
+                      <span>Ditemukan <strong>{totalFilteredCount}</strong> pegawai</span>
+                    ) : (
+                      <span>Total <strong>{selectedUnitUsers.length}</strong> pegawai</span>
+                    )}
+                  </span>
                 </div>
               </div>
 
-              {/* Badge Total Pengguna */}
-              <div className="flex items-center justify-end">
-                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-slate-50 text-slate-600 border border-slate-200">
-                  Total: {filteredUsers.length} Pengguna
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Tabel Data Pengguna (Persis Gambar 1, 2, 3) */}
-          <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
-                    <th className="py-3.5 px-4 w-12 text-center">NO</th>
-                    <th className="py-3.5 px-4 min-w-[240px]">PENGGUNA</th>
-                    <th className="py-3.5 px-4 min-w-[200px]">UNIT KERJA</th>
-                    <th className="py-3.5 px-4 min-w-[200px]">PERAN &amp; HAK AKSES</th>
-                    <th className="py-3.5 px-4 min-w-[150px]">STATUS AKUN</th>
-                    <th className="py-3.5 px-4 text-center w-36">AKSI</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-xs">
-                  {filteredUsers.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="py-12 text-center text-slate-400">
-                        {selectedUnitForFilter && selectedUnitUsers.length === 0 ? (
-                          <div className="max-w-md mx-auto space-y-3 py-4 text-center">
-                            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
-                              <Users className="w-6 h-6" />
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 text-sm">
-                                Belum Ada Pegawai di Unit Kerja Ini
-                              </p>
-                              <p className="text-xs text-slate-500 mt-1">
-                                Saat ini belum ada akun pegawai atau pejabat yang ditugaskan pada {selectedUnitForFilter.nama_unit}.
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
-                              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs"
-                            >
-                              <Plus className="w-3.5 h-3.5" />
-                              <span>Tambah Pengguna ke Unit Ini</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <span>Tidak ditemukan data pengguna yang cocok dengan kriteria pencarian.</span>
-                        )}
-                      </td>
-                    </tr>
-                  ) : (
-                    filteredUsers.map((u, index) => {
-                      const displayName = u.nama_lengkap || u.name || 'Pengguna SILOKA';
-                      const email = u.email || u.username || '-';
-                      const nip = u.nip || u.nip_nik || '';
-                      const unitName = resolveDisplayUnit(u);
-                      const displayRole = resolveDisplayRole(u);
-                      const userRoleSlug = resolveUserRoleSlug(u);
-                      const canonicalRole = rolesCatalog.find((r) => (r.slug || r.id) === userRoleSlug);
-                      const colorStyle = getAvatarColor(displayName);
-
-                      return (
-                        <tr
-                          key={u.id || index}
-                          className="hover:bg-slate-50/60 transition group"
+              {/* 2. Pemisahan Berbasis Sub-Unit / Jurusan untuk Fakultas / Pascasarjana */}
+              {hasJurusans ? (
+                <div className="space-y-4">
+                  {/* Tab Tingkat Sub-Unit: Kantor Fakultas vs Jurusan & Prodi */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Tab 1: Kantor Fakultas & Dekanat */}
+                    <button
+                      type="button"
+                      onClick={() => setSubUnitTab('FAKULTAS')}
+                      className={`p-4 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between shadow-2xs ${
+                        subUnitTab === 'FAKULTAS'
+                          ? 'bg-unsil-green-900 text-white border-unsil-green-900 shadow-sm ring-2 ring-unsil-green-900/10'
+                          : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                            subUnitTab === 'FAKULTAS'
+                              ? 'bg-white/10 text-white'
+                              : 'bg-emerald-50 text-unsil-green-900 border border-emerald-200'
+                          }`}
                         >
-                          {/* 1. NO */}
-                          <td className="py-3.5 px-4 text-center font-medium text-slate-500">
-                            {index + 1}
-                          </td>
+                          <Building2 className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p
+                            className={`font-extrabold text-sm ${
+                              subUnitTab === 'FAKULTAS' ? 'text-white' : 'text-slate-900'
+                            }`}
+                          >
+                            Kantor Fakultas / Dekanat
+                          </p>
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              subUnitTab === 'FAKULTAS' ? 'text-emerald-100' : 'text-slate-500'
+                            }`}
+                          >
+                            Pimpinan dekanat &amp; staf tata usaha fakultas
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${
+                          subUnitTab === 'FAKULTAS'
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {facultyCount} Pegawai
+                      </span>
+                    </button>
 
-                          {/* 2. PENGGUNA */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`w-9 h-9 rounded-full flex items-center justify-center font-bold text-xs shrink-0 border ${colorStyle.bg} ${colorStyle.text} ${colorStyle.border}`}
-                              >
-                                {getInitials(displayName)}
-                              </div>
-                              <div className="min-w-0">
-                                <p className="font-bold text-slate-900 leading-tight truncate">
-                                  {displayName}
-                                </p>
-                                <p className="text-[11px] text-slate-500 truncate mt-0.5">
-                                  {email}
-                                  {nip ? ` • NIP ${nip}` : ''}
-                                </p>
-                              </div>
-                            </div>
-                          </td>
+                    {/* Tab 2: Jurusan & Program Studi */}
+                    <button
+                      type="button"
+                      onClick={() => setSubUnitTab('JURUSAN')}
+                      className={`p-4 rounded-2xl text-left border transition cursor-pointer flex items-center justify-between shadow-2xs ${
+                        subUnitTab === 'JURUSAN'
+                          ? 'bg-unsil-green-900 text-white border-unsil-green-900 shadow-sm ring-2 ring-unsil-green-900/10'
+                          : 'bg-white text-slate-800 border-slate-200 hover:border-slate-300 hover:bg-slate-50/80'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 ${
+                            subUnitTab === 'JURUSAN'
+                              ? 'bg-white/10 text-white'
+                              : 'bg-blue-50 text-blue-700 border border-blue-200'
+                          }`}
+                        >
+                          <GraduationCap className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p
+                            className={`font-extrabold text-sm ${
+                              subUnitTab === 'JURUSAN' ? 'text-white' : 'text-slate-900'
+                            }`}
+                          >
+                            Jurusan &amp; Program Studi
+                          </p>
+                          <p
+                            className={`text-xs mt-0.5 ${
+                              subUnitTab === 'JURUSAN' ? 'text-emerald-100' : 'text-slate-500'
+                            }`}
+                          >
+                            Pimpinan jurusan, staf prodi, &amp; dosen pengajar
+                          </p>
+                        </div>
+                      </div>
+                      <span
+                        className={`px-3 py-1 rounded-full text-xs font-bold shrink-0 ${
+                          subUnitTab === 'JURUSAN'
+                            ? 'bg-white/20 text-white'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {jurusanTotalCount} Pegawai
+                      </span>
+                    </button>
+                  </div>
 
-                          {/* 3. UNIT KERJA */}
-                          <td className="py-3.5 px-4">
-                            <span className="inline-block px-2.5 py-1 rounded-md text-[11px] font-medium bg-slate-100 text-slate-700 border border-slate-200 max-w-[240px] truncate">
-                              {unitName}
-                            </span>
-                            {u.jurusan && (
-                              <span className="block text-[10.5px] text-slate-500 font-semibold mt-0.5 truncate">
-                                Jurusan {u.jurusan}
-                              </span>
-                            )}
-                          </td>
+                  {/* Banner Notifikasi jika Hasil Pencarian ada di Tab Lain */}
+                  {searchQuery && subUnitTab === 'FAKULTAS' && facultyCount === 0 && jurusanTotalCount > 0 && (
+                    <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-blue-900">
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-700 shrink-0" />
+                        <span>
+                          Tidak ada hasil di Kantor Fakultas, tetapi ditemukan <strong>{jurusanTotalCount} pegawai</strong> di lingkup Jurusan &amp; Program Studi.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSubUnitTab('JURUSAN')}
+                        className="px-3 py-1.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition cursor-pointer shrink-0"
+                      >
+                        Buka Tab Jurusan
+                      </button>
+                    </div>
+                  )}
 
-                          {/* 4. PERAN & HAK AKSES */}
-                          <td className="py-3.5 px-4">
-                            <div className="flex flex-col gap-1 items-start">
+                  {searchQuery && subUnitTab === 'JURUSAN' && jurusanTotalCount === 0 && facultyCount > 0 && (
+                    <div className="p-3.5 bg-blue-50 border border-blue-200 rounded-2xl flex items-center justify-between gap-3 text-xs text-blue-900">
+                      <div className="flex items-center gap-2">
+                        <Info className="w-4 h-4 text-blue-700 shrink-0" />
+                        <span>
+                          Tidak ada hasil di Jurusan, tetapi ditemukan <strong>{facultyCount} pegawai</strong> di lingkup Kantor Fakultas / Dekanat.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSubUnitTab('FAKULTAS')}
+                        className="px-3 py-1.5 rounded-xl font-bold bg-blue-600 text-white hover:bg-blue-700 transition cursor-pointer shrink-0"
+                      >
+                        Buka Tab Fakultas
+                      </button>
+                    </div>
+                  )}
+
+                  {/* KONTEN TAB FAKULTAS */}
+                  {subUnitTab === 'FAKULTAS' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      {/* Seksi 1: Pejabat Pimpinan Fakultas */}
+                      <UserSectionTable
+                        title="Pejabat Pimpinan Fakultas"
+                        subtitle="Dekan, para Wakil Dekan, dan pimpinan struktural fakultas"
+                        icon={ShieldCheck}
+                        badgeText={`${classifiedUsers.pejabatFakultas.length} Pejabat`}
+                        badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+                        users={classifiedUsers.pejabatFakultas}
+                        emptyMessage="Belum ada pejabat pimpinan fakultas yang ditugaskan."
+                        onAddUser={() =>
+                          handleOpenAddUserModal(selectedUnitForFilter, {
+                            role_slug: 'pimpinan',
+                            role: 'PEJABAT',
+                            jurusan: 'FAKULTAS'
+                          })
+                        }
+                        addLabel="Tambah Pejabat Fakultas"
+                        onDetailClick={handleOpenDetailModal}
+                        onDeleteClick={handleDeleteUser}
+                        rolesCatalog={rolesCatalog}
+                      />
+
+                      {/* Seksi 2: Staf Tata Usaha Fakultas */}
+                      <UserSectionTable
+                        title="Staf Tata Usaha &amp; Administrasi Fakultas"
+                        subtitle="Pengadministrasi persuratan, operator loket TU, dan pengelola fakultas"
+                        icon={Briefcase}
+                        badgeText={`${classifiedUsers.stafFakultas.length} Staf`}
+                        badgeColor="bg-slate-100 text-slate-700 border-slate-200"
+                        users={classifiedUsers.stafFakultas}
+                        emptyMessage="Belum ada staf tata usaha fakultas yang terdaftar."
+                        onAddUser={() =>
+                          handleOpenAddUserModal(selectedUnitForFilter, {
+                            role_slug: 'admin_tu',
+                            role: 'STAF',
+                            jurusan: 'FAKULTAS'
+                          })
+                        }
+                        addLabel="Tambah Staf TU Fakultas"
+                        onDetailClick={handleOpenDetailModal}
+                        onDeleteClick={handleDeleteUser}
+                        rolesCatalog={rolesCatalog}
+                      />
+                    </div>
+                  )}
+
+                  {/* KONTEN TAB JURUSAN & PROGRAM STUDI */}
+                  {subUnitTab === 'JURUSAN' && (
+                    <div className="space-y-4 animate-in fade-in duration-150">
+                      {/* Bar Pemilih Jurusan Horizontal Ramah Pengguna */}
+                      <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-2xs flex flex-wrap items-center gap-1.5">
+                        <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wider px-2">
+                          Pilih Jurusan:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedJurusanFilter('ALL')}
+                          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                            selectedJurusanFilter === 'ALL'
+                              ? 'bg-unsil-green-900 text-white shadow-xs'
+                              : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          Semua Jurusan ({jurusanTotalCount})
+                        </button>
+                        {unitJurusans.map((jur) => {
+                          const count = getCountForJurusan(jur.nama);
+                          const isSelected = selectedJurusanFilter === jur.nama;
+                          return (
+                            <button
+                              key={jur.id || jur.kode || jur.nama}
+                              type="button"
+                              onClick={() => setSelectedJurusanFilter(jur.nama)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5 ${
+                                isSelected
+                                  ? 'bg-unsil-green-900 text-white shadow-xs'
+                                  : 'bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100'
+                              }`}
+                            >
+                              <span>{jur.nama}</span>
                               <span
-                                className={`inline-block px-2.5 py-1 rounded-md text-[11px] font-medium border max-w-[240px] truncate ${
-                                  canonicalRole?.badgeColor || getRoleBadgeStyle(displayRole)
+                                className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${
+                                  isSelected
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-slate-200 text-slate-700'
                                 }`}
-                                title={displayRole}
                               >
-                                {displayRole}
+                                {count}
                               </span>
-                              {canonicalRole && (
-                                <span className="text-[10px] text-slate-500 font-medium">
-                                  {canonicalRole.name} • {canonicalRole.keySlugs?.length || 0} hak akses
-                                </span>
-                              )}
-                            </div>
-                          </td>
+                            </button>
+                          );
+                        })}
+                      </div>
 
-                          {/* 5. STATUS AKUN */}
-                          <td className="py-3.5 px-4">
-                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                              Aktif Terverifikasi
-                            </span>
-                          </td>
+                      {/* Seksi 1: Pimpinan Jurusan / Ketua Program Studi */}
+                      <UserSectionTable
+                        title={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Pimpinan Jurusan &amp; Ketua Program Studi'
+                            : `Pimpinan Jurusan / Prodi ${selectedJurusanFilter}`
+                        }
+                        subtitle="Ketua jurusan, sekretaris jurusan, kaprodi, dan kepala laboratorium"
+                        icon={Briefcase}
+                        badgeText={`${displayedPejabatJurusan.length} Pejabat`}
+                        badgeColor="bg-blue-50 text-blue-700 border-blue-200"
+                        users={displayedPejabatJurusan}
+                        emptyMessage={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Belum ada pimpinan jurusan yang terdaftar.'
+                            : `Belum ada pimpinan jurusan yang terdaftar di ${selectedJurusanFilter}.`
+                        }
+                        onAddUser={() =>
+                          handleOpenAddUserModal(selectedUnitForFilter, {
+                            role_slug: 'pimpinan',
+                            role: 'PEJABAT',
+                            jurusan:
+                              selectedJurusanFilter !== 'ALL'
+                                ? selectedJurusanFilter
+                                : unitJurusans[0]?.nama || ''
+                          })
+                        }
+                        addLabel="Tambah Pimpinan Jurusan"
+                        onDetailClick={handleOpenDetailModal}
+                        onDeleteClick={handleDeleteUser}
+                        rolesCatalog={rolesCatalog}
+                      />
 
-                          {/* 6. AKSI */}
-                          <td className="py-3.5 px-4 text-center">
-                            <div className="flex items-center justify-center gap-1.5">
-                              <button
-                                type="button"
-                                onClick={() => handleOpenDetailModal(u)}
-                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium text-slate-700 bg-white border border-slate-300 hover:border-unsil-green-700 hover:text-unsil-green-800 hover:bg-unsil-green-50 transition cursor-pointer shadow-2xs"
-                              >
-                                <SlidersHorizontal className="w-3.5 h-3.5" />
-                                <span>Detail &amp; Hak Akses</span>
-                              </button>
-                              {!isSuperAdminUser(u) && onDeleteUser && (
-                                <button
-                                type="button"
-                                onClick={() => handleDeleteUser(u)}
-                                className="p-1.5 rounded-lg text-rose-600 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer"
-                                title={`Hapus akun pengguna ${displayName}`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    );
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                      {/* Seksi 2: Staf Administrasi Jurusan */}
+                      <UserSectionTable
+                        title={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Staf Administrasi Jurusan / Program Studi'
+                            : `Staf Administrasi Jurusan ${selectedJurusanFilter}`
+                        }
+                        subtitle="Staf TU jurusan, operator prodi, dan teknisi laboratorium"
+                        icon={Briefcase}
+                        badgeText={`${displayedStafJurusan.length} Staf`}
+                        badgeColor="bg-slate-100 text-slate-700 border-slate-200"
+                        users={displayedStafJurusan}
+                        emptyMessage={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Belum ada staf administrasi jurusan yang terdaftar.'
+                            : `Belum ada staf administrasi yang terdaftar di ${selectedJurusanFilter}.`
+                        }
+                        onAddUser={() =>
+                          handleOpenAddUserModal(selectedUnitForFilter, {
+                            role_slug: 'admin_tu',
+                            role: 'STAF',
+                            jurusan:
+                              selectedJurusanFilter !== 'ALL'
+                                ? selectedJurusanFilter
+                                : unitJurusans[0]?.nama || ''
+                          })
+                        }
+                        addLabel="Tambah Staf Jurusan"
+                        onDetailClick={handleOpenDetailModal}
+                        onDeleteClick={handleDeleteUser}
+                        rolesCatalog={rolesCatalog}
+                      />
+
+                      {/* Seksi 3: Dosen Pengajar (Tanpa Jabatan Struktural) */}
+                      <UserSectionTable
+                        title={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Dosen Pengajar (Tanpa Jabatan Struktural)'
+                            : `Dosen Pengajar Jurusan ${selectedJurusanFilter}`
+                        }
+                        subtitle="Dosen fungsional aktif yang menjalankan Tridharma perguruan tinggi"
+                        icon={BookOpen}
+                        badgeText={`${displayedDosenBiasa.length} Dosen`}
+                        badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+                        users={displayedDosenBiasa}
+                        emptyMessage={
+                          selectedJurusanFilter === 'ALL'
+                            ? 'Belum ada dosen pengajar tanpa jabatan struktural yang terdaftar.'
+                            : `Belum ada dosen pengajar yang terdaftar di ${selectedJurusanFilter}.`
+                        }
+                        onAddUser={() =>
+                          handleOpenAddUserModal(selectedUnitForFilter, {
+                            role_slug: 'drafter',
+                            role: 'DOSEN',
+                            jurusan:
+                              selectedJurusanFilter !== 'ALL'
+                                ? selectedJurusanFilter
+                                : unitJurusans[0]?.nama || ''
+                          })
+                        }
+                        addLabel="Tambah Dosen Pengajar"
+                        onDetailClick={handleOpenDetailModal}
+                        onDeleteClick={handleDeleteUser}
+                        rolesCatalog={rolesCatalog}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* 3. Tampilan Unit Non-Fakultas (Rektorat, Biro, Lembaga, UPA, SPI, Senat) */
+                <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* Seksi 1: Pimpinan / Pejabat Struktural Unit */}
+                  <UserSectionTable
+                    title={`Pimpinan & Pejabat Struktural ${selectedUnitForFilter.nama_unit}`}
+                    subtitle="Pimpinan unit yang berwenang menindaklanjuti dan mengesahkan naskah dinas"
+                    icon={ShieldCheck}
+                    badgeText={`${classifiedUsers.pejabatFakultas.length} Pejabat`}
+                    badgeColor="bg-emerald-50 text-emerald-800 border-emerald-200"
+                    users={classifiedUsers.pejabatFakultas}
+                    emptyMessage="Belum ada pimpinan atau pejabat struktural yang terdaftar pada unit ini."
+                    onAddUser={() =>
+                      handleOpenAddUserModal(selectedUnitForFilter, {
+                        role_slug: 'pimpinan',
+                        role: 'PEJABAT'
+                      })
+                    }
+                    addLabel="Tambah Pimpinan Unit"
+                    onDetailClick={handleOpenDetailModal}
+                    onDeleteClick={handleDeleteUser}
+                    rolesCatalog={rolesCatalog}
+                  />
+
+                  {/* Seksi 2: Staf Administrasi & Pelaksana Unit */}
+                  <UserSectionTable
+                    title={`Staf Administrasi & Operator ${selectedUnitForFilter.nama_unit}`}
+                    subtitle="Staf pelaksana administrasi, operator persuratan, dan tim kerja unit"
+                    icon={Briefcase}
+                    badgeText={`${(classifiedUsers.stafFakultas.length + classifiedUsers.dosenBiasa.length)} Staf`}
+                    badgeColor="bg-slate-100 text-slate-700 border-slate-200"
+                    users={[...classifiedUsers.stafFakultas, ...classifiedUsers.dosenBiasa]}
+                    emptyMessage="Belum ada staf administrasi yang terdaftar pada unit ini."
+                    onAddUser={() =>
+                      handleOpenAddUserModal(selectedUnitForFilter, {
+                        role_slug: 'admin_tu',
+                        role: 'STAF'
+                      })
+                    }
+                    addLabel="Tambah Staf Unit"
+                    onDetailClick={handleOpenDetailModal}
+                    onDeleteClick={handleDeleteUser}
+                    rolesCatalog={rolesCatalog}
+                  />
+                </div>
+              )}
+
+              {/* 4. Seksi Khusus: Administrator Sistem / Auditor (Jika Ada) */}
+              {classifiedUsers.specialRoles.length > 0 && (
+                <div className="pt-2 animate-in fade-in duration-150">
+                  <UserSectionTable
+                    title="Pengelola Khusus / Administrator Sistem"
+                    subtitle="Akun pengelola sistem SILOKA dan pengawas internal yang bertugas di unit ini"
+                    icon={Shield}
+                    badgeText={`${classifiedUsers.specialRoles.length} Akun Khusus`}
+                    badgeColor="bg-purple-50 text-purple-700 border-purple-200"
+                    users={classifiedUsers.specialRoles}
+                    emptyMessage="Tidak ada akun khusus pada unit ini."
+                    onDetailClick={handleOpenDetailModal}
+                    onDeleteClick={handleDeleteUser}
+                    rolesCatalog={rolesCatalog}
+                  />
+                </div>
+              )}
+            </div>
+          )}
       </div>
     )}
 

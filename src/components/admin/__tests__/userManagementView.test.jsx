@@ -344,4 +344,98 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     expect(countAfter).toBe(1);
     expect(isUserInUnit(newDekanFK, newUnitKedokteran)).toBe(true);
   });
+
+  it('memastikan classifyUserInUnit memisahkan hierarki pegawai secara tepat (Pejabat vs Staf vs Dosen)', async () => {
+    const { classifyUserInUnit } = await import('../SystemSettingsView');
+
+    const jurusansFT = [
+      { id: 'jur-sipil', kode: 'SIPIL', nama: 'Teknik Sipil' },
+      { id: 'jur-elektro', kode: 'ELEKTRO', nama: 'Teknik Elektro' },
+      { id: 'jur-if', kode: 'INFORMATIKA', nama: 'Informatika' },
+      { id: 'jur-data', kode: 'SAINS_DATA', nama: 'Sains Data' }
+    ];
+
+    // 1. Pejabat Fakultas (Dekan)
+    const dekanFT = {
+      nama_lengkap: 'Dr. Eng. Asep Andang, S.T., M.T.',
+      jabatan: 'Dekan Fakultas Teknik',
+      role: 'PEJABAT',
+      role_slug: 'pimpinan',
+      is_pejabat: true
+    };
+    const clsDekan = classifyUserInUnit(dekanFT, jurusansFT);
+    expect(clsDekan.level).toBe('FAKULTAS');
+    expect(clsDekan.category).toBe('pejabat_fakultas');
+
+    // 2. Staf Tata Usaha Fakultas
+    const stafTU = {
+      nama_lengkap: 'Staf TU Fakultas',
+      jabatan: 'Pengadministrasi Persuratan / Loket TU',
+      role: 'STAF',
+      role_slug: 'admin_tu'
+    };
+    const clsStaf = classifyUserInUnit(stafTU, jurusansFT);
+    expect(clsStaf.level).toBe('FAKULTAS');
+    expect(clsStaf.category).toBe('staf_fakultas');
+
+    // 3. Pejabat Jurusan (Ketua Jurusan Informatika)
+    const kajurIF = {
+      nama_lengkap: 'Ketua Jurusan IF',
+      jabatan: 'Ketua Jurusan Informatika',
+      jurusan: 'Informatika',
+      role: 'PEJABAT',
+      role_slug: 'pimpinan',
+      is_pejabat: true
+    };
+    const clsKajur = classifyUserInUnit(kajurIF, jurusansFT);
+    expect(clsKajur.level).toBe('JURUSAN');
+    expect(clsKajur.category).toBe('pejabat_jurusan');
+    expect(clsKajur.jurusan).toBe('Informatika');
+
+    // 4. Staf Jurusan (Operator Prodi)
+    const operatorIF = {
+      nama_lengkap: 'Operator Jurusan IF',
+      jabatan: 'Staf Administrasi Prodi Informatika',
+      jurusan: 'Informatika',
+      role: 'STAF',
+      role_slug: 'admin_tu'
+    };
+    const clsOperator = classifyUserInUnit(operatorIF, jurusansFT);
+    expect(clsOperator.level).toBe('JURUSAN');
+    expect(clsOperator.category).toBe('staf_jurusan');
+    expect(clsOperator.jurusan).toBe('Informatika');
+
+    // 5. Dosen Biasa / Fungsional (Tanpa Jabatan Struktural)
+    const dosenBiasa = {
+      nama_lengkap: 'Zulza Laddera Aripin, S.Kom., M.Kom.',
+      jabatan: 'Dosen Jurusan Sains Data',
+      jurusan: 'Sains Data',
+      role: 'DOSEN',
+      role_slug: 'drafter',
+      is_pejabat: false
+    };
+    const clsDosen = classifyUserInUnit(dosenBiasa, jurusansFT);
+    expect(clsDosen.level).toBe('JURUSAN');
+    expect(clsDosen.category).toBe('dosen_biasa');
+    expect(clsDosen.jurusan).toBe('Sains Data');
+
+    // 6. Super Administrator
+    const superAdmin = {
+      nama_lengkap: 'Dede Gunawan, S.Kom., M.Kom.',
+      role: 'Super Admin',
+      is_super_admin: true
+    };
+    const clsSuper = classifyUserInUnit(superAdmin, jurusansFT);
+    expect(clsSuper.level).toBe('SPECIAL');
+    expect(clsSuper.category).toBe('super_admin');
+  });
+
+  it('memastikan getRoleBadgeStyle memberikan styling badge yang rapi dan konsisten', async () => {
+    const { getRoleBadgeStyle } = await import('../SystemSettingsView');
+
+    expect(getRoleBadgeStyle('Super Administrator')).toContain('purple');
+    expect(getRoleBadgeStyle('Dekan Fakultas Teknik')).toContain('emerald');
+    expect(getRoleBadgeStyle('Dosen Fungsional')).toContain('blue');
+    expect(getRoleBadgeStyle('Staf Pengadministrasi Persuratan')).toContain('slate');
+  });
 });
