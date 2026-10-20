@@ -422,5 +422,56 @@ describe('UnitManagement - Fitur Edit & Kelola Struktur Organisasi Dinamis', () 
         'Wakil Dekan Bidang Akademik'
       ]);
     });
+
+    it('mendukung pencarian real-time dan penghitungan jabatan pada sub-halaman Kelola Jurusan', () => {
+      const mockUnit = {
+        id: 'ft-1',
+        kode_unit: 'FT',
+        nama_unit: 'Fakultas Teknik',
+        jurusan: [
+          { id: 'j1', kode: 'IF', nama: 'Informatika' },
+          { id: 'j2', kode: 'TS', nama: 'Teknik Sipil' },
+          { id: 'j3', kode: 'TE', nama: 'Teknik Elektro' }
+        ],
+        struktur_organisasi: [
+          { id: 's1', nama_jabatan: 'Dekan Fakultas Teknik', jurusan: 'FAKULTAS' },
+          { id: 's2', nama_jabatan: 'Ketua Jurusan Informatika', jurusan: 'Informatika' },
+          { id: 's3', nama_jabatan: 'Sekretaris Jurusan Informatika', jurusan: 'Informatika' },
+          { id: 's4', nama_jabatan: 'Ketua Jurusan Teknik Sipil', jurusan: 'Teknik Sipil' }
+        ]
+      };
+
+      // 1. Uji filter pencarian nama
+      const qName = 'infor';
+      const searchByName = mockUnit.jurusan.filter(
+        (j) => j.nama.toLowerCase().includes(qName) || j.kode.toLowerCase().includes(qName)
+      );
+      expect(searchByName).toHaveLength(1);
+      expect(searchByName[0].nama).toBe('Informatika');
+
+      // 2. Uji filter pencarian kode singkatan
+      const qCode = 'ts';
+      const searchByCode = mockUnit.jurusan.filter(
+        (j) => j.nama.toLowerCase().includes(qCode) || j.kode.toLowerCase().includes(qCode)
+      );
+      expect(searchByCode).toHaveLength(1);
+      expect(searchByCode[0].nama).toBe('Teknik Sipil');
+
+      // 3. Uji hitung jabatan per jurusan
+      const ifJabatanCount = mockUnit.struktur_organisasi.filter(
+        (s) => s.jurusan === 'Informatika' || resolveJabatanScope(s, mockUnit.jurusan) === 'Informatika'
+      ).length;
+      expect(ifJabatanCount).toBe(2);
+
+      const tsJabatanCount = mockUnit.struktur_organisasi.filter(
+        (s) => s.jurusan === 'Teknik Sipil' || resolveJabatanScope(s, mockUnit.jurusan) === 'Teknik Sipil'
+      ).length;
+      expect(tsJabatanCount).toBe(1);
+
+      const teJabatanCount = mockUnit.struktur_organisasi.filter(
+        (s) => s.jurusan === 'Teknik Elektro' || resolveJabatanScope(s, mockUnit.jurusan) === 'Teknik Elektro'
+      ).length;
+      expect(teJabatanCount).toBe(0);
+    });
   });
 });

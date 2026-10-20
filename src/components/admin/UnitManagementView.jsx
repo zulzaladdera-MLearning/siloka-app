@@ -80,9 +80,10 @@ export const UnitManagementView = ({
   const [modalMode, setModalMode] = useState('create'); // 'create' | 'edit'
   const [editingUnitId, setEditingUnitId] = useState(null);
 
-  // State Modal Kelola Jurusan / Program Studi
-  const [isJurusanModalOpen, setIsJurusanModalOpen] = useState(false);
+  // State Sub-Halaman & Kelola Jurusan / Program Studi
   const [selectedJurusanUnit, setSelectedJurusanUnit] = useState(null);
+  const [jurusanSearchQuery, setJurusanSearchQuery] = useState('');
+  const [isAddJurusanModalOpen, setIsAddJurusanModalOpen] = useState(false);
   const [editingJurusanId, setEditingJurusanId] = useState(null);
   const [newJurusanName, setNewJurusanName] = useState('');
   const [newJurusanCode, setNewJurusanCode] = useState('');
@@ -301,6 +302,31 @@ export const UnitManagementView = ({
       return true;
     });
   }, [scopeFilteredStrukturList, strukturSearchQuery, strukturFilterRole, strukturFilterOccupancy, getPositionOccupants]);
+
+  // Daftar Jurusan yang telah difilter pencarian pada Sub-Halaman Jurusan
+  const filteredJurusanList = useMemo(() => {
+    if (!selectedJurusanUnit) return [];
+    const list = selectedJurusanUnit.jurusan || [];
+    if (!jurusanSearchQuery.trim()) return list;
+    const q = jurusanSearchQuery.toLowerCase().trim();
+    return list.filter((j) => {
+      const name = String(j.nama || '').toLowerCase();
+      const code = String(j.kode || '').toLowerCase();
+      return name.includes(q) || code.includes(q);
+    });
+  }, [selectedJurusanUnit, jurusanSearchQuery]);
+
+  // Total jabatan resmi yang bernaung di bawah jurusan-jurusan unit ini
+  const totalJurusanJabatanCount = useMemo(() => {
+    if (!selectedJurusanUnit || !Array.isArray(selectedJurusanUnit.struktur_organisasi)) return 0;
+    const jurusans = selectedJurusanUnit.jurusan || [];
+    if (!jurusans.length) return 0;
+    const jurusanNames = new Set(jurusans.map((j) => String(j.nama || '').toLowerCase()));
+    return selectedJurusanUnit.struktur_organisasi.filter((s) => {
+      const scope = resolveJabatanScope(s, jurusans);
+      return scope !== 'FAKULTAS' && jurusanNames.has(String(scope || '').toLowerCase());
+    }).length;
+  }, [selectedJurusanUnit]);
 
   // Form State yang sederhana
   const [formData, setFormData] = useState({
@@ -570,14 +596,28 @@ export const UnitManagementView = ({
     }
   };
 
-  // Buka Modal Kelola Jurusan
+  // Buka Sub-Halaman Kelola Jurusan & Program Studi
   const handleOpenJurusanModal = (unit) => {
-    setSelectedJurusanUnit(unit);
+    const enriched = enrichedUnits.find(
+      (eu) => String(eu.kode_unit || '').toUpperCase() === String(unit.kode_unit || '').toUpperCase()
+    );
+    setSelectedJurusanUnit(enriched || unit);
+    setSelectedStrukturUnit(null);
     setEditingJurusanId(null);
     setNewJurusanName('');
     setNewJurusanCode('');
     setJurusanError('');
-    setIsJurusanModalOpen(true);
+    setJurusanSearchQuery('');
+    setIsAddJurusanModalOpen(false);
+  };
+
+  // Buka Dialog Tambah Jurusan Baru
+  const handleOpenAddJurusan = () => {
+    setEditingJurusanId(null);
+    setNewJurusanName('');
+    setNewJurusanCode('');
+    setJurusanError('');
+    setIsAddJurusanModalOpen(true);
   };
 
   // Mulai Ubah Jurusan Terpilih
@@ -586,6 +626,7 @@ export const UnitManagementView = ({
     setNewJurusanName(jurusan.nama);
     setNewJurusanCode(jurusan.kode || '');
     setJurusanError('');
+    setIsAddJurusanModalOpen(true);
   };
 
   // Batal Ubah Jurusan
@@ -594,6 +635,7 @@ export const UnitManagementView = ({
     setNewJurusanName('');
     setNewJurusanCode('');
     setJurusanError('');
+    setIsAddJurusanModalOpen(false);
   };
 
   // Simpan Jurusan (Tambah Baru atau Ubah yang Sedang Diedit)
@@ -705,6 +747,7 @@ export const UnitManagementView = ({
     setEditingJurusanId(null);
     setNewJurusanName('');
     setNewJurusanCode('');
+    setIsAddJurusanModalOpen(false);
 
     if (isEditMode) {
       showToast?.(`Jurusan "${cleanNama}" berhasil diperbarui.`, 'success');
@@ -775,6 +818,7 @@ export const UnitManagementView = ({
       ...unit,
       struktur_organisasi: initialStruktur
     });
+    setSelectedJurusanUnit(null);
     setEditingStrukturId(null);
 
     const targetScope = initialScope || 'ALL';
@@ -1004,7 +1048,7 @@ export const UnitManagementView = ({
       {/* ========================================================================= */}
       {/* TINGKAT 1: TABEL UNIT KERJA RESMI                                        */}
       {/* ========================================================================= */}
-      {!selectedStrukturUnit && (
+      {!selectedStrukturUnit && !selectedJurusanUnit && (
         <div className="space-y-5 animate-in fade-in duration-150">
           {/* Header Halaman yang Bersih & Langsung pada Inti */}
       <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1411,21 +1455,233 @@ export const UnitManagementView = ({
           </div>
         </div>
       )}
+      {/* Akhir Konten Tingkat 1 */}
+        </div>
+      )}
+
       {/* ========================================================================= */}
-      {/* MODAL KELOLA JURUSAN / PROGRAM STUDI (INTEGRASI PENAMBAHAN DOSEN/PEGAWAI) */}
+      {/* SUB-HALAMAN: KELOLA JURUSAN & PROGRAM STUDI                               */}
+      {/* (Tampilan Sederhana, Bersih, Luas, dan Sangat Mudah Dipahami)             */}
       {/* ========================================================================= */}
-      {isJurusanModalOpen && selectedJurusanUnit && (
+      {selectedJurusanUnit && !selectedStrukturUnit && (
+        <div className="space-y-4 animate-in fade-in duration-150">
+          {/* Bar Navigasi Balik & Judul Unit */}
+          <div className="bg-white rounded-2xl p-5 sm:p-6 border border-slate-200 shadow-xs space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedJurusanUnit(null);
+                  setJurusanSearchQuery('');
+                  setEditingJurusanId(null);
+                  setIsAddJurusanModalOpen(false);
+                }}
+                className="inline-flex items-center gap-2 px-3.5 py-2 text-xs font-bold text-slate-700 bg-slate-50 border border-slate-300 rounded-xl hover:bg-unsil-green-50 hover:text-unsil-green-900 hover:border-unsil-green-700 transition cursor-pointer shadow-2xs w-fit"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>Kembali ke Daftar Unit Kerja</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenAddJurusan}
+                className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold text-white bg-unsil-green-900 hover:bg-unsil-green-950 rounded-xl transition cursor-pointer shadow-xs active:scale-95 w-fit"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Tambah Jurusan Baru</span>
+              </button>
+            </div>
+
+            {/* Identitas Unit Kerja */}
+            <div className="pt-3 border-t border-slate-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono font-bold text-unsil-green-950 bg-slate-100 px-2.5 py-0.5 rounded-lg text-xs border border-slate-200">
+                    {selectedJurusanUnit.kode_unit}
+                  </span>
+                  <h2 className="text-lg sm:text-xl font-black text-slate-900">
+                    {selectedJurusanUnit.nama_unit}
+                  </h2>
+                  {selectedJurusanUnit.singkatan && (
+                    <span className="text-xs font-bold text-slate-500">
+                      ({selectedJurusanUnit.singkatan})
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Daftar seluruh jurusan dan program studi resmi yang bernaung di bawah unit kerja ini.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                  {selectedJurusanUnit.tipe_unit || 'Fakultas'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* 2 Kartu Ringkasan Sederhana */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Total Program Studi / Jurusan</p>
+                <p className="text-2xl font-black text-slate-900 mt-0.5">{selectedJurusanUnit.jurusan?.length || 0}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Jurusan aktif terdaftar</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-emerald-50 text-unsil-green-900 flex items-center justify-center shrink-0">
+                <GraduationCap className="w-5 h-5 text-unsil-green-800" />
+              </div>
+            </div>
+
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">Total Jabatan di Jurusan</p>
+                <p className="text-2xl font-black text-blue-700 mt-0.5">{totalJurusanJabatanCount}</p>
+                <p className="text-[11px] text-blue-600 font-medium mt-0.5">Ketua jurusan, sekretaris &amp; dosen</p>
+              </div>
+              <div className="w-10 h-10 rounded-xl bg-blue-50 text-blue-700 flex items-center justify-center shrink-0">
+                <Briefcase className="w-5 h-5" />
+              </div>
+            </div>
+          </div>
+
+          {/* Bar Kontrol Pencarian Sederhana */}
+          <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-2xs">
+            <div className="relative">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+              <input
+                type="text"
+                value={jurusanSearchQuery}
+                onChange={(e) => setJurusanSearchQuery(e.target.value)}
+                placeholder="Cari nama jurusan atau kode singkatan..."
+                className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder-slate-400 focus:bg-white focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+              />
+              {jurusanSearchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setJurusanSearchQuery('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 cursor-pointer"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tabel Jurusan Rapi, Luas, dan Nyaman Dibaca */}
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+            <div className="px-5 py-3 border-b border-slate-200 flex items-center justify-between bg-slate-50/60">
+              <span className="font-bold text-xs text-slate-700">
+                Total {filteredJurusanList.length} Jurusan / Program Studi
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider text-[10.5px] border-b border-slate-200">
+                    <th className="py-3 px-4 w-12 text-center">No</th>
+                    <th className="py-3 px-4 min-w-[260px]">Nama Jurusan / Program Studi</th>
+                    <th className="py-3 px-4 min-w-[130px]">Kode Singkatan</th>
+                    <th className="py-3 px-4 min-w-[200px]">Struktur Jabatan</th>
+                    <th className="py-3 px-4 text-center w-28">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {filteredJurusanList.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="py-12 text-center text-slate-400">
+                        <GraduationCap className="w-8 h-8 mx-auto text-slate-300 mb-2" />
+                        <p className="font-semibold text-slate-700">Tidak ada jurusan atau program studi.</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          Silakan klik &ldquo;Tambah Jurusan Baru&rdquo; untuk menambahkan program studi.
+                        </p>
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredJurusanList.map((j, idx) => {
+                      const jabatanCount = (selectedJurusanUnit.struktur_organisasi || []).filter(
+                        (s) => s.jurusan === j.nama || resolveJabatanScope(s, selectedJurusanUnit.jurusan) === j.nama
+                      ).length;
+
+                      return (
+                        <tr key={j.id || j.kode || idx} className="hover:bg-slate-50/60 transition-colors">
+                          <td className="py-3.5 px-4 text-center text-slate-400 font-medium">
+                            {idx + 1}
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-unsil-green-900 flex items-center justify-center shrink-0">
+                                <BookOpen className="w-3.5 h-3.5 text-unsil-green-800" />
+                              </div>
+                              <span className="font-bold text-slate-900 text-xs">
+                                {j.nama}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <span className="font-mono font-bold text-unsil-green-950 bg-slate-100 px-2 py-0.5 rounded text-[11px] border border-slate-200">
+                              {j.kode || '-'}
+                            </span>
+                          </td>
+                          <td className="py-3.5 px-4">
+                            <button
+                              type="button"
+                              onClick={() => handleOpenStrukturModal(selectedJurusanUnit, j.nama)}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition cursor-pointer"
+                              title={`Buka dan kelola struktur jabatan untuk Jurusan ${j.nama}`}
+                            >
+                              <Network className="w-3.5 h-3.5 text-blue-600" />
+                              <span>Kelola Jabatan ({jabatanCount})</span>
+                            </button>
+                          </td>
+                          <td className="py-3.5 px-4 text-center">
+                            <div className="inline-flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleStartEditJurusan(j)}
+                                className="p-1.5 rounded-lg text-slate-600 hover:text-unsil-green-900 hover:bg-emerald-50 transition cursor-pointer"
+                                title="Ubah Nama & Kode Jurusan"
+                              >
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteJurusan(j.id, j.nama)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title="Hapus Jurusan Ini"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL FORM TAMBAH / UBAH JURUSAN (FOKUS, BERSIH, RAMAH PEMULA)            */}
+      {/* ========================================================================= */}
+      {isAddJurusanModalOpen && selectedJurusanUnit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-2xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+          <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-slate-100 bg-slate-50/50">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-unsil-green-900 flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-emerald-100 text-unsil-green-900 flex items-center justify-center">
                   <GraduationCap className="w-5 h-5 text-unsil-green-800" />
                 </div>
                 <div>
                   <h3 className="font-extrabold text-sm text-slate-900">
-                    Kelola Jurusan &amp; Program Studi
+                    {editingJurusanId ? 'Ubah Data Jurusan / Prodi' : 'Tambah Jurusan / Prodi Baru'}
                   </h3>
                   <p className="text-xs text-slate-500">
                     {selectedJurusanUnit.nama_unit} ({selectedJurusanUnit.singkatan || selectedJurusanUnit.kode_unit})
@@ -1434,7 +1690,7 @@ export const UnitManagementView = ({
               </div>
               <button
                 type="button"
-                onClick={() => setIsJurusanModalOpen(false)}
+                onClick={handleCancelEditJurusan}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X className="w-5 h-5" />
@@ -1442,11 +1698,7 @@ export const UnitManagementView = ({
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-4">
-              <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 text-[11px] text-emerald-950 leading-relaxed">
-                Jurusan di bawah ini terintegrasi langsung dengan formulir penambahan dan pembaruan pengguna. Saat mendaftarkan dosen atau pimpinan jurusan, opsi jabatan akan menyesuaikan secara otomatis tanpa perlu diketik manual.
-              </div>
-
+            <form onSubmit={handleSaveJurusan} className="p-5 space-y-3.5">
               {jurusanError && (
                 <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-900 text-xs font-semibold flex items-center gap-2">
                   <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
@@ -1454,193 +1706,58 @@ export const UnitManagementView = ({
                 </div>
               )}
 
-              {/* Daftar Jurusan Terdaftar */}
+              {/* Nama Jurusan */}
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-xs font-bold text-slate-700 uppercase tracking-wider">
-                    Daftar Jurusan Aktif ({selectedJurusanUnit.jurusan?.length || 0})
-                  </span>
-                </div>
-
-                <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
-                  {(!selectedJurusanUnit.jurusan || selectedJurusanUnit.jurusan.length === 0) ? (
-                    <div className="py-6 text-center text-slate-400 text-xs border border-dashed border-slate-200 rounded-xl">
-                      Belum ada jurusan terdaftar. Silakan tambahkan jurusan pertama di bawah.
-                    </div>
-                  ) : (
-                    selectedJurusanUnit.jurusan.map((j) => {
-                      const isItemEditing =
-                        editingJurusanId &&
-                        (editingJurusanId === j.id ||
-                          editingJurusanId === j.kode ||
-                          editingJurusanId === j.nama);
-
-                      return (
-                        <div
-                          key={j.id || j.kode || j.nama}
-                          className={`flex items-center justify-between p-2.5 rounded-xl border transition ${
-                            isItemEditing
-                              ? 'bg-emerald-50/90 border-emerald-300 ring-2 ring-emerald-600/20'
-                              : 'bg-slate-50 border-slate-200 hover:bg-slate-100/70'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2.5 min-w-0">
-                            <BookOpen className="w-4 h-4 text-unsil-green-800 shrink-0" />
-                            <div className="min-w-0">
-                              <span className="text-xs font-bold text-slate-900 block truncate">
-                                {j.nama}
-                              </span>
-                              {j.kode && (
-                                <span className="text-[10px] font-mono font-semibold text-slate-500">
-                                  Kode: {j.kode}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-1 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setIsJurusanModalOpen(false);
-                                handleOpenStrukturModal(selectedJurusanUnit, j.nama);
-                              }}
-                              className="px-2 py-1 rounded-lg text-[11px] font-bold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition flex items-center gap-1 cursor-pointer"
-                              title={`Kelola Struktur Jabatan Jurusan ${j.nama}`}
-                            >
-                              <Network className="w-3.5 h-3.5" />
-                              <span className="hidden sm:inline">Struktur Jabatan</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleStartEditJurusan(j)}
-                              className="p-1.5 rounded-lg text-slate-500 hover:text-unsil-green-900 hover:bg-emerald-100 transition cursor-pointer"
-                              title={`Ubah Nama & Kode ${j.nama}`}
-                            >
-                              <Pencil className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => handleDeleteJurusan(j.id, j.nama)}
-                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                              title={`Hapus ${j.nama}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Nama Jurusan / Program Studi <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={newJurusanName}
+                  onChange={(e) => setNewJurusanName(e.target.value)}
+                  placeholder="contoh: Pendidikan Matematika"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                  required
+                  autoFocus
+                />
               </div>
 
-              {/* Form Tambah / Ubah Jurusan (Sederhana & Mudah Dipahami Orang Awam) */}
-              <form
-                onSubmit={handleSaveJurusan}
-                className={`pt-3.5 pb-2 px-3 rounded-xl border space-y-3 transition ${
-                  editingJurusanId
-                    ? 'bg-emerald-50/60 border-emerald-300 ring-2 ring-emerald-600/10'
-                    : 'bg-slate-50/80 border-slate-200'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    {editingJurusanId ? (
-                      <>
-                        <Pencil className="w-3.5 h-3.5 text-unsil-green-800" />
-                        <span>Ubah Data Jurusan / Program Studi</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5 text-unsil-green-800" />
-                        <span>Tambah Jurusan / Program Studi Baru</span>
-                      </>
-                    )}
-                  </div>
-                  {editingJurusanId && (
-                    <button
-                      type="button"
-                      onClick={handleCancelEditJurusan}
-                      className="text-[11px] font-bold text-slate-500 hover:text-slate-800 underline cursor-pointer"
-                    >
-                      Batal Ubah
-                    </button>
-                  )}
-                </div>
+              {/* Kode Singkatan */}
+              <div>
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Kode Singkatan <span className="text-slate-400 font-normal">(Opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={newJurusanCode}
+                  onChange={(e) => setNewJurusanCode(e.target.value.toUpperCase())}
+                  placeholder="contoh: PMTK"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-semibold text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Jika dikosongkan, kode singkatan akan otomatis dibentuk dari huruf awal nama jurusan.
+                </p>
+              </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                  <div className="sm:col-span-2 space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-700 block">
-                      Nama Jurusan / Program Studi <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newJurusanName}
-                      onChange={(e) => setNewJurusanName(e.target.value)}
-                      placeholder="Contoh: Pendidikan Matematika"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
-                      required
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[11px] font-semibold text-slate-700 block">
-                      Kode Singkatan <span className="text-slate-400 font-normal">(Opsional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={newJurusanCode}
-                      onChange={(e) => setNewJurusanCode(e.target.value.toUpperCase())}
-                      placeholder="Contoh: PMTK"
-                      className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs font-mono font-semibold text-slate-900 focus:ring-2 focus:ring-unsil-green-800/20 focus:border-unsil-green-800 transition"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2 pt-1">
-                  <button
-                    type="submit"
-                    className="flex-1 py-2 px-3 rounded-lg bg-unsil-green-900 hover:bg-unsil-green-950 text-white text-xs font-bold shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    {editingJurusanId ? (
-                      <>
-                        <Check className="w-3.5 h-3.5" />
-                        <span>Simpan Perubahan Jurusan</span>
-                      </>
-                    ) : (
-                      <>
-                        <Plus className="w-3.5 h-3.5" />
-                        <span>Tambahkan Jurusan</span>
-                      </>
-                    )}
-                  </button>
-                  {editingJurusanId && (
-                    <button
-                      type="button"
-                      onClick={handleCancelEditJurusan}
-                      className="py-2 px-3 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-bold transition cursor-pointer"
-                    >
-                      Batal
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="p-4 border-t border-slate-100 flex items-center justify-end bg-slate-50/50">
-              <button
-                type="button"
-                onClick={() => setIsJurusanModalOpen(false)}
-                className="px-5 py-2 rounded-lg text-xs font-bold bg-slate-200 hover:bg-slate-300 text-slate-800 transition cursor-pointer"
-              >
-                Selesai
-              </button>
-            </div>
+              {/* Tombol Aksi */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={handleCancelEditJurusan}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-unsil-green-900 hover:bg-unsil-green-950 text-white text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{editingJurusanId ? 'Simpan Perubahan' : 'Tambahkan Jurusan'}</span>
+                </button>
+              </div>
+            </form>
           </div>
-        </div>
-      )}
-
-      {/* Akhir Konten Tingkat 1 */}
         </div>
       )}
 
