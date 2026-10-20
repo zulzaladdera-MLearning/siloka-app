@@ -914,6 +914,10 @@ export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpina
     activeList.find((u) => u.kode_unit === cleanUnit || u.singkatan === cleanUnit) ||
     unitKerjaList.find((u) => u.kode_unit === cleanUnit || u.singkatan === cleanUnit);
 
+  const jurusanList = Array.isArray(unitObj?.jurusan) && unitObj.jurusan.length > 0
+    ? unitObj.jurusan
+    : (DEFAULT_FAKULTAS_JURUSAN_MAP[cleanUnit] || DEFAULT_FAKULTAS_JURUSAN_MAP[unitObj?.singkatan] || []);
+
   // 3. Utamakan struktur organisasi kustom yang diatur melalui Antarmuka Manajemen Unit Kerja
   // Jika properti struktur_organisasi sudah ada pada unit (telah dikelola oleh admin),
   // patuhi data tersebut sepenuhnya. Jabatan yang telah dihapus tidak boleh dibangkitkan kembali ke default.
@@ -921,22 +925,25 @@ export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpina
     const matched = unitObj.struktur_organisasi
       .filter((s) => s.kategori_peran === cleanRole || (cleanRole === 'dosen' && s.kategori_peran === 'drafter'));
 
-    if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'FAKULTAS' && targetJurusan !== 'ALL') {
-      const cleanTarget = String(targetJurusan).trim().toLowerCase();
-      const specific = matched.filter((s) => {
-        const itemJur = (s.jurusan || '').toLowerCase();
-        const itemName = (s.nama_jabatan || '').toLowerCase();
-        return itemJur === cleanTarget || itemName.includes(cleanTarget);
-      });
-      const rest = matched.filter((s) => {
-        const itemJur = (s.jurusan || '').toLowerCase();
-        const itemName = (s.nama_jabatan || '').toLowerCase();
-        return itemJur !== cleanTarget && !itemName.includes(cleanTarget);
-      });
-      const ordered = [...specific, ...rest]
-        .map((s) => s.nama_jabatan?.trim())
-        .filter(Boolean);
-      return Array.from(new Set(ordered));
+    if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'ALL' && targetJurusan !== 'SEMUA') {
+      const cleanTarget = String(targetJurusan).trim();
+      if (cleanTarget.toUpperCase() === 'FAKULTAS' || cleanTarget.toUpperCase() === 'DEKANAT') {
+        const fakultasOnly = matched.filter((s) => {
+          const scope = resolveJabatanScope(s, jurusanList);
+          return scope === 'FAKULTAS';
+        });
+        return Array.from(new Set(fakultasOnly.map((s) => s.nama_jabatan?.trim()).filter(Boolean)));
+      } else {
+        const specificOnly = matched.filter((s) => {
+          const scope = resolveJabatanScope(s, jurusanList);
+          if (scope.toLowerCase() === cleanTarget.toLowerCase()) return true;
+          const itemJur = String(s.jurusan || '').trim().toLowerCase();
+          if (itemJur === cleanTarget.toLowerCase()) return true;
+          const itemName = String(s.nama_jabatan || '').trim().toLowerCase();
+          return itemName.includes(cleanTarget.toLowerCase());
+        });
+        return Array.from(new Set(specificOnly.map((s) => s.nama_jabatan?.trim()).filter(Boolean)));
+      }
     }
 
     const allPositions = matched
@@ -948,11 +955,21 @@ export const getPositionsByUnitAndRole = (unitCode = 'UN58', roleSlug = 'pimpina
 
   // 4. Fallback ke generator jabatan berbasis SOTK / Jurusan bawaan hanya jika unit belum pernah dikonfigurasi
   const defaultPos = getDefaultPositionsByUnitAndRole(cleanUnit, cleanRole, activeList, unitObj);
-  if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'FAKULTAS' && targetJurusan !== 'ALL') {
-    const cleanTarget = String(targetJurusan).trim().toLowerCase();
-    const specific = defaultPos.filter((p) => p.toLowerCase().includes(cleanTarget));
-    const rest = defaultPos.filter((p) => !p.toLowerCase().includes(cleanTarget));
-    return Array.from(new Set([...specific, ...rest]));
+  if (targetJurusan && String(targetJurusan).trim() && targetJurusan !== 'ALL' && targetJurusan !== 'SEMUA') {
+    const cleanTarget = String(targetJurusan).trim();
+    if (cleanTarget.toUpperCase() === 'FAKULTAS' || cleanTarget.toUpperCase() === 'DEKANAT') {
+      const fakultasOnly = defaultPos.filter((p) => {
+        const scope = resolveJabatanScope(p, jurusanList);
+        return scope === 'FAKULTAS';
+      });
+      return Array.from(new Set(fakultasOnly));
+    } else {
+      const specificOnly = defaultPos.filter((p) => {
+        const scope = resolveJabatanScope(p, jurusanList);
+        return scope.toLowerCase() === cleanTarget.toLowerCase() || p.toLowerCase().includes(cleanTarget.toLowerCase());
+      });
+      return Array.from(new Set(specificOnly));
+    }
   }
 
   return defaultPos;

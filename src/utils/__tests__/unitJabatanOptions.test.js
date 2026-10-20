@@ -257,4 +257,68 @@ describe('UnitJabatanOptions - Dynamic Structural Position Selector', () => {
       expect(vacantOccupant).toBeNull();
     });
   });
+
+  describe('Sinkronisasi Murni CRUD Struktur Organisasi ke Pilihan Jabatan Pengguna (SOTK Strict Isolation)', () => {
+    it('harus hanya mengembalikan jabatan sub-unit Informatika ketika jurusan Informatika dipilih', () => {
+      const unitFTWithCrud = [
+        {
+          kode_unit: 'UN58.13',
+          singkatan: 'FT',
+          nama_unit: 'Fakultas Teknik',
+          tipe_unit: 'FAKULTAS',
+          jurusan: [
+            { id: 'j-if', kode: 'IF', nama: 'Informatika' },
+            { id: 'j-ts', kode: 'TS', nama: 'Teknik Sipil' }
+          ],
+          struktur_organisasi: [
+            { id: 'str-1', nama_jabatan: 'Dekan Fakultas Teknik', kategori_peran: 'pimpinan', jurusan: 'FAKULTAS' },
+            { id: 'str-2', nama_jabatan: 'Wakil Dekan Bidang Akademik', kategori_peran: 'pimpinan', jurusan: 'FAKULTAS' },
+            { id: 'str-3', nama_jabatan: 'Ketua Jurusan', kategori_peran: 'pimpinan', jurusan: 'Informatika' },
+            { id: 'str-4', nama_jabatan: 'Ketua Jurusan Teknik Sipil', kategori_peran: 'pimpinan', jurusan: 'Teknik Sipil' }
+          ]
+        }
+      ];
+
+      // 1. Saat memilih Jurusan Informatika, hanya muncul 'Ketua Jurusan' milik Informatika
+      const positionsIF = getPositionsByUnitAndRole('UN58.13', 'pimpinan', unitFTWithCrud, 'Informatika');
+      expect(positionsIF).toEqual(['Ketua Jurusan']);
+      expect(positionsIF).not.toContain('Dekan Fakultas Teknik');
+      expect(positionsIF).not.toContain('Ketua Jurusan Teknik Sipil');
+
+      // 2. Saat memilih Kantor Fakultas / Dekanat, hanya muncul Dekan dan Wakil Dekan
+      const positionsFakultas = getPositionsByUnitAndRole('UN58.13', 'pimpinan', unitFTWithCrud, 'FAKULTAS');
+      expect(positionsFakultas).toEqual(['Dekan Fakultas Teknik', 'Wakil Dekan Bidang Akademik']);
+      expect(positionsFakultas).not.toContain('Ketua Jurusan');
+      expect(positionsFakultas).not.toContain('Ketua Jurusan Teknik Sipil');
+
+      // 3. Saat Super Admin di Manajemen Unit Kerja menghapus 'Ketua Jurusan', daftar menjadi kosong (tanpa fallback liar)
+      const unitAfterDelete = [
+        {
+          ...unitFTWithCrud[0],
+          struktur_organisasi: unitFTWithCrud[0].struktur_organisasi.filter((s) => s.id !== 'str-3')
+        }
+      ];
+      const positionsAfterDelete = getPositionsByUnitAndRole('UN58.13', 'pimpinan', unitAfterDelete, 'Informatika');
+      expect(positionsAfterDelete).toEqual([]);
+    });
+
+    it('harus mengembalikan array kosong jika sub-unit belum memiliki formasi peran terkait', () => {
+      const unitTanpaAdminTU = [
+        {
+          kode_unit: 'UN58.13',
+          singkatan: 'FT',
+          nama_unit: 'Fakultas Teknik',
+          tipe_unit: 'FAKULTAS',
+          jurusan: [{ nama: 'Informatika' }],
+          struktur_organisasi: [
+            { id: 'str-1', nama_jabatan: 'Ketua Jurusan', kategori_peran: 'pimpinan', jurusan: 'Informatika' }
+          ]
+        }
+      ];
+
+      // Di Informatika belum ada staf admin_tu yang dibuat di Manajemen Unit Kerja
+      const tuIF = getPositionsByUnitAndRole('UN58.13', 'admin_tu', unitTanpaAdminTU, 'Informatika');
+      expect(tuIF).toEqual([]);
+    });
+  });
 });

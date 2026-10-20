@@ -209,7 +209,7 @@ describe('UnitManagement - Fitur Edit & Kelola Struktur Organisasi Dinamis', () 
     expect(resolveJabatanScope({ nama_jabatan: 'Koordinator Riset', jurusan: 'FAKULTAS' }, ftJurusan)).toBe('FAKULTAS');
   });
 
-  it('mendukung prioritas jabatan berdasarkan targetJurusan saat dipanggil oleh modul pengguna', () => {
+  it('memfilter jabatan secara ketat berdasarkan targetJurusan (Single Source of Truth sub-unit)', () => {
     const ftUnit = [
       {
         kode_unit: 'UN58.13',
@@ -225,10 +225,16 @@ describe('UnitManagement - Fitur Edit & Kelola Struktur Organisasi Dinamis', () 
       }
     ];
 
-    // Saat targetJurusan 'Informatika' dipilih, posisi Informatika harus diprioritaskan di awal
+    // Saat targetJurusan 'Informatika' dipilih, HANYA posisi Informatika yang dikembalikan
     const ifPimpinan = getPositionsByUnitAndRole('UN58.13', 'pimpinan', ftUnit, 'Informatika');
-    expect(ifPimpinan[0]).toBe('Ketua Jurusan Informatika');
-    expect(ifPimpinan).toContain('Dekan Fakultas Teknik');
+    expect(ifPimpinan).toEqual(['Ketua Jurusan Informatika']);
+    expect(ifPimpinan).not.toContain('Dekan Fakultas Teknik');
+    expect(ifPimpinan).not.toContain('Ketua Jurusan Teknik Sipil');
+
+    // Saat targetJurusan 'FAKULTAS' dipilih, HANYA posisi Dekanat yang dikembalikan
+    const dekanatPimpinan = getPositionsByUnitAndRole('UN58.13', 'pimpinan', ftUnit, 'FAKULTAS');
+    expect(dekanatPimpinan).toEqual(['Dekan Fakultas Teknik']);
+    expect(dekanatPimpinan).not.toContain('Ketua Jurusan Informatika');
   });
 
   describe('Sinkronisasi Reaktif Struktur Organisasi & Akun Manajemen Pengguna', () => {

@@ -782,14 +782,13 @@ export const SystemSettingsView = ({
 
   // State Tambah User Form
   const [newUserData, setNewUserData] = useState(() => {
-    const defaultPositions = getPositionsByUnitAndRole('UN58.13', 'pimpinan');
-    const defaultJurusanList = getJurusanByUnitCode('UN58.13');
+    const defaultPositions = getPositionsByUnitAndRole('UN58.13', 'pimpinan', null, 'FAKULTAS');
     return {
       name: '',
       nip: '',
       email: '',
       unit_kerja_id: 'UN58.13',
-      jurusan: defaultJurusanList[0]?.nama || '',
+      jurusan: 'FAKULTAS',
       role_slug: 'pimpinan',
       role: 'PEJABAT',
       jabatan: defaultPositions[0] || 'Dekan Fakultas Teknik',
@@ -1106,12 +1105,22 @@ export const SystemSettingsView = ({
         ? 'DOSEN'
         : 'STAF');
     const targetJurusan =
-      preset.jurusan !== undefined ? preset.jurusan : (jurList[0]?.nama || '');
-    const defaultPositions = getPositionsByUnitAndRole(defaultUnit, targetSlug, activeUnits);
+      preset.jurusan !== undefined
+        ? preset.jurusan
+        : (jurList.length > 0 ? 'FAKULTAS' : '');
+    const defaultPositions = getPositionsByUnitAndRole(defaultUnit, targetSlug, activeUnits, targetJurusan);
+
+    // Prioritaskan jabatan yang belum terisi (kosong)
+    const vacantPos = defaultPositions.find((pos) => !findPositionOccupant(pos, allUsers, null, defaultUnit));
     const targetJabatan =
       preset.jabatan ||
+      vacantPos ||
       defaultPositions[0] ||
-      (targetSlug === 'drafter' ? 'Dosen' : 'Staf Administrasi');
+      (targetSlug === 'drafter' && targetJurusan && targetJurusan !== 'FAKULTAS'
+        ? `Dosen Jurusan ${targetJurusan}`
+        : targetSlug === 'drafter'
+        ? 'Dosen'
+        : '');
 
     setNewUserData({
       name: '',
@@ -1124,7 +1133,7 @@ export const SystemSettingsView = ({
       jabatan: targetJabatan,
       password: 'Siloka2026!'
     });
-    setIsCustomJabatanAdd(false);
+    setIsCustomJabatanAdd(Boolean(!targetJabatan && defaultPositions.length === 0));
     setShowNewPassword(false);
     setIsAddUserModalOpen(true);
   };
@@ -1136,17 +1145,20 @@ export const SystemSettingsView = ({
     const currentPassword = targetUser.raw_password || targetUser.password || 'Siloka2026!';
     const userUnitId = targetUser.unit_kerja_id || 'UN58.13';
     const userJabatan = resolveDisplayRole(targetUser);
-    const unitPositions = getPositionsByUnitAndRole(userUnitId, userRoleSlug, activeUnits);
-    const isStandardPosition = unitPositions.includes(userJabatan);
+    const jurList = getJurusanByUnitCode(userUnitId, activeUnits);
 
     let userJurusan = targetUser.jurusan || '';
     if (!userJurusan && userUnitId) {
-      const jurList = getJurusanByUnitCode(userUnitId, activeUnits);
       const matchJur = jurList.find((j) => userJabatan.toLowerCase().includes(j.nama.toLowerCase()));
       if (matchJur) {
         userJurusan = matchJur.nama;
+      } else if (jurList.length > 0) {
+        userJurusan = 'FAKULTAS';
       }
     }
+
+    const unitPositions = getPositionsByUnitAndRole(userUnitId, userRoleSlug, activeUnits, userJurusan);
+    const isStandardPosition = unitPositions.includes(userJabatan);
 
     setEditFormData({
       name: targetUser.nama_lengkap || targetUser.name || '',
@@ -2461,29 +2473,15 @@ export const SystemSettingsView = ({
                       const unitObj =
                         activeUnits.find((u) => u.kode_unit === nextUnitId) ||
                         unitKerjaList.find((u) => u.kode_unit === nextUnitId);
-                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, editFormData.role_slug, activeUnits);
                       const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
-                      let updatedJurusan = editFormData.jurusan;
-                      let updatedJabatan = editFormData.jabatan;
-
-                      if (jurList.length > 0) {
-                        if (!jurList.some((j) => j.nama === updatedJurusan)) {
-                          updatedJurusan = jurList[0].nama;
-                        }
-                        if (editFormData.role_slug === 'drafter') {
-                          updatedJabatan = `Dosen Jurusan ${updatedJurusan}`;
-                          setIsCustomJabatanEdit(false);
-                        }
-                      } else {
-                        updatedJurusan = '';
+                      let updatedJurusan = jurList.length > 0 ? (editFormData.jurusan || 'FAKULTAS') : '';
+                      if (jurList.length > 0 && updatedJurusan !== 'FAKULTAS' && !jurList.some((j) => j.nama === updatedJurusan)) {
+                        updatedJurusan = 'FAKULTAS';
                       }
-
-                      if (editFormData.role_slug === 'pimpinan') {
-                        updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
-                        setIsCustomJabatanEdit(false);
-                      } else if (editFormData.role_slug !== 'drafter' && !isCustomJabatanEdit && unitPositions.length > 0) {
-                        updatedJabatan = unitPositions[0];
-                      }
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, editFormData.role_slug, activeUnits, updatedJurusan);
+                      const vacantPos = unitPositions.find((pos) => !findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, nextUnitId));
+                      let updatedJabatan = vacantPos || unitPositions[0] || (editFormData.role_slug === 'drafter' && updatedJurusan && updatedJurusan !== 'FAKULTAS' ? `Dosen Jurusan ${updatedJurusan}` : '');
+                      setIsCustomJabatanEdit(Boolean(!updatedJabatan && unitPositions.length === 0));
 
                       setEditFormData((prev) => ({
                         ...prev,
@@ -2521,20 +2519,19 @@ export const SystemSettingsView = ({
                       onChange={(e) => {
                         const newSlug = e.target.value;
                         const roleObj = rolesCatalog.find((r) => (r.slug || r.id) === newSlug);
-                        const unitPositions = getPositionsByUnitAndRole(editFormData.unit_kerja_id, newSlug, activeUnits);
                         const jurList = getJurusanByUnitCode(editFormData.unit_kerja_id, activeUnits);
-                        const defaultJurusan = editFormData.jurusan || (jurList.length > 0 ? jurList[0].nama : '');
+                        const currentJur = jurList.length > 0 ? (editFormData.jurusan || 'FAKULTAS') : '';
+                        const unitPositions = getPositionsByUnitAndRole(editFormData.unit_kerja_id, newSlug, activeUnits, currentJur);
                         const updatedTte = newSlug === 'pimpinan' || newSlug === 'super_admin';
-                        let updatedJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
-                        if (newSlug === 'drafter' && defaultJurusan) {
-                          updatedJabatan = `Dosen Jurusan ${defaultJurusan}`;
-                        }
-                        setIsCustomJabatanEdit(false);
+                        const vacantPos = unitPositions.find((pos) => !findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, editFormData.unit_kerja_id));
+                        let updatedJabatan = vacantPos || unitPositions[0] || (newSlug === 'drafter' && currentJur && currentJur !== 'FAKULTAS' ? `Dosen Jurusan ${currentJur}` : roleObj?.name || '');
+                        setIsCustomJabatanEdit(Boolean(!updatedJabatan && unitPositions.length === 0));
 
                         setEditFormData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
-                          jurusan: newSlug === 'drafter' ? defaultJurusan : prev.jurusan,
+                          role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'STAF' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
+                          jurusan: currentJur,
                           jabatan: updatedJabatan,
                           signatureReady: updatedTte
                         }));
@@ -2549,17 +2546,32 @@ export const SystemSettingsView = ({
                     </select>
                   </div>
 
-                  {editSelectedUnitJurusan.length > 0 && editFormData.role_slug === 'drafter' && (
+                  {editSelectedUnitJurusan.length > 0 && (
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 block">
-                        Jurusan / Program Studi
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-700 block">
+                          Bagian / Penempatan Pegawai
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-medium">Sub-Unit</span>
+                      </div>
                       <select
-                        value={editFormData.jurusan || ''}
+                        value={editFormData.jurusan || 'FAKULTAS'}
                         onChange={(e) => {
                           const chosen = e.target.value;
-                          const nextJabatan = chosen ? `Dosen Jurusan ${chosen}` : (editUnitPositions[0] || 'Dosen Fungsional (Tridharma)');
-                          setIsCustomJabatanEdit(false);
+                          const nextPositions = getPositionsByUnitAndRole(
+                            editFormData.unit_kerja_id,
+                            editFormData.role_slug,
+                            activeUnits,
+                            chosen
+                          );
+                          const vacantPos = nextPositions.find(
+                            (pos) => !findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, editFormData.unit_kerja_id)
+                          );
+                          let nextJabatan = vacantPos || nextPositions[0] || '';
+                          if (!nextJabatan && editFormData.role_slug === 'drafter' && chosen !== 'FAKULTAS') {
+                            nextJabatan = `Dosen Jurusan ${chosen}`;
+                          }
+                          setIsCustomJabatanEdit(Boolean(!nextJabatan && nextPositions.length === 0));
                           setEditFormData((prev) => ({
                             ...prev,
                             jurusan: chosen,
@@ -2568,17 +2580,17 @@ export const SystemSettingsView = ({
                         }}
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                       >
-                        <option value="">Pilih Jurusan...</option>
+                        <option value="FAKULTAS">🏛️ Kantor Fakultas / Dekanat</option>
                         {editSelectedUnitJurusan.map((j) => (
                           <option key={j.id || j.kode || j.nama} value={j.nama}>
-                            {j.nama} {j.kode ? `(${j.kode})` : ''}
+                            🎓 Jurusan {j.nama} {j.kode ? `(${j.kode})` : ''}
                           </option>
                         ))}
                       </select>
                     </div>
                   )}
 
-                  <div className={`space-y-1 ${editSelectedUnitJurusan.length > 0 && editFormData.role_slug === 'drafter' ? 'sm:col-span-2' : ''}`}>
+                  <div className={`space-y-1 ${editSelectedUnitJurusan.length > 0 ? '' : 'sm:col-span-2'}`}>
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-700 block">
                         Jabatan Struktural / Peran Institusi
@@ -2586,39 +2598,63 @@ export const SystemSettingsView = ({
                       <button
                         type="button"
                         onClick={() => setIsCustomJabatanEdit((prev) => !prev)}
-                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-medium underline cursor-pointer"
+                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-bold underline cursor-pointer"
                       >
-                        {isCustomJabatanEdit ? 'Pilih dari Daftar Unit' : 'Ketik Manual'}
+                        {isCustomJabatanEdit ? '📋 Pilih dari Formasi Unit' : '✏️ Ketik Manual'}
                       </button>
                     </div>
                     {!isCustomJabatanEdit ? (
-                      <select
-                        value={editFormData.jabatan}
-                        onChange={(e) => {
-                          if (e.target.value === '__CUSTOM__') {
-                            setIsCustomJabatanEdit(true);
-                          } else {
-                            setEditFormData({ ...editFormData, jabatan: e.target.value });
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
-                      >
-                        {editFormData.jabatan && !editUnitPositions.includes(editFormData.jabatan) && (
-                          <option value={editFormData.jabatan}>
-                            {editFormData.jabatan}
-                            {editJabatanOccupant ? ` — (Terisi: ${editJabatanOccupant.name || editJabatanOccupant.nama_lengkap})` : ''}
-                          </option>
-                        )}
-                        {editUnitPositions.map((pos) => {
-                          const occ = findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, editFormData.unit_kerja_id);
-                          return (
-                            <option key={pos} value={pos}>
-                              {pos}{occ ? ` — (Terisi: ${occ.name || occ.nama_lengkap})` : ''}
+                      editUnitPositions.length === 0 ? (
+                        <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-slate-800">Belum Ada Formasi Jabatan Resmi</p>
+                              <p className="text-[11px] leading-relaxed text-slate-600">
+                                Di menu Manajemen Unit Kerja, belum ada jabatan dengan peran ini untuk {editFormData.jurusan && editFormData.jurusan !== 'FAKULTAS' ? `Jurusan ${editFormData.jurusan}` : 'Kantor Fakultas / Dekanat'}.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setIsCustomJabatanEdit(true)}
+                              className="px-2.5 py-1 bg-white hover:bg-amber-100 text-slate-800 font-bold rounded-lg border border-amber-300 transition cursor-pointer shadow-2xs"
+                            >
+                              ✏️ Ketik Jabatan Manual
+                            </button>
+                            <span className="text-slate-500">atau tambahkan jabatan di Manajemen Unit Kerja.</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <select
+                          value={editFormData.jabatan}
+                          onChange={(e) => {
+                            if (e.target.value === '__CUSTOM__') {
+                              setIsCustomJabatanEdit(true);
+                            } else {
+                              setEditFormData({ ...editFormData, jabatan: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                        >
+                          <option value="" disabled>-- Pilih Jabatan Resmi --</option>
+                          {editFormData.jabatan && !editUnitPositions.includes(editFormData.jabatan) && (
+                            <option value={editFormData.jabatan}>
+                              {editFormData.jabatan} (Jabatan Saat Ini)
                             </option>
-                          );
-                        })}
-                        <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
-                      </select>
+                          )}
+                          {editUnitPositions.map((pos) => {
+                            const occ = findPositionOccupant(pos, allUsers, selectedUserForDetail?.id, editFormData.unit_kerja_id);
+                            return (
+                              <option key={pos} value={pos}>
+                                {occ ? `🟡 ${pos} (Sudah Diisi: ${occ.name || occ.nama_lengkap})` : `🟢 ${pos} (Tersedia / Kosong)`}
+                              </option>
+                            );
+                          })}
+                          <option value="__CUSTOM__">✏️ Ketik Jabatan Manual Lainnya...</option>
+                        </select>
+                      )
                     ) : (
                       <input
                         type="text"
@@ -2631,12 +2667,12 @@ export const SystemSettingsView = ({
                     )}
                     <div className="text-[10px] text-slate-500">
                       {editFormData.role_slug === 'pimpinan'
-                        ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(editFormData.unit_kerja_id)?.nama_unit || editFormData.unit_kerja_id}`
+                        ? `Opsi jabatan resmi di ${getUnitByCode(editFormData.unit_kerja_id)?.nama_unit || editFormData.unit_kerja_id}`
                         : `Menyesuaikan unit kerja: ${getUnitByCode(editFormData.unit_kerja_id)?.singkatan || editFormData.unit_kerja_id}`}
                     </div>
 
-                    {/* Alert Warning Okupansi Jabatan Tunggal (Anti Human Error) */}
-                    {editJabatanOccupant && (
+                    {/* Alert Warning Okupansi Jabatan Tunggal (Anti Duplikasi & Human Error) */}
+                    {editJabatanOccupant ? (
                       <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-xl text-amber-900 space-y-1 animate-in fade-in duration-200 shadow-2xs mt-2">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -2651,7 +2687,12 @@ export const SystemSettingsView = ({
                           Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari satu pejabat aktif untuk mencegah tumpang tindih wewenang dan TTE naskah dinas.
                         </p>
                       </div>
-                    )}
+                    ) : editFormData.jabatan && !isCustomJabatanEdit && editUnitPositions.includes(editFormData.jabatan) ? (
+                      <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-medium animate-in fade-in duration-150 mt-1">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Formasi <strong>{editFormData.jabatan}</strong> siap diisi (belum ada pejabat aktif).</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
@@ -2901,29 +2942,15 @@ export const SystemSettingsView = ({
                     value={newUserData.unit_kerja_id}
                     onChange={(e) => {
                       const nextUnitId = e.target.value;
-                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, newUserData.role_slug, activeUnits);
                       const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
-                      let updatedJurusan = newUserData.jurusan;
-                      let updatedJabatan = newUserData.jabatan;
-
-                      if (jurList.length > 0) {
-                        if (!jurList.some((j) => j.nama === updatedJurusan)) {
-                          updatedJurusan = jurList[0].nama;
-                        }
-                        if (newUserData.role_slug === 'drafter') {
-                          updatedJabatan = `Dosen Jurusan ${updatedJurusan}`;
-                          setIsCustomJabatanAdd(false);
-                        }
-                      } else {
-                        updatedJurusan = '';
+                      let updatedJurusan = jurList.length > 0 ? (newUserData.jurusan || 'FAKULTAS') : '';
+                      if (jurList.length > 0 && updatedJurusan !== 'FAKULTAS' && !jurList.some((j) => j.nama === updatedJurusan)) {
+                        updatedJurusan = 'FAKULTAS';
                       }
-
-                      if (newUserData.role_slug === 'pimpinan') {
-                        updatedJabatan = unitPositions[0] || 'Pejabat Struktural';
-                        setIsCustomJabatanAdd(false);
-                      } else if (newUserData.role_slug !== 'drafter' && !isCustomJabatanAdd && unitPositions.length > 0) {
-                        updatedJabatan = unitPositions[0];
-                      }
+                      const unitPositions = getPositionsByUnitAndRole(nextUnitId, newUserData.role_slug, activeUnits, updatedJurusan);
+                      const vacantPos = unitPositions.find((pos) => !findPositionOccupant(pos, allUsers, null, nextUnitId));
+                      let updatedJabatan = vacantPos || unitPositions[0] || (newUserData.role_slug === 'drafter' && updatedJurusan && updatedJurusan !== 'FAKULTAS' ? `Dosen Jurusan ${updatedJurusan}` : '');
+                      setIsCustomJabatanAdd(Boolean(!updatedJabatan && unitPositions.length === 0));
 
                       setNewUserData((prev) => ({
                         ...prev,
@@ -2964,20 +2991,18 @@ export const SystemSettingsView = ({
                           newSlug === 'super_admin' && newUserData.unit_kerja_id === 'UN58.13'
                             ? 'UN58.32'
                             : newUserData.unit_kerja_id;
-                        const unitPositions = getPositionsByUnitAndRole(nextUnitId, newSlug, activeUnits);
                         const jurList = getJurusanByUnitCode(nextUnitId, activeUnits);
-                        const defaultJurusan = newUserData.jurusan || (jurList.length > 0 ? jurList[0].nama : '');
-                        let defaultJabatan = unitPositions[0] || roleObj?.name || 'Dosen Fungsional (Tridharma)';
-                        if (newSlug === 'drafter' && defaultJurusan) {
-                          defaultJabatan = `Dosen Jurusan ${defaultJurusan}`;
-                        }
-                        setIsCustomJabatanAdd(false);
+                        const currentJur = jurList.length > 0 ? (newUserData.jurusan || 'FAKULTAS') : '';
+                        const unitPositions = getPositionsByUnitAndRole(nextUnitId, newSlug, activeUnits, currentJur);
+                        const vacantPos = unitPositions.find((pos) => !findPositionOccupant(pos, allUsers, null, nextUnitId));
+                        let defaultJabatan = vacantPos || unitPositions[0] || (newSlug === 'drafter' && currentJur && currentJur !== 'FAKULTAS' ? `Dosen Jurusan ${currentJur}` : roleObj?.name || '');
+                        setIsCustomJabatanAdd(Boolean(!defaultJabatan && unitPositions.length === 0));
 
                         setNewUserData((prev) => ({
                           ...prev,
                           role_slug: newSlug,
                           role: newSlug === 'super_admin' ? 'Super Admin' : newSlug === 'pimpinan' ? 'PEJABAT' : newSlug === 'admin_tu' ? 'STAF' : newSlug === 'verifikator' ? 'VERIFIKATOR' : 'DOSEN',
-                          jurusan: newSlug === 'drafter' ? defaultJurusan : prev.jurusan,
+                          jurusan: currentJur,
                           jabatan: defaultJabatan,
                           unit_kerja_id: nextUnitId
                         }));
@@ -2992,17 +3017,32 @@ export const SystemSettingsView = ({
                     </select>
                   </div>
 
-                  {newSelectedUnitJurusan.length > 0 && newUserData.role_slug === 'drafter' && (
+                  {newSelectedUnitJurusan.length > 0 && (
                     <div className="space-y-1">
-                      <label className="text-xs font-semibold text-slate-700 block">
-                        Jurusan / Program Studi
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-semibold text-slate-700 block">
+                          Bagian / Penempatan Pegawai
+                        </label>
+                        <span className="text-[10px] text-slate-400 font-medium">Sub-Unit</span>
+                      </div>
                       <select
-                        value={newUserData.jurusan || ''}
+                        value={newUserData.jurusan || 'FAKULTAS'}
                         onChange={(e) => {
                           const chosen = e.target.value;
-                          const nextJabatan = chosen ? `Dosen Jurusan ${chosen}` : (newUnitPositions[0] || 'Dosen Fungsional (Tridharma)');
-                          setIsCustomJabatanAdd(false);
+                          const nextPositions = getPositionsByUnitAndRole(
+                            newUserData.unit_kerja_id,
+                            newUserData.role_slug,
+                            activeUnits,
+                            chosen
+                          );
+                          const vacantPos = nextPositions.find(
+                            (pos) => !findPositionOccupant(pos, allUsers, null, newUserData.unit_kerja_id)
+                          );
+                          let nextJabatan = vacantPos || nextPositions[0] || '';
+                          if (!nextJabatan && newUserData.role_slug === 'drafter' && chosen !== 'FAKULTAS') {
+                            nextJabatan = `Dosen Jurusan ${chosen}`;
+                          }
+                          setIsCustomJabatanAdd(Boolean(!nextJabatan && nextPositions.length === 0));
                           setNewUserData((prev) => ({
                             ...prev,
                             jurusan: chosen,
@@ -3011,17 +3051,17 @@ export const SystemSettingsView = ({
                         }}
                         className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
                       >
-                        <option value="">Pilih Jurusan...</option>
+                        <option value="FAKULTAS">🏛️ Kantor Fakultas / Dekanat</option>
                         {newSelectedUnitJurusan.map((j) => (
                           <option key={j.id || j.kode || j.nama} value={j.nama}>
-                            {j.nama} {j.kode ? `(${j.kode})` : ''}
+                            🎓 Jurusan {j.nama} {j.kode ? `(${j.kode})` : ''}
                           </option>
                         ))}
                       </select>
                     </div>
                   )}
 
-                  <div className={`space-y-1 ${newSelectedUnitJurusan.length > 0 && newUserData.role_slug === 'drafter' ? 'sm:col-span-2' : ''}`}>
+                  <div className={`space-y-1 ${newSelectedUnitJurusan.length > 0 ? '' : 'sm:col-span-2'}`}>
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-semibold text-slate-700 block">
                         Jabatan Struktural / Peran Institusi
@@ -3029,39 +3069,63 @@ export const SystemSettingsView = ({
                       <button
                         type="button"
                         onClick={() => setIsCustomJabatanAdd((prev) => !prev)}
-                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-medium underline cursor-pointer"
+                        className="text-[11px] text-unsil-green-800 hover:text-unsil-green-950 font-bold underline cursor-pointer"
                       >
-                        {isCustomJabatanAdd ? 'Pilih dari Daftar Unit' : 'Ketik Manual'}
+                        {isCustomJabatanAdd ? '📋 Pilih dari Formasi Unit' : '✏️ Ketik Manual'}
                       </button>
                     </div>
                     {!isCustomJabatanAdd ? (
-                      <select
-                        value={newUserData.jabatan}
-                        onChange={(e) => {
-                          if (e.target.value === '__CUSTOM__') {
-                            setIsCustomJabatanAdd(true);
-                          } else {
-                            setNewUserData({ ...newUserData, jabatan: e.target.value });
-                          }
-                        }}
-                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
-                      >
-                        {newUserData.jabatan && !newUnitPositions.includes(newUserData.jabatan) && (
-                          <option value={newUserData.jabatan}>
-                            {newUserData.jabatan}
-                            {newJabatanOccupant ? ` — (Terisi: ${newJabatanOccupant.name || newJabatanOccupant.nama_lengkap})` : ''}
-                          </option>
-                        )}
-                        {newUnitPositions.map((pos) => {
-                          const occ = findPositionOccupant(pos, allUsers, null, newUserData.unit_kerja_id);
-                          return (
-                            <option key={pos} value={pos}>
-                              {pos}{occ ? ` — (Terisi: ${occ.name || occ.nama_lengkap})` : ''}
+                      newUnitPositions.length === 0 ? (
+                        <div className="p-3 bg-amber-50/90 rounded-xl border border-amber-200 text-xs text-amber-950 space-y-2">
+                          <div className="flex items-start gap-2">
+                            <Info className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                            <div className="space-y-0.5">
+                              <p className="font-bold text-slate-800">Belum Ada Formasi Jabatan Resmi</p>
+                              <p className="text-[11px] leading-relaxed text-slate-600">
+                                Di menu Manajemen Unit Kerja, belum ada jabatan dengan peran ini untuk {newUserData.jurusan && newUserData.jurusan !== 'FAKULTAS' ? `Jurusan ${newUserData.jurusan}` : 'Kantor Fakultas / Dekanat'}.
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-amber-200/60 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setIsCustomJabatanAdd(true)}
+                              className="px-2.5 py-1 bg-white hover:bg-amber-100 text-slate-800 font-bold rounded-lg border border-amber-300 transition cursor-pointer shadow-2xs"
+                            >
+                              ✏️ Ketik Jabatan Manual
+                            </button>
+                            <span className="text-slate-500">atau buat formasi jabatan di Manajemen Unit Kerja.</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <select
+                          value={newUserData.jabatan}
+                          onChange={(e) => {
+                            if (e.target.value === '__CUSTOM__') {
+                              setIsCustomJabatanAdd(true);
+                            } else {
+                              setNewUserData({ ...newUserData, jabatan: e.target.value });
+                            }
+                          }}
+                          className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-unsil-green-700/20 focus:border-unsil-green-800 transition cursor-pointer font-medium shadow-2xs"
+                        >
+                          <option value="" disabled>-- Pilih Jabatan Resmi --</option>
+                          {newUserData.jabatan && !newUnitPositions.includes(newUserData.jabatan) && (
+                            <option value={newUserData.jabatan}>
+                              {newUserData.jabatan}
                             </option>
-                          );
-                        })}
-                        <option value="__CUSTOM__">Ketik Jabatan Lainnya (Kustom)...</option>
-                      </select>
+                          )}
+                          {newUnitPositions.map((pos) => {
+                            const occ = findPositionOccupant(pos, allUsers, null, newUserData.unit_kerja_id);
+                            return (
+                              <option key={pos} value={pos}>
+                                {occ ? `🟡 ${pos} (Sudah Diisi: ${occ.name || occ.nama_lengkap})` : `🟢 ${pos} (Tersedia / Kosong)`}
+                              </option>
+                            );
+                          })}
+                          <option value="__CUSTOM__">✏️ Ketik Jabatan Manual Lainnya...</option>
+                        </select>
+                      )
                     ) : (
                       <input
                         type="text"
@@ -3078,12 +3142,12 @@ export const SystemSettingsView = ({
                     )}
                     <div className="text-[10px] text-slate-500">
                       {newUserData.role_slug === 'pimpinan'
-                        ? `Opsi jabatan pimpinan resmi di ${getUnitByCode(newUserData.unit_kerja_id)?.nama_unit || newUserData.unit_kerja_id}`
+                        ? `Opsi jabatan resmi di ${getUnitByCode(newUserData.unit_kerja_id)?.nama_unit || newUserData.unit_kerja_id}`
                         : `Menyesuaikan unit kerja: ${getUnitByCode(newUserData.unit_kerja_id)?.singkatan || newUserData.unit_kerja_id}`}
                     </div>
 
                     {/* Alert Warning Okupansi Jabatan Tunggal (Anti Duplikasi & Human Error) */}
-                    {newJabatanOccupant && (
+                    {newJabatanOccupant ? (
                       <div className="p-3 bg-amber-50 border border-amber-300/80 rounded-xl text-amber-900 space-y-1 animate-in fade-in duration-200 shadow-2xs mt-2">
                         <div className="flex items-start gap-2">
                           <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
@@ -3098,7 +3162,12 @@ export const SystemSettingsView = ({
                           Satu jabatan struktural tunggal tidak disarankan memiliki lebih dari satu pejabat aktif untuk mencegah tumpang tindih wewenang dan TTE naskah dinas.
                         </p>
                       </div>
-                    )}
+                    ) : newUserData.jabatan && !isCustomJabatanAdd && newUnitPositions.includes(newUserData.jabatan) ? (
+                      <div className="flex items-center gap-2 p-2 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-900 font-medium animate-in fade-in duration-150 mt-1">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                        <span>Formasi <strong>{newUserData.jabatan}</strong> siap diisi (belum ada pejabat aktif).</span>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
 
