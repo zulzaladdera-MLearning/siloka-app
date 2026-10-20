@@ -302,4 +302,46 @@ describe('SystemSettingsView & resolveDisplayRole Engine', () => {
     // Tidak boleh ada Dekan Fakultas di dalam unit Rektorat
     expect(jabatansInRektorat.some((j) => j.includes('Dekan'))).toBe(false);
   });
+
+  it('memastikan unit kerja baru (Fakultas Kedokteran) terintegrasi secara reaktif dan otomatis menghitung pegawai terdaftar', async () => {
+    const { isUserInUnit } = await import('../SystemSettingsView');
+
+    // Simulasi penambahan unit kerja baru oleh Super Admin di Manajemen Unit Kerja
+    const newUnitKedokteran = {
+      id: 99,
+      kode_unit: 'UN58.18',
+      nama_unit: 'Fakultas Kedokteran',
+      singkatan: 'FK',
+      tipe_unit: 'FAKULTAS',
+      parent_kode: 'UN58',
+      is_active: true
+    };
+
+    // Saat baru dibuat (belum ada pegawai), memberCount adalah 0
+    const mockUsersWithoutFK = [
+      { id: 'usr-01', name: 'Rektor', unit_kerja_id: 'UN58', unit: 'Universitas Siliwangi (Rektorat)' },
+      { id: 'usr-02', name: 'Dekan FT', unit_kerja_id: 'UN58.13', unit: 'Fakultas Teknik' }
+    ];
+
+    const countBefore = mockUsersWithoutFK.filter((u) => isUserInUnit(u, newUnitKedokteran)).length;
+    expect(countBefore).toBe(0);
+
+    // Saat Super Admin menugaskan Dekan Fakultas Kedokteran melalui "Tambah Pengguna ke Unit Ini"
+    const newDekanFK = {
+      id: 'usr-fk-01',
+      name: 'dr. Spesialis, Sp.A.',
+      unit_kerja_id: 'UN58.18',
+      unit: 'Fakultas Kedokteran',
+      jabatan: 'Dekan Fakultas Kedokteran',
+      role: 'PEJABAT',
+      is_active: true
+    };
+
+    const mockUsersWithFK = [...mockUsersWithoutFK, newDekanFK];
+    const countAfter = mockUsersWithFK.filter((u) => isUserInUnit(u, newUnitKedokteran)).length;
+
+    // Jumlah pegawai Fakultas Kedokteran langsung terhitung 1 secara real-time
+    expect(countAfter).toBe(1);
+    expect(isUserInUnit(newDekanFK, newUnitKedokteran)).toBe(true);
+  });
 });

@@ -1161,16 +1161,6 @@ export const SystemSettingsView = ({
             <RotateCw className={`w-3.5 h-3.5 text-slate-600 ${isSyncingSSO ? 'animate-spin' : ''}`} />
             <span>Sinkron Data Pegawai</span>
           </button>
-
-          {/* Tombol Tambah Pengguna Baru */}
-          <button
-            type="button"
-            onClick={() => handleOpenAddUserModal(selectedUnitForFilter)}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold text-white bg-unsil-green-900 hover:bg-unsil-green-800 rounded-lg transition cursor-pointer shadow-2xs active:scale-95"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>Tambah Pengguna Baru</span>
-          </button>
         </div>
       </div>
 
